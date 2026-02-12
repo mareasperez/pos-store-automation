@@ -4,3 +4,4 @@ test-results
 test-types
 .cache
 .VSCodeCounter
+.env
