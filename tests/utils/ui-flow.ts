@@ -1,12 +1,13 @@
 import { expect, type Locator, type Page } from '@playwright/test';
 import { config } from '../../utils/config';
+import { faker } from '@faker-js/faker';
 
 export const UI_TIMEOUT = 60_000;
 
 export function uniqueName(prefix: string): string {
-  return `${prefix} ${Date.now()}`;
+  return `${prefix} ${faker.word.adjective()} ${Date.now().toString().slice(-4)}`;
 }
-
+ 
 export async function loginOrFail(page: Page) {
   await page.goto('/login');
 
@@ -54,10 +55,10 @@ export async function createSupplierViaUI(page: Page, supplierName: string) {
   await page.getByRole('button', { name: /Nuevo Proveedor/i }).click();
 
   await page.getByLabel('Nombre de Empresa').fill(supplierName);
-  await page.getByLabel('Nombre de Contacto').fill(`Contacto ${Date.now()}`);
+  await page.getByLabel('Nombre de Contacto').fill(faker.person.fullName());
   await page.getByLabel('Email').fill(`supplier.${Date.now()}@e2e.test`);
-  await page.getByLabel(/Telefono|Tel.fono/i).fill('55123456');
-  await page.getByLabel(/Direccion|Direcci.n/i).fill('Direccion E2E');
+  await page.getByLabel(/Telefono|Tel.fono/i).fill(faker.phone.number());
+  await page.getByLabel(/Direccion|Direcci.n/i).fill(faker.location.streetAddress());
   await page.getByRole('button', { name: /^Guardar$/ }).click();
 
   await expect(page.getByText(/Nuevo Proveedor|Editar Proveedor/i)).not.toBeVisible({
@@ -70,16 +71,28 @@ export async function createCustomerViaUI(page: Page, customerName: string) {
   await expect(page.getByRole('heading', { name: /Clientes/i })).toBeVisible({ timeout: UI_TIMEOUT });
 
   await page.getByRole('button', { name: /Nuevo Cliente/i }).click();
-  await page.getByLabel('Nombre Completo').fill(customerName);
-  await page.getByLabel('Email').fill(`customer.${Date.now()}@e2e.test`);
-  await page.getByLabel(/Telefono|Tel.fono/i).fill('77123456');
-  await page.getByLabel(/Calle y Numero|Calle y N.mero/i).fill('Calle E2E 123');
-  await page.getByLabel('Ciudad').fill('Managua');
+  
+  // Use faker but keep the e2e suffix requirements where needed or just realistic
+  // The user asked for "real names" but with "e2e+ number" suffix
+  const realName = faker.person.fullName();
+  const suffix = `e2e-${Date.now().toString().slice(-4)}`; 
+  const fullName = `${realName} (${suffix})`;
+
+  await page.getByLabel('Nombre Completo').fill(fullName);
+  await page.getByLabel('Email').fill(faker.internet.email({ firstName: 'e2e', lastName: suffix }));
+  await page.getByLabel(/Telefono|Tel.fono/i).fill(faker.string.numeric(8));
+  await page.getByLabel(/Calle y Numero|Calle y N.mero/i).fill(faker.location.streetAddress());
+  await page.getByLabel('Ciudad').fill(faker.location.city());
   await page.getByRole('button', { name: /^Guardar$/ }).click();
 
+  // Wait for the modal/drawer to close before searching
+  await expect(page.getByRole('heading', { name: /Nuevo Cliente/i })).not.toBeVisible({ timeout: UI_TIMEOUT });
+  console.log('Customer modal closed. Searching for new customer...');
+
   const customerSearch = page.getByPlaceholder(/Buscar por nombre, telefono o email/i);
-  await customerSearch.fill(customerName);
-  await expect(page.getByText(customerName)).toBeVisible({ timeout: UI_TIMEOUT });
+  await expect(customerSearch).toBeEditable({ timeout: UI_TIMEOUT });
+  await customerSearch.fill(fullName);
+  await expect(page.getByText(fullName)).toBeVisible({ timeout: UI_TIMEOUT });
 }
 
 export async function selectTypeaheadOption(input: Locator, query: string) {
