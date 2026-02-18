@@ -10,8 +10,21 @@ export function uniqueName(prefix: string): string {
 }
  
 export async function loginOrFail(page: Page) {
-  await page.goto('/login');
+  // Capture browser console logs for debugging
+  page.on('console', (msg) => {
+    if (msg.type() === 'error') console.log(`PAGE ERROR: ${msg.text()}`);
+  });
 
+  // Ensure Spanish is set before any JS loads
+  await page.addInitScript(() => {
+    window.localStorage.setItem('i18nextLng', 'es');
+  });
+
+  await page.goto('/login?lng=es');
+  
+  // Wait for the app to at least start rendering
+  await expect(page.locator('#root')).not.toBeEmpty({ timeout: UI_TIMEOUT });
+  
   // Wait for cold start loader if present
   const loader = page.locator('.cold-start-loader');
   if (await loader.isVisible({ timeout: 5000 }).catch(() => false)) {
@@ -51,7 +64,22 @@ export async function loginOrFail(page: Page) {
 
 export async function createSupplierViaUI(page: Page, supplierName: string) {
   await page.goto('/suppliers');
-  await expect(page.getByRole('heading', { name: esTranslation.suppliers.title })).toBeVisible({ timeout: UI_TIMEOUT });
+  
+  // Wait for the page to be ready
+  await expect(page.locator('#root')).not.toBeEmpty({ timeout: UI_TIMEOUT });
+  
+  // Wait for the specific heading to be visible, ignoring level for robustness
+  const heading = page.getByRole('heading', { name: esTranslation.suppliers.title });
+  
+  try {
+    await heading.waitFor({ state: 'visible', timeout: 10000 });
+  } catch (e) {
+    console.log('DEBUG: Failed to find heading. Current URL:', page.url());
+    console.log('DEBUG: Root HTML:', await page.locator('#root').innerHTML());
+    throw e;
+  }
+
+  await expect(heading).toBeVisible();
 
   await page.getByRole('button', { name: esTranslation.suppliers.form.title_new }).click();
 
