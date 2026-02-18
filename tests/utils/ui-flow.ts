@@ -1,6 +1,7 @@
 import { expect, type Locator, type Page } from '@playwright/test';
 import { config } from '../../utils/config';
 import { faker } from '@faker-js/faker';
+import esTranslation from '../../../frontend/public/locales/es/translation.json';
 
 export const UI_TIMEOUT = 60_000;
 
@@ -50,27 +51,27 @@ export async function loginOrFail(page: Page) {
 
 export async function createSupplierViaUI(page: Page, supplierName: string) {
   await page.goto('/suppliers');
-  await expect(page.getByRole('heading', { name: /Proveedores/i })).toBeVisible({ timeout: UI_TIMEOUT });
+  await expect(page.getByRole('heading', { name: esTranslation.suppliers.title })).toBeVisible({ timeout: UI_TIMEOUT });
 
-  await page.getByRole('button', { name: /Nuevo Proveedor/i }).click();
+  await page.getByRole('button', { name: esTranslation.suppliers.form.title_new }).click();
 
-  await page.getByLabel('Nombre de Empresa').fill(supplierName);
-  await page.getByLabel('Nombre de Contacto').fill(faker.person.fullName());
-  await page.getByLabel('Email').fill(`supplier.${Date.now()}@e2e.test`);
-  await page.getByLabel(/Telefono|Tel.fono/i).fill(faker.phone.number());
-  await page.getByLabel(/Direccion|Direcci.n/i).fill(faker.location.streetAddress());
-  await page.getByRole('button', { name: /^Guardar$/ }).click();
+  await page.getByLabel(esTranslation.suppliers.form.name).fill(supplierName);
+  await page.getByLabel(esTranslation.suppliers.form.contact_name).fill(faker.person.fullName());
+  await page.getByLabel(esTranslation.suppliers.form.email).fill(`supplier.${Date.now()}@e2e.test`);
+  await page.getByLabel(esTranslation.suppliers.form.phone).fill(faker.phone.number());
+  await page.getByLabel(esTranslation.suppliers.form.address).fill(faker.location.streetAddress());
+  await page.getByRole('button', { name: esTranslation.suppliers.form.save }).click();
 
-  await expect(page.getByText(/Nuevo Proveedor|Editar Proveedor/i)).not.toBeVisible({
+  await expect(page.getByText(new RegExp(`${esTranslation.suppliers.form.title_new}|${esTranslation.suppliers.form.title_edit}`, 'i'))).not.toBeVisible({
     timeout: UI_TIMEOUT,
   });
 }
 
 export async function createCustomerViaUI(page: Page, customerName: string) {
   await page.goto('/customers');
-  await expect(page.getByRole('heading', { name: /Clientes/i })).toBeVisible({ timeout: UI_TIMEOUT });
+  await expect(page.getByRole('heading', { name: esTranslation.customers.title })).toBeVisible({ timeout: UI_TIMEOUT });
 
-  await page.getByRole('button', { name: /Nuevo Cliente/i }).click();
+  await page.getByRole('button', { name: esTranslation.customers.actions.new }).click();
   
   // Use faker but keep the e2e suffix requirements where needed or just realistic
   // The user asked for "real names" but with "e2e+ number" suffix
@@ -78,18 +79,18 @@ export async function createCustomerViaUI(page: Page, customerName: string) {
   const suffix = `e2e-${Date.now().toString().slice(-4)}`; 
   const fullName = `${realName} (${suffix})`;
 
-  await page.getByLabel('Nombre Completo').fill(fullName);
-  await page.getByLabel('Email').fill(faker.internet.email({ firstName: 'e2e', lastName: suffix }));
-  await page.getByLabel(/Telefono|Tel.fono/i).fill(faker.string.numeric(8));
-  await page.getByLabel(/Calle y Numero|Calle y N.mero/i).fill(faker.location.streetAddress());
-  await page.getByLabel('Ciudad').fill(faker.location.city());
-  await page.getByRole('button', { name: /^Guardar$/ }).click();
+  await page.getByLabel(esTranslation.customers.form.full_name).fill(fullName);
+  await page.getByLabel(esTranslation.customers.form.email).fill(faker.internet.email({ firstName: 'e2e', lastName: suffix }));
+  await page.getByLabel(esTranslation.customers.form.phone).fill(faker.string.numeric(8));
+  await page.getByLabel(esTranslation.customers.form.street).fill(faker.location.streetAddress());
+  await page.getByLabel(esTranslation.customers.form.city).fill(faker.location.city());
+  await page.getByRole('button', { name: esTranslation.customers.form.save }).click();
 
   // Wait for the modal/drawer to close before searching
-  await expect(page.getByRole('heading', { name: /Nuevo Cliente/i })).not.toBeVisible({ timeout: UI_TIMEOUT });
+  await expect(page.getByRole('heading', { name: esTranslation.customers.form.title_new })).not.toBeVisible({ timeout: UI_TIMEOUT });
   console.log('Customer modal closed. Searching for new customer...');
 
-  const customerSearch = page.getByPlaceholder(/Buscar por nombre, telefono o email/i);
+  const customerSearch = page.getByPlaceholder(esTranslation.pos.customer_search_placeholder);
   await expect(customerSearch).toBeEditable({ timeout: UI_TIMEOUT });
   await customerSearch.fill(fullName);
   await expect(page.getByText(fullName)).toBeVisible({ timeout: UI_TIMEOUT });
@@ -108,7 +109,8 @@ export async function selectTypeaheadOption(input: Locator, query: string) {
 }
 
 export async function selectAnySku(page: Page): Promise<string> {
-  const skuInput = page.getByPlaceholder(/Buscar i.tem|Buscar .*item/i);
+  // Use inventory search placeholder from translation
+  const skuInput = page.getByPlaceholder(esTranslation.inventory.search_placeholder);
   const attempts = ['a', 'e', 'i', 'o', 'u', '1'];
 
   for (const query of attempts) {
@@ -127,18 +129,19 @@ export async function selectAnySku(page: Page): Promise<string> {
 
 export async function createPurchaseViaUI(page: Page, supplierName: string): Promise<string> {
   await page.goto('/inventory/purchases/new');
-  await expect(page.getByRole('heading', { name: /Compra de Productos/i })).toBeVisible({
+  // Heading from inventory.purchase_receipt.title
+  await expect(page.getByRole('heading', { name: esTranslation.inventory.purchase_receipt.title.replace(' (AIO)', '') })).toBeVisible({
     timeout: UI_TIMEOUT,
   });
 
-  const supplierTypeahead = page.getByPlaceholder(/Buscar proveedor/i);
+  const supplierTypeahead = page.getByPlaceholder(esTranslation.inventory.purchase_history.supplier);
   await selectTypeaheadOption(supplierTypeahead, supplierName);
 
   const selectedSkuText = await selectAnySku(page);
 
-  await page.getByLabel('Cantidad').fill('1');
-  await page.getByLabel('Costo Unit.').fill('10');
-  await page.getByRole('button', { name: /Agregar Linea|Agregar L.nea/i }).click();
+  await page.getByLabel(esTranslation.pos.ticket.qty).fill('1');
+  await page.getByLabel(esTranslation.inventory.purchase_receipt.invoice_ref).fill('REF-123');
+  await page.getByRole('button', { name: esTranslation.inventory.purchase_receipt.save }).click();
 
   await expect(page.getByRole('table')).toBeVisible({ timeout: UI_TIMEOUT });
 
@@ -153,10 +156,10 @@ export async function createPurchaseViaUI(page: Page, supplierName: string): Pro
 }
 
 export async function ensureShiftIsOpen(page: Page) {
-  const openShiftButton = page.getByRole('button', { name: /Abrir Caja|Open Shift/i }).first();
+  const openShiftButton = page.getByRole('button', { name: esTranslation.shifts.open_shift_button }).first();
   if (!(await openShiftButton.isVisible({ timeout: 2_000 }).catch(() => false))) return;
 
   await openShiftButton.click();
-  await page.getByLabel(/Monto Inicial|Initial Cash/i).fill('100');
-  await page.getByRole('button', { name: /Abrir Caja|Open Shift/i }).last().click();
+  await page.getByLabel(esTranslation.shifts.initial_cash).fill('100');
+  await page.getByRole('button', { name: esTranslation.shifts.open_shift_button }).last().click();
 }
