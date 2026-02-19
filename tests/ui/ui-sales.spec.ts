@@ -15,7 +15,7 @@ test('UI can register a sale and complete payment', async ({ page }) => {
   await createSupplierViaUI(page, supplierName);
   const selectedSkuText = await createPurchaseViaUI(page, supplierName);
 
-  await page.goto('/pos');
+  await page.goto('/pos?lng=es');
   await expect(page.getByRole('heading', { name: /Ventas/i })).toBeVisible({ timeout: UI_TIMEOUT });
 
   await ensureShiftIsOpen(page);

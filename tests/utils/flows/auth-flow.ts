@@ -37,9 +37,16 @@ export async function loginOrFail(page: Page) {
 
   await page.goto('/login?lng=es');
   
-  // Add cookie as fallback
+  // Force cookie as fallback for every navigation
   await page.context().addCookies([{
     name: 'i18next',
+    value: 'es',
+    domain: 'localhost',
+    path: '/'
+  }]);
+
+  await page.context().addCookies([{
+    name: 'i18nextLng',
     value: 'es',
     domain: 'localhost',
     path: '/'
