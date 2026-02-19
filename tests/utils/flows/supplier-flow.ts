@@ -2,18 +2,19 @@ import { expect, type Page } from '@playwright/test';
 import { faker } from '@faker-js/faker';
 import esTranslation from '@i18n/es/translation.json';
 import { UI_TIMEOUT } from '@utils/ui-flow';
+import { waitForBootstrap } from './auth-flow';
 
 export async function createSupplierViaUI(page: Page, supplierName: string) {
   await page.goto('/suppliers?lng=es');
   
-  // Wait for the page to be ready
-  await expect(page.locator('#root')).not.toBeEmpty({ timeout: UI_TIMEOUT });
-  
+  // Wait for initial bootstrap on navigation
+  await waitForBootstrap(page);
+
   // Wait for the specific heading to be visible, ignoring level for robustness
-  const heading = page.getByRole('heading', { name: esTranslation.suppliers.title });
+  const heading = page.getByRole('heading', { name: esTranslation.suppliers.title, exact: false });
   
   try {
-    await heading.waitFor({ state: 'visible', timeout: 10000 });
+    await heading.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
   } catch (e) {
     const screenshotPath = `failure-suppliers-${Date.now()}.png`;
     await page.screenshot({ path: screenshotPath });
@@ -25,7 +26,8 @@ export async function createSupplierViaUI(page: Page, supplierName: string) {
 
   await expect(heading).toBeVisible();
 
-  await page.getByRole('button', { name: esTranslation.suppliers.form.title_new }).click();
+  // The button in JSX uses suppliers.new_supplier
+  await page.getByRole('button', { name: esTranslation.suppliers.new_supplier, exact: false }).click();
 
   await page.getByLabel(esTranslation.suppliers.form.name).fill(supplierName);
   await page.getByLabel(esTranslation.suppliers.form.contact_name).fill(faker.person.fullName());
@@ -34,7 +36,8 @@ export async function createSupplierViaUI(page: Page, supplierName: string) {
   await page.getByLabel(esTranslation.suppliers.form.address).fill(faker.location.streetAddress());
   await page.getByRole('button', { name: esTranslation.suppliers.form.save }).click();
 
-  await expect(page.getByText(new RegExp(`${esTranslation.suppliers.form.title_new}|${esTranslation.suppliers.form.title_edit}`, 'i'))).not.toBeVisible({
+  // Wait for the modal to close by checking the dialog role, avoiding title text collisions
+  await expect(page.getByRole('dialog')).not.toBeVisible({
     timeout: UI_TIMEOUT,
   });
 }

@@ -2,6 +2,28 @@ import { expect, type Page } from '@playwright/test';
 import { config } from '@config';
 import { UI_TIMEOUT } from '@utils/ui-flow';
 
+/**
+ * Waits for the application to finish its initial bootstrap/loading state.
+ * It looks for the .cold-start-loader and waits for it to disappear.
+ */
+export async function waitForBootstrap(page: Page) {
+  const loader = page.locator('.cold-start-loader');
+
+  // We wait briefly to see if the loader appears (it might not if data is cached or fast)
+  try {
+    await loader.waitFor({ state: 'visible', timeout: 2000 });
+    console.log('[Bootstrap] Cold start loader detected, waiting for it to finish...');
+    await loader.waitFor({ state: 'hidden', timeout: UI_TIMEOUT });
+    console.log('[Bootstrap] Cold start finished.');
+  } catch (e) {
+    // If it never appeared within 2s, we assume it's already done or skipped
+    console.log('[Bootstrap] No loader detected or already finished.');
+  }
+
+  // Also wait for the root to not be empty
+  await page.waitForSelector('#root:not(:empty)', { timeout: UI_TIMEOUT });
+}
+
 export async function loginOrFail(page: Page) {
   // Capture browser console logs for debugging
   page.on('console', (msg) => {
@@ -51,14 +73,6 @@ export async function loginOrFail(page: Page) {
     domain: 'localhost',
     path: '/'
   }]);
-  
-  // Wait for cold start loader if present
-  const loader = page.locator('.cold-start-loader');
-  if (await loader.isVisible({ timeout: 5000 }).catch(() => false)) {
-    console.log('Cold start loader detected, waiting for it to disappear...');
-    await loader.waitFor({ state: 'detached', timeout: UI_TIMEOUT });
-  }
-
   await page.fill('input[name="username"]', config.credentials.username);
   await page.fill('input[name="password"]', config.credentials.password);
   await page.click('button[type="submit"]');
@@ -85,6 +99,9 @@ export async function loginOrFail(page: Page) {
       `Login did not complete. Check TEST_USERNAME/TEST_PASSWORD in automation/.env or root .env. UI error: ${errorText}`
     );
   }
+
+  // Wait for the application to be fully loaded (bootstrap completed)
+  await waitForBootstrap(page);
 
   await expect(page).not.toHaveURL(/\/login(?:$|[?#])/i, { timeout: UI_TIMEOUT });
 }
