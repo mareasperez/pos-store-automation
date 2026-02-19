@@ -6,7 +6,7 @@ import {
   loginOrFail,
   uniqueName,
   UI_TIMEOUT,
-} from '../utils/ui-flow';
+} from '@utils/ui-flow';
 
 test('UI can register a sale and complete payment', async ({ page }) => {
   await loginOrFail(page);

@@ -1,5 +1,5 @@
 import { test } from '@playwright/test';
-import { createPurchaseViaUI, createSupplierViaUI, loginOrFail, uniqueName } from '../utils/ui-flow';
+import { createPurchaseViaUI, createSupplierViaUI, loginOrFail, uniqueName } from '@utils/ui-flow';
 
 test('UI can create a purchase receipt', async ({ page }) => {
   await loginOrFail(page);

@@ -12,7 +12,11 @@
     "forceConsistentCasingInFileNames": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      "@utils/*": ["tests/utils/*"],
+      "@flows/*": ["tests/utils/flows/*"],
+      "@i18n/*": ["../frontend/public/locales/*"],
+      "@config": ["utils/config"]
     },
     "resolveJsonModule": true,
     "allowSyntheticDefaultImports": true
