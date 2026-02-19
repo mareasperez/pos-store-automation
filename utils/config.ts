@@ -13,4 +13,5 @@ export const config = {
     username: process.env.TEST_USERNAME || 'admin',
     password: process.env.TEST_PASSWORD || 'admin',
   },
+  tenantId: process.env.TEST_TENANT_ID?.trim() || null,
 };

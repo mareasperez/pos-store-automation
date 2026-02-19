@@ -2,6 +2,64 @@ import { expect, type Page } from '@playwright/test';
 import { config } from '@config';
 import { UI_TIMEOUT } from '@utils/ui-flow';
 
+type TenantSnapshot = {
+  activeTenantId: string | null;
+  tenantIds: string[];
+};
+
+async function readTenantSnapshot(page: Page): Promise<TenantSnapshot> {
+  return page.evaluate(() => {
+    const empty: TenantSnapshot = { activeTenantId: null, tenantIds: [] };
+    const raw = window.localStorage.getItem('pos_app_store');
+    if (!raw) return empty;
+
+    try {
+      const parsed = JSON.parse(raw);
+      const state = parsed?.state ?? {};
+      const activeTenantId = typeof state.activeTenantId === 'string' ? state.activeTenantId : null;
+      const tenantIds = Array.isArray(state.tenants)
+        ? state.tenants
+            .map((tenant: { id?: unknown }) => (typeof tenant?.id === 'string' ? tenant.id : null))
+            .filter((id: string | null): id is string => id != null)
+        : [];
+
+      return { activeTenantId, tenantIds };
+    } catch {
+      return empty;
+    }
+  });
+}
+
+async function ensureConfiguredTenantOrFail(page: Page): Promise<void> {
+  if (!config.tenantId) return;
+
+  const requestedTenantId = config.tenantId;
+  const snapshot = await readTenantSnapshot(page);
+
+  if (!snapshot.tenantIds.includes(requestedTenantId)) {
+    const available = snapshot.tenantIds.join(', ') || '(none)';
+    throw new Error(
+      `TEST_TENANT_ID='${requestedTenantId}' is not assigned to this user. Available tenant IDs: ${available}`
+    );
+  }
+
+  if (snapshot.activeTenantId !== requestedTenantId) {
+    const tenantSelector = page.getByLabel('Select Tenant');
+    const selectorVisible = await tenantSelector.isVisible().catch(() => false);
+
+    if (selectorVisible) {
+      await tenantSelector.selectOption(requestedTenantId);
+    }
+
+    const updatedSnapshot = await readTenantSnapshot(page);
+    if (updatedSnapshot.activeTenantId !== requestedTenantId) {
+      throw new Error(
+        `Could not activate TEST_TENANT_ID='${requestedTenantId}'. Active tenant after login is '${updatedSnapshot.activeTenantId ?? '(none)'}'.`
+      );
+    }
+  }
+}
+
 /**
  * Waits for the application to finish its initial bootstrap/loading state.
  * It looks for the .cold-start-loader and waits for it to disappear.
@@ -25,13 +83,15 @@ export async function waitForBootstrap(page: Page) {
 }
 
 export async function loginOrFail(page: Page) {
+  const requestedTenantId = config.tenantId;
+
   // Capture browser console logs for debugging
   page.on('console', (msg) => {
     if (msg.type() === 'error') console.log(`PAGE ERROR: ${msg.text()}`);
   });
 
   // Ensure Spanish is set before any JS loads
-  await page.addInitScript(() => {
+  await page.addInitScript(({ tenantId }: { tenantId: string | null }) => {
     // Aggressive locale mocking
     Object.defineProperty(navigator, 'languages', { get: () => ['es'] });
     Object.defineProperty(navigator, 'language', { get: () => 'es' });
@@ -55,7 +115,20 @@ export async function loginOrFail(page: Page) {
     } catch (e) {
       // ignore
     }
-  });
+    if (tenantId) {
+      try {
+        const appStorage = window.localStorage.getItem('pos_app_store');
+        const parsed = appStorage ? JSON.parse(appStorage) : { state: {}, version: 0 };
+        parsed.state = {
+          ...(parsed.state ?? {}),
+          activeTenantId: tenantId,
+        };
+        window.localStorage.setItem('pos_app_store', JSON.stringify(parsed));
+      } catch (e) {
+        // ignore
+      }
+    }
+  }, { tenantId: requestedTenantId });
 
   await page.goto('/login?lng=es');
   
@@ -102,6 +175,7 @@ export async function loginOrFail(page: Page) {
 
   // Wait for the application to be fully loaded (bootstrap completed)
   await waitForBootstrap(page);
+  await ensureConfiguredTenantOrFail(page);
 
   await expect(page).not.toHaveURL(/\/login(?:$|[?#])/i, { timeout: UI_TIMEOUT });
 }
