@@ -146,30 +146,50 @@ export async function loginOrFail(page: Page) {
     domain: 'localhost',
     path: '/'
   }]);
-  await page.fill('input[name="username"]', config.credentials.username);
-  await page.fill('input[name="password"]', config.credentials.password);
-  await page.click('button[type="submit"]');
-
   const loginError = page.locator('#login-error');
+  let didNavigate = false;
 
-  const loginResult = await Promise.race([
-    page
-      .waitForURL((url) => !url.pathname.includes('/login'), {
-        timeout: UI_TIMEOUT,
-        waitUntil: 'domcontentloaded',
-      })
-      .then(() => 'navigated' as const),
-    loginError
-      .waitFor({ state: 'visible', timeout: UI_TIMEOUT })
-      .then(() => 'error' as const)
-      .catch(() => 'timeout' as const),
-  ]);
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    await page.fill('input[name="username"]', config.credentials.username);
+    await page.fill('input[name="password"]', config.credentials.password);
+    await page.click('button[type="submit"]');
 
-  if (loginResult !== 'navigated') {
-    const errorText = (await loginError.textContent().catch(() => null))?.trim() || 'no detail';
-    console.log(`Login failed. Current URL: ${page.url()}`);
+    const loginResult = await Promise.race([
+      page
+        .waitForURL((url) => !url.pathname.includes('/login'), {
+          timeout: UI_TIMEOUT,
+          waitUntil: 'domcontentloaded',
+        })
+        .then(() => 'navigated' as const)
+        .catch(() => 'timeout' as const),
+      loginError
+        .waitFor({ state: 'visible', timeout: UI_TIMEOUT })
+        .then(() => 'error' as const)
+        .catch(() => 'timeout' as const),
+    ]);
+
+    if (loginResult === 'navigated') {
+      didNavigate = true;
+      break;
+    }
+
+    if (loginResult === 'error') {
+      const errorText = (await loginError.textContent().catch(() => null))?.trim() || 'no detail';
+      console.log(`Login failed. Current URL: ${page.url()}`);
+      throw new Error(
+        `Login did not complete. Check TEST_USERNAME/TEST_PASSWORD in automation/.env or root .env. UI error: ${errorText}`
+      );
+    }
+
+    if (attempt < 2) {
+      console.log('[Login] Timeout waiting for navigation. Retrying login once...');
+      await page.goto('/login?lng=es');
+    }
+  }
+
+  if (!didNavigate) {
     throw new Error(
-      `Login did not complete. Check TEST_USERNAME/TEST_PASSWORD in automation/.env or root .env. UI error: ${errorText}`
+      'Login did not complete after retry. The login request may be hanging in the environment. Verify backend health and retry.'
     );
   }
 

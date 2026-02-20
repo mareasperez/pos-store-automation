@@ -3,6 +3,22 @@ import esTranslation from '@i18n/es/translation.json';
 import { UI_TIMEOUT } from '@utils/ui-flow';
 import { waitForBootstrap } from './auth-flow';
 
+async function resolveSkuInput(page: Page): Promise<Locator> {
+  const candidates: Locator[] = [
+    page.getByPlaceholder(esTranslation.inventory.search_placeholder),
+    page.getByPlaceholder(esTranslation.pos.search_placeholder),
+    page.getByPlaceholder(/Buscar producto|Buscar [ií]tem|Search product|C[o0]digo\s*\/\s*nombre/i),
+  ];
+
+  for (const candidate of candidates) {
+    if (await candidate.first().isVisible({ timeout: 2000 }).catch(() => false)) {
+      return candidate.first();
+    }
+  }
+
+  throw new Error('SKU input is not visible. Could not locate product search input in purchase flow.');
+}
+
 export async function selectTypeaheadOption(input: Locator, query: string) {
   // Ensure input is focused to trigger onFocus handlers and render the list
   await input.focus();
@@ -51,7 +67,7 @@ export async function selectTypeaheadOption(input: Locator, query: string) {
 }
 
 export async function selectAnySku(page: Page): Promise<string> {
-  const skuInput = page.getByPlaceholder(esTranslation.inventory.search_placeholder);
+  const skuInput = await resolveSkuInput(page);
   const attempts = ['a', 'e', 'i', 'o', 'u', '1'];
 
   for (const query of attempts) {
@@ -85,13 +101,15 @@ export async function createPurchaseViaUI(page: Page, supplierName: string): Pro
   await selectTypeaheadOption(supplierTypeahead, supplierName);
 
   const selectedSkuText = await selectAnySku(page);
+  const addLineButton = page.getByRole('button', { name: /Agregar L[ií]nea|Add Line/i });
+  await expect(addLineButton).toBeEnabled({ timeout: UI_TIMEOUT });
+  await addLineButton.click();
 
   await page.getByLabel(esTranslation.pos.ticket.qty).fill('1');
   await page.getByLabel(esTranslation.inventory.purchase_receipt.invoice_ref).fill('REF-123');
+
+  // Current UI commits the purchase with this primary action.
   await page.getByRole('button', { name: esTranslation.inventory.purchase_receipt.save }).click();
-  
-  // The transaction is saved, now we click "Comprar" to process it
-  await page.getByRole('button', { name: /Comprar/i }).click();
   
   // Wait for the Success Modal instead of a dialog
   const successModal = page.getByRole('dialog').filter({ hasText: /éxito|exitosamente|registrada/i });
