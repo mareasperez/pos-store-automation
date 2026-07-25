@@ -1,0 +1,27 @@
+{
+  "name": "my-pos-store-e2e",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Manual-first Playwright E2E suite for my_pos_store",
+  "scripts": {
+    "test": "playwright test",
+    "test:smoke": "playwright test --grep \"@smoke\"",
+    "test:critical": "playwright test --grep \"@critical\"",
+    "test:dev": "node ./scripts/run-playwright-env.mjs dev --headed --workers=1",
+    "test:smoke:dev": "node ./scripts/run-playwright-env.mjs dev --headed --workers=1 --grep \"@smoke\"",
+    "test:critical:dev": "node ./scripts/run-playwright-env.mjs dev --headed --workers=1 --grep \"@critical\"",
+    "test:dev:headless": "node ./scripts/run-playwright-env.mjs dev",
+    "test:smoke:dev:headless": "node ./scripts/run-playwright-env.mjs dev --grep \"@smoke\"",
+    "test:critical:dev:headless": "node ./scripts/run-playwright-env.mjs dev --grep \"@critical\"",
+    "test:ui:dev": "node ./scripts/run-playwright-env.mjs dev --ui",
+    "test:headed:dev": "node ./scripts/run-playwright-env.mjs dev --headed --workers=1",
+    "test:list:dev": "node ./scripts/run-playwright-env.mjs dev --list",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.61.0",
+    "@types/node": "^24.3.0",
+    "dotenv": "^17.2.4",
+    "typescript": "^5.9.2"
+  }
+}
