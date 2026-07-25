@@ -50,9 +50,14 @@ Optional for auth/critical flows:
 ## Dev Commands
 
 Default dev scripts are visible (`--headed`) for manual execution.
+The main entrypoint is `npm run test`, which opens Playwright UI for the full dev suite.
+The generic filtered commands now also target `dev` by default.
 
 ```powershell
 cd e2e
+npm run test
+npm run test:smoke
+npm run test:critical
 npm run test:dev
 npm run test:smoke:dev
 npm run test:critical:dev
@@ -65,6 +70,10 @@ npm run test:dev:headless
 npm run test:smoke:dev:headless
 npm run test:critical:dev:headless
 ```
+
+Use `npm run test` when you want to inspect and launch everything from the Playwright UI.
+Use `npm run test:smoke` or `npm run test:critical` when you already know the slice you want to run in dev.
+Keep the `:dev` variants as explicit aliases and the `:headless` variants for CI-like execution.
 
 ## Add New Tests
 
