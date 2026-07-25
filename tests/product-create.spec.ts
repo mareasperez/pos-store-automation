@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { config } from '@config';
+import { fakerDataService } from '../services/fakerDataService';
 
 type CreatedProductResponse = {
   id: number;
@@ -83,16 +84,13 @@ function requireCredentialsOrSkip() {
 test('@manual @catalog @products creates a standard product and shows it in catalog', async ({ page }) => {
   requireCredentialsOrSkip();
 
-  const suffix = Date.now();
-  const productName = `E2E Product Catalog ${suffix}`;
-  const productSku = `E2E-${suffix}`;
-  const initialStock = '7';
+  const product = fakerDataService.buildProductFake(Date.now(), 'catalog');
 
   const createdProduct = await createProductWithInitialStock(
     page,
-    productName,
-    productSku,
-    initialStock
+    product.name,
+    product.sku,
+    product.initialStock
   );
 
   await assertProductVisibleInCatalog(page, createdProduct);
@@ -101,16 +99,13 @@ test('@manual @catalog @products creates a standard product and shows it in cata
 test('@manual @inventory @products creates a standard product and shows it in inventory', async ({ page }) => {
   requireCredentialsOrSkip();
 
-  const suffix = Date.now();
-  const productName = `E2E Product Inventory ${suffix}`;
-  const productSku = `E2E-${suffix}`;
-  const initialStock = '7';
+  const product = fakerDataService.buildProductFake(Date.now(), 'inventory');
 
   const createdProduct = await createProductWithInitialStock(
     page,
-    productName,
-    productSku,
-    initialStock
+    product.name,
+    product.sku,
+    product.initialStock
   );
 
   await assertProductVisibleInInventory(page, createdProduct);
