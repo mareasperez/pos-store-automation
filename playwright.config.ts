@@ -1,5 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
+import path from 'node:path';
 import { config } from './utils/config';
+
+const authStateFile = path.join(__dirname, 'playwright', '.auth', 'user.json');
 
 export default defineConfig({
   testDir: './tests',
@@ -25,7 +28,21 @@ export default defineConfig({
   },
   projects: [
     {
-      name: 'chromium',
+      name: 'setup',
+      testMatch: /.*\.setup\.ts/,
+    },
+    {
+      name: 'chromium-authenticated',
+      dependencies: ['setup'],
+      grepInvert: /@auth/,
+      use: {
+        ...devices['Desktop Chrome'],
+        storageState: authStateFile,
+      },
+    },
+    {
+      name: 'chromium-unauthenticated',
+      grep: /@auth/,
       use: {
         ...devices['Desktop Chrome'],
       },

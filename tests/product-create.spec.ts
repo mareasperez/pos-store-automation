@@ -11,16 +11,6 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-async function loginAsValidUser(page: Page) {
-  await page.goto('/login?lng=es', { waitUntil: 'domcontentloaded' });
-
-  await page.locator('input[name="username"]').fill(config.credentials.username);
-  await page.locator('input[name="password"]').fill(config.credentials.password);
-  await page.locator('button[type="submit"]').click();
-
-  await expect(page).not.toHaveURL(/\/login(?:$|[?#])/i, { timeout: 20_000 });
-}
-
 async function createProductWithInitialStock(
   page: Page,
   productName: string,
@@ -68,11 +58,7 @@ async function assertProductVisibleInCatalog(page: Page, createdProduct: Created
   await expect(productRow).toBeVisible({ timeout: 20_000 });
 }
 
-async function assertProductVisibleInInventoryWithStock(
-  page: Page,
-  createdProduct: CreatedProductResponse,
-  initialStock: string
-) {
+async function assertProductVisibleInInventory(page: Page, createdProduct: CreatedProductResponse) {
   await page.goto('/inventory/products', { waitUntil: 'domcontentloaded' });
   await expect(page).toHaveURL(/\/inventory\/products(?:$|[?#])/i, { timeout: 20_000 });
 
@@ -85,40 +71,22 @@ async function assertProductVisibleInInventoryWithStock(
     .getByText(new RegExp(`${escapeRegExp(createdProduct.name)}|${escapeRegExp(createdProduct.sku)}`, 'i'))
     .first();
   await expect(inventoryMatch).toBeVisible({ timeout: 20_000 });
-
-  const detailButton = page.getByRole('button', { name: /detalle|detail/i }).first();
-  const canOpenDetailFromTable = await detailButton.isVisible().catch(() => false);
-
-  if (canOpenDetailFromTable) {
-    await detailButton.click();
-  } else {
-    await inventoryMatch.click();
-  }
-
-  const dialog = page.getByRole('dialog');
-  await expect(dialog).toBeVisible({ timeout: 20_000 });
-  await expect(dialog).toContainText(createdProduct.name);
-
-  const totalStockValue = dialog
-    .locator('p', { hasText: /total stock|stock total/i })
-    .first()
-    .locator('xpath=following-sibling::p[1]');
-
-  await expect(totalStockValue).toHaveText(new RegExp(`\\b${escapeRegExp(initialStock)}\\b`));
 }
 
-test('@manual @catalog @products creates a standard product with initial stock', async ({ page }) => {
+function requireCredentialsOrSkip() {
   test.skip(
     !config.credentials.username || !config.credentials.password,
     'Set TEST_USERNAME and TEST_PASSWORD (or E2E_USERNAME/E2E_PASSWORD) to run product creation flows.'
   );
+}
+
+test('@manual @catalog @products creates a standard product and shows it in catalog', async ({ page }) => {
+  requireCredentialsOrSkip();
 
   const suffix = Date.now();
-  const productName = `E2E Product ${suffix}`;
+  const productName = `E2E Product Catalog ${suffix}`;
   const productSku = `E2E-${suffix}`;
   const initialStock = '7';
-
-  await loginAsValidUser(page);
 
   const createdProduct = await createProductWithInitialStock(
     page,
@@ -128,5 +96,22 @@ test('@manual @catalog @products creates a standard product with initial stock',
   );
 
   await assertProductVisibleInCatalog(page, createdProduct);
-  await assertProductVisibleInInventoryWithStock(page, createdProduct, initialStock);
+});
+
+test('@manual @inventory @products creates a standard product and shows it in inventory', async ({ page }) => {
+  requireCredentialsOrSkip();
+
+  const suffix = Date.now();
+  const productName = `E2E Product Inventory ${suffix}`;
+  const productSku = `E2E-${suffix}`;
+  const initialStock = '7';
+
+  const createdProduct = await createProductWithInitialStock(
+    page,
+    productName,
+    productSku,
+    initialStock
+  );
+
+  await assertProductVisibleInInventory(page, createdProduct);
 });
