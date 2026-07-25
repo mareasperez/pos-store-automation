@@ -4,7 +4,9 @@
   "private": true,
   "description": "Manual-first Playwright E2E suite for my_pos_store",
   "scripts": {
-    "test": "node ./scripts/run-playwright-env.mjs dev --ui",
+    "test": "node ./scripts/run-playwright-env.mjs dev --ui --no-deps",
+    "test:ui:all": "node ./scripts/run-playwright-env.mjs dev --ui",
+    "test:auth:setup": "node ./scripts/create-auth-state.mjs dev",
     "test:smoke": "node ./scripts/run-playwright-env.mjs dev --headed --workers=1 --grep \"@smoke\"",
     "test:critical": "node ./scripts/run-playwright-env.mjs dev --headed --workers=1 --grep \"@critical\"",
     "test:dev": "node ./scripts/run-playwright-env.mjs dev --headed --workers=1",
