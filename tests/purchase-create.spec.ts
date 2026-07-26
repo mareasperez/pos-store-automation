@@ -2,6 +2,25 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import { config } from '@config';
 import { fakerDataService } from '../services/fakerDataService';
 
+type ExistingSupplier = {
+  id: number;
+  name: string;
+  active?: boolean;
+};
+
+type ExistingProduct = {
+  id: number;
+  name: string;
+  active?: boolean;
+  type?: 'STANDARD' | 'SERVICE' | 'GENERIC';
+  preferredSupplierId?: number | null;
+};
+
+type CompatiblePurchasePair = {
+  supplierName: string;
+  productName: string;
+};
+
 function requireCredentialsOrSkip() {
   test.skip(
     !config.credentials.username || !config.credentials.password,
@@ -89,6 +108,63 @@ async function confirmPurchase(page: Page) {
   expect(createResponse.ok()).toBe(true);
 }
 
+function toSupplierArray(payload: unknown): ExistingSupplier[] {
+  if (Array.isArray(payload)) {
+    return payload as ExistingSupplier[];
+  }
+
+  if (
+    payload &&
+    typeof payload === 'object' &&
+    'content' in payload &&
+    Array.isArray((payload as { content?: unknown }).content)
+  ) {
+    return (payload as { content: ExistingSupplier[] }).content;
+  }
+
+  return [];
+}
+
+async function resolveCompatiblePurchasePair(page: Page): Promise<CompatiblePurchasePair | null> {
+  const suppliersResponse = await page.request.get('/api/inventory/suppliers?size=100&sort=createdAt,desc');
+  if (!suppliersResponse.ok()) {
+    return null;
+  }
+
+  const productsResponse = await page.request.get('/api/products');
+  if (!productsResponse.ok()) {
+    return null;
+  }
+
+  const suppliersPayload = (await suppliersResponse.json()) as unknown;
+  const productsPayload = (await productsResponse.json()) as unknown;
+
+  const suppliers = toSupplierArray(suppliersPayload).filter((supplier) =>
+    supplier.active !== false
+  );
+  const products = (Array.isArray(productsPayload) ? productsPayload : []) as ExistingProduct[];
+
+  const purchasableProducts = products.filter(
+    (product) => product.active !== false && product.type !== 'SERVICE'
+  );
+
+  for (const supplier of suppliers) {
+    const compatibleProduct = purchasableProducts.find(
+      (product) =>
+        product.preferredSupplierId == null || product.preferredSupplierId === supplier.id
+    );
+
+    if (compatibleProduct) {
+      return {
+        supplierName: supplier.name,
+        productName: compatibleProduct.name,
+      };
+    }
+  }
+
+  return null;
+}
+
 function purchaseRow(page: Page, supplierName: string): Locator {
   return page.locator('tbody tr', { hasText: supplierName }).first();
 }
@@ -126,4 +202,38 @@ test('@manual @purchases creates a purchase and shows it in purchase history', a
   await expect(row).toBeVisible({ timeout: 20_000 });
   await expect(row).toContainText(supplier.name);
   await expect(row).toContainText('1');
+});
+
+test('@manual @purchases @existing-data creates a purchase with existing supplier and product', async ({ page }) => {
+  requireCredentialsOrSkip();
+
+  await page.goto('/inventory/purchases', { waitUntil: 'domcontentloaded' });
+  await expect(page).toHaveURL(/\/inventory\/purchases(?:$|[?#])/i, { timeout: 20_000 });
+
+  const pair = await resolveCompatiblePurchasePair(page);
+  test.skip(!pair, 'No compatible active supplier/product pair found in API data.');
+
+  const invoiceRef = `INV-EXIST-${String(Date.now()).slice(-6)}`;
+  const unitCost = '11.25';
+
+  await page.getByRole('button', { name: /nueva compra|new purchase/i }).click();
+  await expect(page.getByText(/^purchase$|^compra$/i).first()).toBeVisible({ timeout: 20_000 });
+
+  await selectSupplier(page, pair!.supplierName);
+  await page.getByPlaceholder('INV-9876').fill(invoiceRef);
+  await addPurchaseLine(page, pair!.productName, unitCost);
+  await confirmPurchase(page);
+
+  await expect(page.getByText(/compra registrada|purchase registered/i).first()).toBeVisible({
+    timeout: 20_000,
+  });
+  await page.getByRole('button', { name: /ver historial|view history/i }).click();
+
+  const historySearch = page.getByPlaceholder(/buscar|search/i).first();
+  await expect(historySearch).toBeVisible({ timeout: 20_000 });
+  await historySearch.fill(pair!.supplierName);
+
+  const row = purchaseRow(page, pair!.supplierName);
+  await expect(row).toBeVisible({ timeout: 20_000 });
+  await expect(row).toContainText(pair!.supplierName);
 });
