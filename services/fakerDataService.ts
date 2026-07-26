@@ -15,6 +15,15 @@ export type SupplierFake = {
   address: string;
 };
 
+export type CustomerFake = {
+  name: string;
+  phone: string;
+  email: string;
+  street: string;
+  city: string;
+  state: string;
+};
+
 export type ProductFake = {
   name: string;
   sku: string;
@@ -38,6 +47,27 @@ function stableNumber(value: number): number {
 }
 
 export class FakerDataService {
+  buildCustomerFake(seed: number): CustomerFake {
+    const normalizedSeed = stableNumber(seed);
+    faker.seed(normalizedSeed + 17);
+
+    const firstName = faker.person.firstName();
+    const lastName = faker.person.lastName();
+    const stamp = compactTimestamp(normalizedSeed);
+    const phoneTail = faker.string.numeric({ length: 7, allowLeadingZeros: false });
+
+    return {
+      name: `${firstName} ${lastName} ${stamp}`,
+      phone: `505${phoneTail}`,
+      email: faker.internet
+        .email({ firstName, lastName, provider: 'example.test' })
+        .toLowerCase(),
+      street: faker.location.streetAddress(),
+      city: faker.location.city(),
+      state: faker.location.state(),
+    };
+  }
+
   buildSupplierFake(seed: number): SupplierFake {
     const normalizedSeed = stableNumber(seed);
     faker.seed(normalizedSeed);
