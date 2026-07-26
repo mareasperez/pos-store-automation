@@ -25,6 +25,7 @@ type CompatiblePurchasePair = {
 
 type PurchaseRequestPayload = {
   allowPreferredSupplierOverride?: boolean;
+  paymentTerm?: 'IMMEDIATE' | 'CREDIT';
 };
 
 type ApiRequestResult = {
@@ -85,7 +86,15 @@ function skipWithReason(condition: boolean, reason: string) {
   test.skip(condition, reason);
 }
 
-async function createSupplier(page: Page, seed: number) {
+async function createSupplier(
+  page: Page,
+  seed: number,
+  options?: {
+    paymentTerm?: 'IMMEDIATE' | 'CREDIT';
+    creditLimit?: string;
+    allowCreditLimitExceed?: boolean;
+  }
+) {
   const supplier = fakerDataService.buildSupplierFake(seed);
 
   await page.goto('/suppliers', { waitUntil: 'domcontentloaded' });
@@ -97,6 +106,21 @@ async function createSupplier(page: Page, seed: number) {
   await page.getByLabel(/tel[eé]fono|phone/i).fill(supplier.phone);
   await page.getByLabel(/email/i).fill(supplier.email);
   await page.getByLabel(/direcci[oó]n|address/i).fill(supplier.address);
+
+  if (options?.paymentTerm === 'CREDIT') {
+    await page.getByLabel(/condicion de pago|payment term/i).selectOption('CREDIT');
+
+    if (options.creditLimit) {
+      await page.getByLabel(/limite de credito|credit limit/i).fill(options.creditLimit);
+    }
+
+    if (options.allowCreditLimitExceed) {
+      await page
+        .getByRole('checkbox', { name: /permitir exceder l[ií]mite de cr[eé]dito/i })
+        .click();
+    }
+  }
+
   await page.getByRole('button', { name: /guardar|save/i }).last().click();
 
   await expect(page.getByText(supplier.name)).toBeVisible({ timeout: 20_000 });
@@ -455,6 +479,46 @@ test('@manual @purchases creates a purchase and shows it in purchase history', a
   await expect(row).toBeVisible({ timeout: 20_000 });
   await expect(row).toContainText(supplier.name);
   await expect(row).toContainText('1');
+});
+
+test('@manual @purchases @credit creates a credit purchase with a credit supplier', async ({ page }) => {
+  requireCredentialsOrSkip();
+
+  const seed = Date.now();
+  const supplier = await createSupplier(page, seed, {
+    paymentTerm: 'CREDIT',
+    creditLimit: '3500',
+    allowCreditLimitExceed: true,
+  });
+  const product = await createPurchasableProduct(page, seed + 1);
+  const invoiceRef = `INV-CR-${String(seed).slice(-6)}`;
+  const unitCost = '55.50';
+
+  await page.goto('/inventory/purchases', { waitUntil: 'domcontentloaded' });
+  await expect(page).toHaveURL(/\/inventory\/purchases(?:$|[?#])/i, { timeout: 20_000 });
+
+  await page.getByRole('button', { name: /nueva compra|new purchase/i }).click();
+  await expect(page.getByText(/^purchase$|^compra$/i).first()).toBeVisible({ timeout: 20_000 });
+
+  await selectSupplier(page, supplier.name);
+  await page.getByPlaceholder('INV-9876').fill(invoiceRef);
+  await addPurchaseLine(page, product.name, unitCost);
+  const payload = await confirmPurchase(page);
+
+  expect(payload.paymentTerm).toBe('CREDIT');
+
+  await expect(page.getByText(/compra registrada|purchase registered/i).first()).toBeVisible({
+    timeout: 20_000,
+  });
+  await page.getByRole('button', { name: /ver historial|view history/i }).click();
+
+  const historySearch = page.getByPlaceholder(/buscar|search/i).first();
+  await expect(historySearch).toBeVisible({ timeout: 20_000 });
+  await historySearch.fill(supplier.name);
+
+  const row = purchaseRow(page, supplier.name);
+  await expect(row).toBeVisible({ timeout: 20_000 });
+  await expect(row).toContainText(supplier.name);
 });
 
 test('@manual @purchases @existing-data creates a purchase with existing supplier and product', async ({ page }) => {
