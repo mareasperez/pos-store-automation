@@ -1,26 +1,28 @@
 import { expect, test } from '@playwright/test';
+import {
+  gotoProductList,
+  waitProductsLoaded,
+} from '../../../support/catalog/products/list-page.helpers';
 
 /**
  * Product list pagination smoke tests.
  * Requires at least 11 products in the tenant for page-navigation assertions.
  * Uses the authenticated project (default, no @auth tag).
  */
-test.describe('Product list — pagination', () => {
+test.describe('@regression @products @manual product list pagination', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/catalog/products', { waitUntil: 'domcontentloaded' });
-    await expect(page).toHaveURL(/\/catalog\/products/, { timeout: 20_000 });
+    await gotoProductList(page);
   });
 
   test('shows pagination controls when products exist', async ({ page }) => {
-    // Wait for the table to load (loading row disappears)
-    await expect(page.getByText(/cargando productos/i)).not.toBeVisible({ timeout: 20_000 });
+    await waitProductsLoaded(page);
 
     // Pagination footer must be present
     await expect(page.getByRole('navigation', { name: /pagination/i })).toBeVisible();
   });
 
   test('default rows-per-page selector shows 10', async ({ page }) => {
-    await expect(page.getByText(/cargando productos/i)).not.toBeVisible({ timeout: 20_000 });
+    await waitProductsLoaded(page);
 
     const trigger = page.getByRole('combobox');
     await expect(trigger).toBeVisible();
@@ -28,7 +30,7 @@ test.describe('Product list — pagination', () => {
   });
 
   test('rows-per-page selector has options 10, 25, 50, 100', async ({ page }) => {
-    await expect(page.getByText(/cargando productos/i)).not.toBeVisible({ timeout: 20_000 });
+    await waitProductsLoaded(page);
 
     await page.getByRole('combobox').click();
 
@@ -38,7 +40,7 @@ test.describe('Product list — pagination', () => {
   });
 
   test('changing rows-per-page resets to page 1', async ({ page }) => {
-    await expect(page.getByText(/cargando productos/i)).not.toBeVisible({ timeout: 20_000 });
+    await waitProductsLoaded(page);
 
     // Navigate to page 2 if possible
     const page2 = page.getByRole('link', { name: '2' });
@@ -58,7 +60,7 @@ test.describe('Product list — pagination', () => {
   });
 
   test('search resets pagination to page 1', async ({ page }) => {
-    await expect(page.getByText(/cargando productos/i)).not.toBeVisible({ timeout: 20_000 });
+    await waitProductsLoaded(page);
 
     // Only navigate to page 2 if it exists
     const page2 = page.getByRole('link', { name: '2' });

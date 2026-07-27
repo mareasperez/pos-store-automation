@@ -1,13 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { config } from '@config';
-import { fakerDataService } from '../services/fakerDataService';
-
-function requireCredentialsOrSkip() {
-  test.skip(
-    !config.credentials.username || !config.credentials.password,
-    'Set TEST_USERNAME and TEST_PASSWORD (or E2E_USERNAME/E2E_PASSWORD) to run customer creation flows.'
-  );
-}
+import { fakerDataService } from '../../services/fakerDataService';
+import { requireCredentialsOrSkip } from '../../support/shared/auth.helpers';
 
 function customerRow(page: Page, customerName: string): Locator {
   return page.locator('tbody tr', { hasText: customerName }).first();
@@ -35,8 +28,8 @@ async function fillBaseCustomerForm(
   await page.getByLabel(/estado|provincia|state/i).fill(data.state);
 }
 
-test('@manual @customers @cash creates a cash customer', async ({ page }) => {
-  requireCredentialsOrSkip();
+test('@regression @customers @manual creates a cash customer', async ({ page }) => {
+  requireCredentialsOrSkip('customer creation flows');
 
   const fakeCustomer = fakerDataService.buildCustomerFake(Date.now());
 
@@ -67,8 +60,8 @@ test('@manual @customers @cash creates a cash customer', async ({ page }) => {
   await expect(page.getByLabel(/l[ií]mite de cr[eé]dito|credit limit/i)).toHaveCount(0);
 });
 
-test('@manual @customers @credit creates a credit customer with limit', async ({ page }) => {
-  requireCredentialsOrSkip();
+test('@regression @customers @manual creates a credit customer with limit', async ({ page }) => {
+  requireCredentialsOrSkip('customer creation flows');
 
   const fakeCustomer = fakerDataService.buildCustomerFake(Date.now());
 

@@ -1,6 +1,8 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { config } from '@config';
-import { fakerDataService } from '../services/fakerDataService';
+import { fakerDataService } from '../../../services/fakerDataService';
+import { requireCredentialsOrSkip } from '../../../support/shared/auth.helpers';
+import { createSupplier } from '../../../support/suppliers/helpers';
 
 type ExistingSupplier = {
   id: number;
@@ -71,61 +73,12 @@ async function buildApiAuthHeaders(page: Page): Promise<Record<string, string>> 
   return headers;
 }
 
-function requireCredentialsOrSkip() {
-  test.skip(
-    !config.credentials.username || !config.credentials.password,
-    'Set TEST_USERNAME and TEST_PASSWORD (or E2E_USERNAME/E2E_PASSWORD) to run purchase creation flows.'
-  );
-}
-
 function skipWithReason(condition: boolean, reason: string) {
   if (condition) {
     console.warn(`[E2E][SKIP] ${reason}`);
   }
 
   test.skip(condition, reason);
-}
-
-async function createSupplier(
-  page: Page,
-  seed: number,
-  options?: {
-    paymentTerm?: 'IMMEDIATE' | 'CREDIT';
-    creditLimit?: string;
-    allowCreditLimitExceed?: boolean;
-  }
-) {
-  const supplier = fakerDataService.buildSupplierFake(seed);
-
-  await page.goto('/suppliers', { waitUntil: 'domcontentloaded' });
-  await expect(page).toHaveURL(/\/suppliers(?:$|[?#])/i, { timeout: 20_000 });
-
-  await page.getByRole('button', { name: /nuevo proveedor|new supplier/i }).click();
-  await page.getByLabel(/nombre de empresa|company name/i).fill(supplier.name);
-  await page.getByLabel(/nombre de contacto|contact name/i).fill(supplier.contactName);
-  await page.getByLabel(/tel[eé]fono|phone/i).fill(supplier.phone);
-  await page.getByLabel(/email/i).fill(supplier.email);
-  await page.getByLabel(/direcci[oó]n|address/i).fill(supplier.address);
-
-  if (options?.paymentTerm === 'CREDIT') {
-    await page.getByLabel(/condicion de pago|payment term/i).selectOption('CREDIT');
-
-    if (options.creditLimit) {
-      await page.getByLabel(/limite de credito|credit limit/i).fill(options.creditLimit);
-    }
-
-    if (options.allowCreditLimitExceed) {
-      await page
-        .getByRole('checkbox', { name: /permitir exceder l[ií]mite de cr[eé]dito/i })
-        .click();
-    }
-  }
-
-  await page.getByRole('button', { name: /guardar|save/i }).last().click();
-
-  await expect(page.getByText(supplier.name)).toBeVisible({ timeout: 20_000 });
-
-  return supplier;
 }
 
 async function createPurchasableProduct(page: Page, seed: number) {
@@ -446,8 +399,8 @@ function purchaseRow(page: Page, supplierName: string): Locator {
   return page.locator('tbody tr', { hasText: supplierName }).first();
 }
 
-test('@manual @purchases creates a purchase and shows it in purchase history', async ({ page }) => {
-  requireCredentialsOrSkip();
+test('@regression @purchases @manual creates a purchase and shows it in purchase history', async ({ page }) => {
+  requireCredentialsOrSkip('purchase creation flows');
 
   const seed = Date.now();
   const supplier = await createSupplier(page, seed);
@@ -481,8 +434,8 @@ test('@manual @purchases creates a purchase and shows it in purchase history', a
   await expect(row).toContainText('1');
 });
 
-test('@manual @purchases @credit creates a credit purchase with a credit supplier', async ({ page }) => {
-  requireCredentialsOrSkip();
+test('@regression @purchases @manual creates a credit purchase with a credit supplier', async ({ page }) => {
+  requireCredentialsOrSkip('purchase creation flows');
 
   const seed = Date.now();
   const supplier = await createSupplier(page, seed, {
@@ -521,8 +474,8 @@ test('@manual @purchases @credit creates a credit purchase with a credit supplie
   await expect(row).toContainText(supplier.name);
 });
 
-test('@manual @purchases @existing-data creates a purchase with existing supplier and product', async ({ page }) => {
-  requireCredentialsOrSkip();
+test('@regression @purchases @manual creates a purchase with existing supplier and product', async ({ page }) => {
+  requireCredentialsOrSkip('purchase creation flows');
 
   await page.goto('/inventory/purchases', { waitUntil: 'domcontentloaded' });
   await expect(page).toHaveURL(/\/inventory\/purchases(?:$|[?#])/i, { timeout: 20_000 });
@@ -555,8 +508,8 @@ test('@manual @purchases @existing-data creates a purchase with existing supplie
   await expect(row).toContainText(pair!.supplierName);
 });
 
-test('@manual @purchases @existing-data @no-preferred-supplier creates a purchase with product without preferred supplier', async ({ page }) => {
-  requireCredentialsOrSkip();
+test('@regression @purchases @manual creates a purchase with product without preferred supplier', async ({ page }) => {
+  requireCredentialsOrSkip('purchase creation flows');
 
   await page.goto('/inventory/purchases', { waitUntil: 'domcontentloaded' });
   await expect(page).toHaveURL(/\/inventory\/purchases(?:$|[?#])/i, { timeout: 20_000 });
@@ -591,8 +544,8 @@ test('@manual @purchases @existing-data @no-preferred-supplier creates a purchas
   await expect(row).toContainText(selectedPair.supplierName);
 });
 
-test('@manual @purchases @existing-data @override-preferred-supplier creates a purchase overriding preferred supplier', async ({ page }) => {
-  requireCredentialsOrSkip();
+test('@regression @purchases @manual creates a purchase overriding preferred supplier', async ({ page }) => {
+  requireCredentialsOrSkip('purchase creation flows');
 
   await page.goto('/inventory/purchases', { waitUntil: 'domcontentloaded' });
   await expect(page).toHaveURL(/\/inventory\/purchases(?:$|[?#])/i, { timeout: 20_000 });

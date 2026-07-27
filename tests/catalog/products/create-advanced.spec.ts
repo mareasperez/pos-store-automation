@@ -1,23 +1,11 @@
 import { expect, test, type Page } from '@playwright/test';
-import { config } from '@config';
-import { fakerDataService } from '../services/fakerDataService';
-
-type CreatedProductResponse = {
-  id: number;
-  name: string;
-  sku: string;
-};
-
-function requireCredentialsOrSkip() {
-  test.skip(
-    !config.credentials.username || !config.credentials.password,
-    'Set TEST_USERNAME and TEST_PASSWORD (or E2E_USERNAME/E2E_PASSWORD) to run product creation flows.'
-  );
-}
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
+import { fakerDataService } from '../../../services/fakerDataService';
+import {
+  addPresentationInEditorModal,
+  escapeRegExp,
+  requireCredentialsOrSkip,
+  type CreatedProductResponse,
+} from '../../../support/catalog/products/helpers';
 
 async function createSupplier(page: Page, suffix: number): Promise<string> {
   const fakeSupplier = fakerDataService.buildSupplierFake(suffix);
@@ -50,21 +38,7 @@ async function selectPreferredSupplier(page: Page, supplierName: string) {
   await page.getByRole('option', { name: new RegExp(escapeRegExp(supplierName), 'i') }).click();
 }
 
-async function addSecondaryPresentation(page: Page, conversionFactor: string) {
-  await page.getByRole('button', { name: /add presentation|agregar presentaci[oó]n/i }).click();
-
-  await expect(page.getByText(/add presentation|agregar presentaci[oó]n/i).first()).toBeVisible({
-    timeout: 20_000,
-  });
-
-  const factorInput = page.getByLabel(/factor|conversion factor/i).first();
-  await expect(factorInput).toBeVisible({ timeout: 20_000 });
-  await factorInput.fill(conversionFactor);
-
-  await page.getByRole('button', { name: /^save$|^guardar$/i }).last().click();
-}
-
-test('@manual @products @preferred-supplier creates product with preferred supplier', async ({ page }) => {
+test('@regression @products @manual creates product with preferred supplier', async ({ page }) => {
   requireCredentialsOrSkip();
 
   const suffix = Date.now();
@@ -106,7 +80,7 @@ test('@manual @products @preferred-supplier creates product with preferred suppl
   await expect(row).toBeVisible({ timeout: 20_000 });
 });
 
-test('@manual @products @presentations creates product with additional presentation', async ({ page }) => {
+test('@regression @products @manual creates product with additional presentation', async ({ page }) => {
   requireCredentialsOrSkip();
 
   const product = fakerDataService.buildProductFake(Date.now(), 'multi-presentation');
@@ -118,7 +92,7 @@ test('@manual @products @presentations creates product with additional presentat
   await page.locator('input[name="sku"]').fill(product.sku);
   await page.locator('input[name="stock"]').fill(product.initialStock);
 
-  await addSecondaryPresentation(page, '6');
+  await addPresentationInEditorModal(page, '6');
 
   const createResponsePromise = page.waitForResponse(
     (response) => response.request().method() === 'POST' && response.url().includes('/api/products')

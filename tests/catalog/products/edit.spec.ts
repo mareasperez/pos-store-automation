@@ -1,111 +1,25 @@
 import { expect, test, type Page } from '@playwright/test';
-import { config } from '@config';
-import { fakerDataService } from '../services/fakerDataService';
-
-type CreatedProductResponse = {
-  id: number;
-  name: string;
-  sku: string;
-};
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-function requireCredentialsOrSkip() {
-  test.skip(
-    !config.credentials.username || !config.credentials.password,
-    'Set TEST_USERNAME and TEST_PASSWORD (or E2E_USERNAME/E2E_PASSWORD) to run product edit flows.'
-  );
-}
+import { fakerDataService } from '../../../services/fakerDataService';
+import {
+  addPresentationInEditorModal,
+  createProductWithInitialStock,
+  escapeRegExp,
+  requireCredentialsOrSkip,
+  savePresentations,
+  type CreatedProductResponse,
+} from '../../../support/catalog/products/helpers';
 
 /**
  * Creates a product via the UI and returns the created product data.
  */
 async function createProduct(page: Page): Promise<CreatedProductResponse> {
-  const product = fakerDataService.buildProductFake(Date.now(), 'edit-flow');
-
-  await page.goto('/catalog/products/new', { waitUntil: 'domcontentloaded' });
-  await expect(page).toHaveURL(/\/catalog\/products\/new(?:$|[?#])/i, { timeout: 20_000 });
-
-  await page.locator('input[name="name"]').fill(product.name);
-  await page.locator('input[name="sku"]').fill(product.sku);
-
-  const stockInput = page.locator('input[name="stock"]');
-  if (await stockInput.isVisible()) {
-    await stockInput.fill(product.initialStock);
-  }
-
-  const createResponsePromise = page.waitForResponse(
-    (response) => response.request().method() === 'POST' && response.url().includes('/api/products')
-  );
-
-  await page.getByRole('button', { name: /guardar y salir|save and exit/i }).click();
-
-  const createResponse = await createResponsePromise;
-  expect(createResponse.status()).toBe(201);
-
-  return (await createResponse.json()) as CreatedProductResponse;
-}
-
-/**
- * Adds a secondary presentation via the editor modal.
- * conversionFactor must be greater than 1 (it can't be 1 — that's the base unit).
- * cost and price default to '100' and '150' so the Save button is enabled.
- * After this helper returns, the presentation is in LOCAL STATE only.
- * Call savePresentations() or save the whole form to persist it.
- */
-async function addPresentationInEditForm(
-  page: Page,
-  conversionFactor: string,
-  cost = '100',
-  price = '150'
-): Promise<void> {
-  await page.getByRole('button', { name: /add presentation|agregar presentaci[oó]n/i }).click();
-
-  // Scope to the presentation editor modal
-  const modal = page.getByRole('dialog');
-  await expect(modal).toBeVisible({ timeout: 10_000 });
-
-  // Fill the factor input inside the modal
-  const factorInput = modal.getByLabel(/factor|conversion factor/i);
-  await expect(factorInput).toBeVisible({ timeout: 5_000 });
-  await factorInput.fill(conversionFactor);
-
-  // Fill cost and price — required for the Save button to be enabled
-  const costInput = modal.getByLabel(/^costo$|^cost$/i);
-  await costInput.fill(cost);
-
-  const priceInput = modal.getByLabel(/^precio$|^price$/i);
-  await priceInput.fill(price);
-
-  // Click Save inside the modal (exact match avoids "Guardar Presentaciones" / "Guardar y salir")
-  const saveButton = modal.getByRole('button', { name: /^save$|^guardar$/i });
-  await expect(saveButton).toBeEnabled({ timeout: 5_000 });
-  await saveButton.click();
-
-  // Wait for the modal to close before returning
-  await expect(modal).not.toBeVisible({ timeout: 5_000 });
-}
-
-/**
- * Persists the locally-staged presentations via the dedicated save button.
- * Returns once the POST to /api/product-presentations completes.
- */
-async function savePresentations(page: Page): Promise<void> {
-  const presentationResponsePromise = page.waitForResponse(
-    (response) =>
-      response.request().method() === 'POST' &&
-      response.url().includes('/api/product-presentations')
-  );
-  await page.getByRole('button', { name: /guardar presentaciones|save presentations/i }).click();
-  const response = await presentationResponsePromise;
-  expect(response.status()).toBeLessThan(300);
+  const product = fakerDataService.buildProductFake(Date.now(), 'standard');
+  return createProductWithInitialStock(page, product.name, product.sku, product.initialStock);
 }
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
-test.describe('@manual @products @edit product edit flow', () => {
+test.describe('@regression @products @manual product edit flow', () => {
   test('can navigate to edit page from product list', async ({ page }) => {
     requireCredentialsOrSkip();
 
@@ -145,7 +59,7 @@ test.describe('@manual @products @edit product edit flow', () => {
     await expect(page).toHaveURL(/\/catalog\/products\/\d+\/edit/i, { timeout: 20_000 });
 
     // Add presentation with factor 17 (distinct from base=1 and other tests)
-    await addPresentationInEditForm(page, '17');
+    await addPresentationInEditorModal(page, '17');
 
     // Verify the new presentation row appears in the table before saving
     const tableRows = page.locator('tbody tr');
@@ -179,7 +93,7 @@ test.describe('@manual @products @edit product edit flow', () => {
     });
     await expect(page).toHaveURL(/\/catalog\/products\/\d+\/edit/i, { timeout: 20_000 });
 
-    await addPresentationInEditForm(page, '13');
+    await addPresentationInEditorModal(page, '13');
 
     // Persist presentations first, then save the product — each has its own button
     await savePresentations(page);
@@ -230,6 +144,14 @@ test.describe('@manual @products @edit product edit flow', () => {
 
     // The product name is pre-filled after the API call returns — toHaveValue retries automatically
     await expect(page.locator('#name')).toHaveValue(created.name, { timeout: 20_000 });
+
+    const productCodeInput = page.getByLabel(/c[oó]digo|code/i).first();
+    await expect(productCodeInput).toBeDisabled();
+    await expect(productCodeInput).not.toHaveValue(/generado al guardar|generated on save/i);
+
+    if (created.productCode) {
+      await expect(productCodeInput).toHaveValue(created.productCode);
+    }
   });
 
   test('cannot save duplicate presentation (same type + same factor)', async ({ page }) => {
@@ -244,11 +166,11 @@ test.describe('@manual @products @edit product edit flow', () => {
 
     // Add the first presentation and persist it successfully
     // Factor 23 — distinct from other tests to avoid selector collisions
-    await addPresentationInEditForm(page, '23');
+    await addPresentationInEditorModal(page, '23');
     await savePresentations(page);
 
     // Try to add a second presentation with the SAME type (auto-selected) and SAME factor
-    await addPresentationInEditForm(page, '23');
+    await addPresentationInEditorModal(page, '23');
 
     // Attempt to save — the backend should reject it with 4xx
     const duplicateResponsePromise = page.waitForResponse(

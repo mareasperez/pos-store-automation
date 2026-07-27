@@ -1,31 +1,28 @@
 import { expect, test } from '@playwright/test';
+import {
+  gotoProductList,
+  openFirstProductPreview,
+  waitProductsLoaded,
+} from '../../../support/catalog/products/list-page.helpers';
 
 /**
  * Product preview dialog smoke tests.
  * Requires at least 1 product in the tenant.
  * Uses the authenticated project (default, no @auth tag).
  */
-test.describe('Product preview dialog', () => {
+test.describe('@regression @products @manual product preview dialog', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/catalog/products', { waitUntil: 'domcontentloaded' });
-    await expect(page).toHaveURL(/\/catalog\/products/, { timeout: 20_000 });
-    // Wait for the table to finish loading
-    await expect(page.getByText(/cargando productos/i)).not.toBeVisible({ timeout: 20_000 });
+    await gotoProductList(page);
+    await waitProductsLoaded(page);
   });
 
   test('opens dialog when clicking a product row', async ({ page }) => {
-    // Click the first product row in the table body
-    const firstRow = page.locator('table tbody tr').first();
-    await expect(firstRow).toBeVisible({ timeout: 10_000 });
-    await firstRow.click();
-
-    // Dialog must be visible
+    await openFirstProductPreview(page);
     await expect(page.getByRole('dialog')).toBeVisible({ timeout: 5_000 });
   });
 
   test('dialog shows product name in title', async ({ page }) => {
-    const firstRow = page.locator('table tbody tr').first();
-    await firstRow.click();
+    await openFirstProductPreview(page);
 
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible({ timeout: 5_000 });
@@ -38,8 +35,7 @@ test.describe('Product preview dialog', () => {
   });
 
   test('dialog shows avatar (initials or image)', async ({ page }) => {
-    const firstRow = page.locator('table tbody tr').first();
-    await firstRow.click();
+    await openFirstProductPreview(page);
 
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible({ timeout: 5_000 });
@@ -55,8 +51,7 @@ test.describe('Product preview dialog', () => {
   });
 
   test('dialog has active/inactive badge', async ({ page }) => {
-    const firstRow = page.locator('table tbody tr').first();
-    await firstRow.click();
+    await openFirstProductPreview(page);
 
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible({ timeout: 5_000 });
@@ -66,8 +61,7 @@ test.describe('Product preview dialog', () => {
   });
 
   test('dialog shows Categoría and Proveedor fields', async ({ page }) => {
-    const firstRow = page.locator('table tbody tr').first();
-    await firstRow.click();
+    await openFirstProductPreview(page);
 
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible({ timeout: 5_000 });
@@ -77,8 +71,7 @@ test.describe('Product preview dialog', () => {
   });
 
   test('dialog shows Tipo field', async ({ page }) => {
-    const firstRow = page.locator('table tbody tr').first();
-    await firstRow.click();
+    await openFirstProductPreview(page);
 
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible({ timeout: 5_000 });
@@ -87,8 +80,7 @@ test.describe('Product preview dialog', () => {
   });
 
   test('dialog shows Stock mínimo and Stock máximo fields', async ({ page }) => {
-    const firstRow = page.locator('table tbody tr').first();
-    await firstRow.click();
+    await openFirstProductPreview(page);
 
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible({ timeout: 5_000 });
@@ -98,8 +90,7 @@ test.describe('Product preview dialog', () => {
   });
 
   test('dialog shows Descripción section', async ({ page }) => {
-    const firstRow = page.locator('table tbody tr').first();
-    await firstRow.click();
+    await openFirstProductPreview(page);
 
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible({ timeout: 5_000 });
@@ -108,8 +99,7 @@ test.describe('Product preview dialog', () => {
   });
 
   test('dialog shows Presentaciones section', async ({ page }) => {
-    const firstRow = page.locator('table tbody tr').first();
-    await firstRow.click();
+    await openFirstProductPreview(page);
 
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible({ timeout: 5_000 });
@@ -118,8 +108,7 @@ test.describe('Product preview dialog', () => {
   });
 
   test('dialog has Editar producto button', async ({ page }) => {
-    const firstRow = page.locator('table tbody tr').first();
-    await firstRow.click();
+    await openFirstProductPreview(page);
 
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible({ timeout: 5_000 });
@@ -128,8 +117,7 @@ test.describe('Product preview dialog', () => {
   });
 
   test('dialog has Cerrar button that closes it', async ({ page }) => {
-    const firstRow = page.locator('table tbody tr').first();
-    await firstRow.click();
+    await openFirstProductPreview(page);
 
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible({ timeout: 5_000 });
@@ -140,8 +128,7 @@ test.describe('Product preview dialog', () => {
   });
 
   test('Editar producto button navigates to edit page', async ({ page }) => {
-    const firstRow = page.locator('table tbody tr').first();
-    await firstRow.click();
+    await openFirstProductPreview(page);
 
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible({ timeout: 5_000 });

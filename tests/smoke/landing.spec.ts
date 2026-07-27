@@ -13,7 +13,7 @@ async function gotoWithRetry(page: Page, path: string): Promise<void> {
   }
 }
 
-test('@smoke @manual landing is reachable', async ({ page }) => {
+test('@smoke @auth @manual landing is reachable', async ({ page }) => {
   await gotoWithRetry(page, '/?lng=es');
   await expect(page).toHaveTitle(/mypos\s*go/i);
 });
