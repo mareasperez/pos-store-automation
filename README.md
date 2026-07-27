@@ -84,3 +84,44 @@ Use tags in test titles, for example:
 - `@critical @manual @auth`
 
 Keep smoke tests under 30 seconds and avoid data-heavy setup in smoke.
+
+## Authentication — Saved Session
+
+Authenticated tests use a saved browser session stored in `playwright/.auth/user.json`.
+This file is generated once by logging in through the UI and persisted on disk.
+
+### Generate / Refresh the auth session
+
+```powershell
+cd e2e
+npm run test:auth:setup
+```
+
+Run this **before** running any authenticated test for the first time, or whenever tests
+suddenly fail with `401 Unauthorized` across the board.
+
+### When does the session expire?
+
+The session expires when:
+
+- The backend token TTL is reached (JWT / cookie expiry).
+- The dev server was restarted and the session was invalidated.
+- Credentials in `.env` changed.
+- The `user.json` file was deleted or corrupted.
+
+### Symptoms of an expired session
+
+```
+Failed to load resource: the server responded with a status of 401 (Unauthorized)
+```
+
+All authenticated tests fail simultaneously — this almost always means the saved
+session is stale. Running `npm run test:auth:setup` regenerates it.
+
+### How it works
+
+`scripts/create-auth-state.mjs` opens a real browser, navigates to `BASE_URL/login`,
+fills in `TEST_USERNAME` / `TEST_PASSWORD`, waits for the post-login redirect, and
+saves the full browser storage state (cookies + localStorage) to
+`playwright/.auth/user.json`. Subsequent tests load that state via `storageState` in
+`playwright.config.ts` so they start already authenticated.
