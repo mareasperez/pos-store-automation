@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { fakerDataService } from '../../services/fakerDataService';
-import { requireCredentialsOrSkip } from '../../support/shared/auth.helpers';
+import { requireCredentialsOrSkip } from '../../support/flows/auth.flow';
 
 function customerRow(page: Page, customerName: string): Locator {
   return page.locator('tbody tr', { hasText: customerName }).first();

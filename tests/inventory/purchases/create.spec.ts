@@ -1,8 +1,8 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { config } from '@config';
 import { fakerDataService } from '../../../services/fakerDataService';
-import { requireCredentialsOrSkip } from '../../../support/shared/auth.helpers';
-import { createSupplier } from '../../../support/suppliers/helpers';
+import { requireCredentialsOrSkip } from '../../../support/flows/auth.flow';
+import { createSupplier } from '../../../support/flows/suppliers.flow';
 
 type ExistingSupplier = {
   id: number;

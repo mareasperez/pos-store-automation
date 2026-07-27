@@ -5,7 +5,7 @@ import {
   assertProductVisibleInInventory,
   createProductWithInitialStock,
   requireCredentialsOrSkip,
-} from '../../../support/catalog/products/helpers';
+} from '../../../support/flows/products.flow';
 
 test('@regression @products @manual creates a standard product and shows it in catalog', async ({ page }) => {
   requireCredentialsOrSkip();

@@ -5,7 +5,7 @@ import {
   escapeRegExp,
   requireCredentialsOrSkip,
   type CreatedProductResponse,
-} from '../../../support/catalog/products/helpers';
+} from '../../../support/flows/products.flow';
 
 async function createSupplier(page: Page, suffix: number): Promise<string> {
   const fakeSupplier = fakerDataService.buildSupplierFake(suffix);

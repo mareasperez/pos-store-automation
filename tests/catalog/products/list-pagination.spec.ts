@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import {
   gotoProductList,
   waitProductsLoaded,
-} from '../../../support/catalog/products/list-page.helpers';
+} from '../../../support/pages/products-list.page';
 
 /**
  * Product list pagination smoke tests.

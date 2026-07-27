@@ -7,7 +7,7 @@ import {
   requireCredentialsOrSkip,
   savePresentations,
   type CreatedProductResponse,
-} from '../../../support/catalog/products/helpers';
+} from '../../../support/flows/products.flow';
 
 /**
  * Creates a product via the UI and returns the created product data.

@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
-import { requireCredentialsOrSkip } from '../../support/shared/auth.helpers';
-import { createSupplier } from '../../support/suppliers/helpers';
+import { requireCredentialsOrSkip } from '../../support/flows/auth.flow';
+import { createSupplier } from '../../support/flows/suppliers.flow';
 
 test('@regression @suppliers @manual creates a supplier and shows it in suppliers list', async ({ page }) => {
   requireCredentialsOrSkip('supplier creation flows');

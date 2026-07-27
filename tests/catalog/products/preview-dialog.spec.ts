@@ -3,7 +3,7 @@ import {
   gotoProductList,
   openFirstProductPreview,
   waitProductsLoaded,
-} from '../../../support/catalog/products/list-page.helpers';
+} from '../../../support/pages/products-list.page';
 
 /**
  * Product preview dialog smoke tests.
