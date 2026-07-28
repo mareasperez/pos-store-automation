@@ -66,8 +66,8 @@ test.describe('@regression @products @manual product preview dialog', () => {
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible({ timeout: 5_000 });
 
-    await expect(dialog.getByText(/categoría/i)).toBeVisible();
-    await expect(dialog.getByText(/proveedor/i)).toBeVisible();
+    await expect(dialog.getByText('Categoría', { exact: true })).toBeVisible();
+    await expect(dialog.getByText('Proveedor Preferido', { exact: true })).toBeVisible();
   });
 
   test('dialog shows Tipo field', async ({ page }) => {
@@ -95,7 +95,7 @@ test.describe('@regression @products @manual product preview dialog', () => {
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible({ timeout: 5_000 });
 
-    await expect(dialog.getByText(/descripción/i)).toBeVisible();
+    await expect(dialog.getByText('Descripción', { exact: true })).toBeVisible();
   });
 
   test('dialog shows Presentaciones section', async ({ page }) => {

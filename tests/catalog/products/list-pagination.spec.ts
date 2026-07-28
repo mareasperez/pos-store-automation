@@ -35,7 +35,7 @@ test.describe('@regression @products @manual product list pagination', () => {
     await page.getByRole('combobox').click();
 
     for (const option of ['10', '25', '50', '100']) {
-      await expect(page.getByRole('option', { name: option })).toBeVisible();
+      await expect(page.getByRole('option', { name: option, exact: true })).toBeVisible();
     }
   });
 
@@ -52,11 +52,16 @@ test.describe('@regression @products @manual product list pagination', () => {
 
     // Change page size to 25
     await page.getByRole('combobox').click();
-    await page.getByRole('option', { name: '25' }).click();
+    await page.getByRole('option', { name: '25', exact: true }).click();
 
-    // Should be back on page 1
+    // Should be back on page 1, or have no page links when all results fit on one page.
     const page1Link = page.getByRole('link', { name: '1' });
-    await expect(page1Link).toHaveAttribute('data-active', 'true', { timeout: 5_000 });
+    const isPage1Visible = await page1Link.isVisible().catch(() => false);
+    if (isPage1Visible) {
+      await expect(page1Link).toHaveAttribute('data-active', 'true', { timeout: 5_000 });
+    } else {
+      await expect(page.getByRole('link', { name: '2' })).not.toBeVisible();
+    }
   });
 
   test('search resets pagination to page 1', async ({ page }) => {

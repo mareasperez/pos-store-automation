@@ -1,4 +1,4 @@
-import { expect, type Page } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
 
 export async function gotoProductList(page: Page): Promise<void> {
   await page.goto('/catalog/products', { waitUntil: 'domcontentloaded' });
@@ -11,7 +11,15 @@ export async function waitProductsLoaded(page: Page): Promise<void> {
 
 export async function openFirstProductPreview(page: Page): Promise<void> {
   const firstRow = page.locator('table tbody tr').first();
-  await expect(firstRow).toBeVisible({ timeout: 10_000 });
-  await firstRow.click();
+  await openProductPreviewFromRow(page, firstRow);
+}
+
+export async function openProductPreviewFromRow(page: Page, row: Locator): Promise<void> {
+  await expect(row).toBeVisible({ timeout: 10_000 });
+
+  const actionsButton = row.getByRole('button', { name: /acciones|actions/i }).first();
+  await actionsButton.click();
+  await page.getByRole('button', { name: /ver detalle|view detail/i }).click();
+
   await expect(page.getByRole('dialog')).toBeVisible({ timeout: 5_000 });
 }

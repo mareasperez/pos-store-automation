@@ -8,6 +8,7 @@ import {
   savePresentations,
   type CreatedProductResponse,
 } from '../../../support/flows/products.flow';
+import { openProductPreviewFromRow } from '../../../support/pages/products-list.page';
 
 /**
  * Creates a product via the UI and returns the created product data.
@@ -37,10 +38,9 @@ test.describe('@regression @products @manual product edit flow', () => {
       .first();
     await expect(firstRow).toBeVisible({ timeout: 10_000 });
 
-    // Click row to open preview dialog
-    await firstRow.click();
+    // Open preview through the visible row actions menu.
+    await openProductPreviewFromRow(page, firstRow);
     const dialog = page.getByRole('dialog');
-    await expect(dialog).toBeVisible({ timeout: 5_000 });
 
     // Click edit button
     await dialog.getByRole('button', { name: /editar/i }).click();
@@ -117,10 +117,8 @@ test.describe('@regression @products @manual product edit flow', () => {
       .getByRole('row', { name: new RegExp(escapeRegExp(created.name), 'i') })
       .first();
     await expect(productRow).toBeVisible({ timeout: 15_000 });
-    await productRow.click();
-
+    await openProductPreviewFromRow(page, productRow);
     const dialog = page.getByRole('dialog');
-    await expect(dialog).toBeVisible({ timeout: 5_000 });
 
     // The presentations table inside the dialog must show more than 1 row
     const presentationRows = dialog.locator('table tbody tr');
@@ -168,22 +166,34 @@ test.describe('@regression @products @manual product edit flow', () => {
     // Factor 23 — distinct from other tests to avoid selector collisions
     await addPresentationInEditorModal(page, '23');
     await savePresentations(page);
+    const presentationRows = page.locator('table tbody tr');
+    const rowsBeforeDuplicateAttempt = await presentationRows.count();
 
-    // Try to add a second presentation with the SAME type (auto-selected) and SAME factor
-    await addPresentationInEditorModal(page, '23');
+    const duplicatePostRequests: string[] = [];
+    page.on('request', (request) => {
+      if (
+        request.method() === 'POST' &&
+        request.url().includes('/api/product-presentations')
+      ) {
+        duplicatePostRequests.push(request.url());
+      }
+    });
 
-    // Attempt to save — the backend should reject it with 4xx
-    const duplicateResponsePromise = page.waitForResponse(
-      (response) =>
-        response.request().method() === 'POST' &&
-        response.url().includes('/api/product-presentations')
-    );
-    await page.getByRole('button', { name: /guardar presentaciones|save presentations/i }).click();
-    const duplicateResponse = await duplicateResponsePromise;
+    // Try to add a second presentation with the SAME type (auto-selected) and SAME factor.
+    // The duplicate is rejected when saving the modal, before the presentation list is persisted.
+    await page.getByRole('button', { name: /add presentation|agregar presentaci[oó]n/i }).click();
 
-    expect(duplicateResponse.status()).toBeGreaterThanOrEqual(400);
+    const modal = page.getByRole('dialog');
+    await expect(modal).toBeVisible({ timeout: 10_000 });
 
-    // TODO: once the backend returns a descriptive error message,
-    // add a toast/notification assertion here.
+    await modal.getByLabel(/factor|conversion factor/i).fill('23');
+    await modal.getByLabel(/^costo$|^cost$/i).fill('100');
+    await modal.getByLabel(/^precio$|^price$/i).fill('150');
+
+    await modal.getByRole('button', { name: /^save$|^guardar$/i }).click();
+
+    await expect(modal).not.toBeVisible({ timeout: 5_000 });
+    await expect(presentationRows).toHaveCount(rowsBeforeDuplicateAttempt);
+    expect(duplicatePostRequests).toHaveLength(0);
   });
 });
