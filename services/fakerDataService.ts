@@ -68,7 +68,7 @@ export class FakerDataService {
     };
   }
 
-  buildSupplierFake(seed: number): SupplierFake {
+  buildSupplierFake(seed: number, uniqueTag?: string): SupplierFake {
     const normalizedSeed = stableNumber(seed);
     faker.seed(normalizedSeed);
 
@@ -76,7 +76,7 @@ export class FakerDataService {
     const lastName = faker.person.lastName();
     const companyName = faker.company.name();
 
-    const stamp = compactTimestamp(normalizedSeed);
+    const stamp = uniqueTag ?? compactTimestamp(normalizedSeed);
     const phoneTail = faker.string.numeric({ length: 7, allowLeadingZeros: false });
 
     return {
@@ -90,13 +90,13 @@ export class FakerDataService {
     };
   }
 
-  buildProductFake(seed: number, flavor: ProductFlavor = 'standard'): ProductFake {
+  buildProductFake(seed: number, flavor: ProductFlavor = 'standard', uniqueTag?: string): ProductFake {
     const normalizedSeed = stableNumber(seed);
     faker.seed(normalizedSeed + 101);
 
     const productTerm = faker.commerce.productName();
 
-    const stamp = compactTimestamp(normalizedSeed);
+    const stamp = uniqueTag ?? compactTimestamp(normalizedSeed);
     const tail = faker.string.alphanumeric({ length: 4, casing: 'upper' });
     const skuPrefix = PRODUCT_SKU_PREFIX[flavor];
 

@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { config } from '@config';
+import { expectResponseStatus } from './apiAssertions';
 
 export type CreatedProductResponse = {
   id: number;
@@ -50,7 +51,7 @@ export async function createProductWithInitialStock(
   await page.getByRole('button', { name: /guardar y salir|save and exit/i }).click();
 
   const createResponse = await createResponsePromise;
-  expect(createResponse.status()).toBe(201);
+  await expectResponseStatus(createResponse, 201, 'Product create response');
 
   return (await createResponse.json()) as CreatedProductResponse;
 }

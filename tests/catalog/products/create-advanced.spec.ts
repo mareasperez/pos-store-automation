@@ -1,5 +1,7 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import { fakerDataService } from '../../../services/fakerDataService';
+import { buildUniqueTestToken } from '../../../services/uniqueData';
+import { expectResponseStatus } from '../../../support/flows/apiAssertions';
 import {
   addPresentationInEditorModal,
   escapeRegExp,
@@ -7,8 +9,8 @@ import {
   type CreatedProductResponse,
 } from '../../../support/flows/products.flow';
 
-async function createSupplier(page: Page, suffix: number): Promise<string> {
-  const fakeSupplier = fakerDataService.buildSupplierFake(suffix);
+async function createSupplier(page: Page, suffix: number, uniqueTag: string): Promise<string> {
+  const fakeSupplier = fakerDataService.buildSupplierFake(suffix, uniqueTag);
 
   await page.goto('/suppliers', { waitUntil: 'domcontentloaded' });
   await expect(page).toHaveURL(/\/suppliers(?:$|[?#])/i, { timeout: 20_000 });
@@ -38,12 +40,16 @@ async function selectPreferredSupplier(page: Page, supplierName: string) {
   await page.getByRole('option', { name: new RegExp(escapeRegExp(supplierName), 'i') }).click();
 }
 
-test('@regression @products @manual creates product with preferred supplier', async ({ page }) => {
+test('@regression @products @manual creates product with preferred supplier', async (
+  { page },
+  testInfo: TestInfo
+) => {
   requireCredentialsOrSkip();
 
   const suffix = Date.now();
-  const supplierName = await createSupplier(page, suffix);
-  const product = fakerDataService.buildProductFake(suffix, 'preferred');
+  const uniqueTag = buildUniqueTestToken(testInfo, 'PFS');
+  const supplierName = await createSupplier(page, suffix, uniqueTag);
+  const product = fakerDataService.buildProductFake(suffix, 'preferred', uniqueTag);
 
   await page.goto('/catalog/products/new', { waitUntil: 'domcontentloaded' });
   await expect(page).toHaveURL(/\/catalog\/products\/new(?:$|[?#])/i, { timeout: 20_000 });
@@ -61,7 +67,7 @@ test('@regression @products @manual creates product with preferred supplier', as
   await page.getByRole('button', { name: /guardar y salir|save and exit/i }).click();
 
   const createResponse = await createResponsePromise;
-  expect(createResponse.status()).toBe(201);
+  await expectResponseStatus(createResponse, 201, 'Product with preferred supplier create response');
 
   await expect(page).toHaveURL(/\/catalog\/products(?:$|[?#])/i, { timeout: 20_000 });
 
@@ -80,10 +86,17 @@ test('@regression @products @manual creates product with preferred supplier', as
   await expect(row).toBeVisible({ timeout: 20_000 });
 });
 
-test('@regression @products @manual creates product with additional presentation', async ({ page }) => {
+test('@regression @products @manual creates product with additional presentation', async (
+  { page },
+  testInfo: TestInfo
+) => {
   requireCredentialsOrSkip();
 
-  const product = fakerDataService.buildProductFake(Date.now(), 'multi-presentation');
+  const product = fakerDataService.buildProductFake(
+    Date.now(),
+    'multi-presentation',
+    buildUniqueTestToken(testInfo, 'MPR')
+  );
 
   await page.goto('/catalog/products/new', { waitUntil: 'domcontentloaded' });
   await expect(page).toHaveURL(/\/catalog\/products\/new(?:$|[?#])/i, { timeout: 20_000 });
@@ -100,7 +113,7 @@ test('@regression @products @manual creates product with additional presentation
   await page.getByRole('button', { name: /guardar y salir|save and exit/i }).click();
 
   const createResponse = await createResponsePromise;
-  expect(createResponse.status()).toBe(201);
+  await expectResponseStatus(createResponse, 201, 'Product with additional presentation create response');
 
   const createdProduct = (await createResponse.json()) as CreatedProductResponse;
 

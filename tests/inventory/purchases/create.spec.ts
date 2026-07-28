@@ -1,6 +1,8 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page, type TestInfo } from '@playwright/test';
 import { config } from '@config';
 import { fakerDataService } from '../../../services/fakerDataService';
+import { buildUniqueTestToken } from '../../../services/uniqueData';
+import { expectResponseOk, expectResponseStatus } from '../../../support/flows/apiAssertions';
 import { requireCredentialsOrSkip } from '../../../support/flows/auth.flow';
 import { createSupplier } from '../../../support/flows/suppliers.flow';
 
@@ -28,6 +30,12 @@ type CompatiblePurchasePair = {
 type PurchaseRequestPayload = {
   allowPreferredSupplierOverride?: boolean;
   paymentTerm?: 'IMMEDIATE' | 'CREDIT';
+};
+
+type PurchaseReceipt = {
+  id?: number;
+  invoiceRef?: string | null;
+  purchaseOrderRef?: string | null;
 };
 
 type ApiRequestResult = {
@@ -81,8 +89,8 @@ function skipWithReason(condition: boolean, reason: string) {
   test.skip(condition, reason);
 }
 
-async function createPurchasableProduct(page: Page, seed: number) {
-  const product = fakerDataService.buildProductFake(seed, 'standard');
+async function createPurchasableProduct(page: Page, seed: number, uniqueTag: string) {
+  const product = fakerDataService.buildProductFake(seed, 'standard', uniqueTag);
 
   await page.goto('/catalog/products/new', { waitUntil: 'domcontentloaded' });
   await expect(page).toHaveURL(/\/catalog\/products\/new(?:$|[?#])/i, { timeout: 20_000 });
@@ -98,7 +106,7 @@ async function createPurchasableProduct(page: Page, seed: number) {
   await page.getByRole('button', { name: /guardar y salir|save and exit/i }).click();
 
   const createResponse = await createResponsePromise;
-  expect(createResponse.status()).toBe(201);
+  await expectResponseStatus(createResponse, 201, 'Purchasable product create response');
   await expect(page).toHaveURL(/\/catalog\/products(?:$|[?#])/i, { timeout: 20_000 });
 
   return product;
@@ -122,12 +130,55 @@ async function addPurchaseLine(page: Page, productName: string, unitCost: string
   const lineRow = page.locator('tbody tr', { hasText: productName }).first();
   await expect(lineRow).toBeVisible({ timeout: 20_000 });
 
-  const numberInputs = lineRow.locator('input[type="number"]');
-  await numberInputs.nth(1).fill(unitCost);
+  await fillPurchaseLineUnitCost(page, lineRow, productSearchInput, unitCost);
+}
+
+async function getTableColumnIndex(table: Locator, headerName: RegExp): Promise<number> {
+  const headers = table.locator('thead th');
+  const count = await headers.count();
+
+  for (let index = 0; index < count; index += 1) {
+    const headerText = (await headers.nth(index).innerText()).trim();
+    if (headerName.test(headerText)) {
+      return index;
+    }
+  }
+
+  throw new Error(`Column header not found: ${headerName}`);
+}
+
+async function fillPurchaseLineUnitCost(
+  page: Page,
+  lineRow: Locator,
+  productSearchInput: Locator,
+  unitCost: string
+) {
+  const table = lineRow.locator('xpath=ancestor::table[1]');
+  const quantityColumnIndex = await getTableColumnIndex(table, /cantidad|quantity/i);
+  const unitCostColumnIndex = await getTableColumnIndex(table, /costo unit\.?|unit cost|cost/i);
+  const totalColumnIndex = await getTableColumnIndex(table, /total/i);
+
+  const cells = lineRow.locator('td');
+  const quantityInput = cells.nth(quantityColumnIndex).locator('input[type="number"]');
+  const unitCostInput = cells.nth(unitCostColumnIndex).locator('input[type="number"]');
+  const lineTotal = cells.nth(totalColumnIndex);
+
+  await expect(quantityInput).toHaveValue('1', { timeout: 20_000 });
+  await expect(unitCostInput).toBeVisible({ timeout: 20_000 });
+  await unitCostInput.fill(unitCost);
+  await expect(unitCostInput).toHaveValue(unitCost, { timeout: 20_000 });
+  await expect(productSearchInput).not.toHaveValue(unitCost);
+  await expect(lineTotal).toContainText(moneyAmountPattern(unitCost), {
+    timeout: 20_000,
+  });
 }
 
 function escapeRegex(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function moneyAmountPattern(amount: string): RegExp {
+  return new RegExp(escapeRegex(amount).replace('\\.', '[.,]'));
 }
 
 function normalizeApiBase(url: string): string {
@@ -205,8 +256,7 @@ async function addPurchaseLineFromSearchModal(
 
   const lineRow = page.locator('tbody tr', { hasText: productName }).first();
   await expect(lineRow).toBeVisible({ timeout: 20_000 });
-  const numberInputs = lineRow.locator('input[type="number"]');
-  await numberInputs.nth(1).fill(unitCost);
+  await fillPurchaseLineUnitCost(page, lineRow, productSearchInput, unitCost);
 }
 
 async function confirmPurchase(page: Page): Promise<PurchaseRequestPayload> {
@@ -222,7 +272,7 @@ async function confirmPurchase(page: Page): Promise<PurchaseRequestPayload> {
   await page.getByRole('button', { name: /confirmar|confirm/i }).last().click();
 
   const createResponse = await createResponsePromise;
-  expect(createResponse.ok()).toBe(true);
+  await expectResponseOk(createResponse, 'Purchase receipt create response');
 
   const payload = createResponse.request().postDataJSON() as PurchaseRequestPayload;
   return payload ?? {};
@@ -260,6 +310,55 @@ function toProductArray(payload: unknown): ExistingProduct[] {
   }
 
   return [];
+}
+
+function toPurchaseArray(payload: unknown): PurchaseReceipt[] {
+  if (Array.isArray(payload)) {
+    return payload as PurchaseReceipt[];
+  }
+
+  if (
+    payload &&
+    typeof payload === 'object' &&
+    'content' in payload &&
+    Array.isArray((payload as { content?: unknown }).content)
+  ) {
+    return (payload as { content: PurchaseReceipt[] }).content;
+  }
+
+  return [];
+}
+
+async function fetchPurchaseHistory(page: Page): Promise<PurchaseReceipt[]> {
+  const result = await requestApiWithFallback(page, '/api/inventory/purchase-receipts');
+  if (!result.ok) {
+    throw new Error(
+      `Purchase history API unavailable. Tried: ${result.attemptedUrls.join(' | ')}. Statuses: ${result.attemptedStatuses.join(' | ')}`
+    );
+  }
+
+  return toPurchaseArray(result.payload);
+}
+
+async function waitForPurchaseHistoryToContain(page: Page, invoiceRef: string): Promise<PurchaseReceipt> {
+  let matchingPurchase: PurchaseReceipt | undefined;
+
+  await expect
+    .poll(
+      async () => {
+        const purchases = await fetchPurchaseHistory(page);
+        matchingPurchase = purchases.find((purchase) => purchase.invoiceRef === invoiceRef);
+        return Boolean(matchingPurchase);
+      },
+      { timeout: 20_000, intervals: [500, 1_000, 2_000] }
+    )
+    .toBe(true);
+
+  if (!matchingPurchase) {
+    throw new Error(`Purchase history API did not return invoiceRef: ${invoiceRef}`);
+  }
+
+  return matchingPurchase;
 }
 
 async function fetchExistingSuppliersAndProducts(page: Page): Promise<ExistingDataResult> {
@@ -395,17 +494,53 @@ async function resolvePairForPreferredSupplierOverride(
   };
 }
 
-function purchaseRow(page: Page, supplierName: string): Locator {
-  return page.locator('tbody tr', { hasText: supplierName }).first();
+function purchaseVisibleReference(purchase: PurchaseReceipt, invoiceRef: string): string {
+  if (!purchase.purchaseOrderRef) {
+    throw new Error(`Purchase ${invoiceRef} has no purchaseOrderRef for history table lookup.`);
+  }
+
+  return purchase.purchaseOrderRef;
 }
 
-test('@regression @purchases @manual creates a purchase and shows it in purchase history', async ({ page }) => {
+function purchaseRow(page: Page, visibleReference: string): Locator {
+  return page.locator('tbody tr', { hasText: visibleReference }).first();
+}
+
+async function expectPurchaseHistoryRow(
+  page: Page,
+  invoiceRef: string,
+  supplierName: string,
+  expectedProductCount?: string
+) {
+  const purchase = await waitForPurchaseHistoryToContain(page, invoiceRef);
+  const visibleReference = purchaseVisibleReference(purchase, invoiceRef);
+
+  const historySearch = page.getByPlaceholder(/buscar|search/i).first();
+  await expect(historySearch).toBeVisible({ timeout: 20_000 });
+  await historySearch.fill(visibleReference);
+  await page.getByRole('button', { name: /actualizar|refresh/i }).click();
+
+  const row = purchaseRow(page, visibleReference);
+  await expect(row).toBeVisible({ timeout: 20_000 });
+  await expect(row).toContainText(visibleReference);
+  await expect(row).toContainText(supplierName);
+
+  if (expectedProductCount) {
+    await expect(row).toContainText(expectedProductCount);
+  }
+}
+
+test('@regression @purchases @manual creates a purchase and shows it in purchase history', async (
+  { page },
+  testInfo: TestInfo
+) => {
   requireCredentialsOrSkip('purchase creation flows');
 
   const seed = Date.now();
-  const supplier = await createSupplier(page, seed);
-  const product = await createPurchasableProduct(page, seed + 1);
-  const invoiceRef = `INV-E2E-${String(seed).slice(-6)}`;
+  const uniqueTag = buildUniqueTestToken(testInfo, 'PUR');
+  const supplier = await createSupplier(page, seed, { uniqueTag });
+  const product = await createPurchasableProduct(page, seed + 1, uniqueTag);
+  const invoiceRef = `INV-E2E-${uniqueTag}`;
   const unitCost = '12.50';
 
   await page.goto('/inventory/purchases', { waitUntil: 'domcontentloaded' });
@@ -423,28 +558,25 @@ test('@regression @purchases @manual creates a purchase and shows it in purchase
     timeout: 20_000,
   });
   await page.getByRole('button', { name: /ver historial|view history/i }).click();
-
-  const historySearch = page.getByPlaceholder(/buscar|search/i).first();
-  await expect(historySearch).toBeVisible({ timeout: 20_000 });
-  await historySearch.fill(supplier.name);
-
-  const row = purchaseRow(page, supplier.name);
-  await expect(row).toBeVisible({ timeout: 20_000 });
-  await expect(row).toContainText(supplier.name);
-  await expect(row).toContainText('1');
+  await expectPurchaseHistoryRow(page, invoiceRef, supplier.name, '1');
 });
 
-test('@regression @purchases @manual creates a credit purchase with a credit supplier', async ({ page }) => {
+test('@regression @purchases @manual creates a credit purchase with a credit supplier', async (
+  { page },
+  testInfo: TestInfo
+) => {
   requireCredentialsOrSkip('purchase creation flows');
 
   const seed = Date.now();
+  const uniqueTag = buildUniqueTestToken(testInfo, 'CR');
   const supplier = await createSupplier(page, seed, {
     paymentTerm: 'CREDIT',
     creditLimit: '3500',
     allowCreditLimitExceed: true,
+    uniqueTag,
   });
-  const product = await createPurchasableProduct(page, seed + 1);
-  const invoiceRef = `INV-CR-${String(seed).slice(-6)}`;
+  const product = await createPurchasableProduct(page, seed + 1, uniqueTag);
+  const invoiceRef = `INV-CR-${uniqueTag}`;
   const unitCost = '55.50';
 
   await page.goto('/inventory/purchases', { waitUntil: 'domcontentloaded' });
@@ -464,17 +596,13 @@ test('@regression @purchases @manual creates a credit purchase with a credit sup
     timeout: 20_000,
   });
   await page.getByRole('button', { name: /ver historial|view history/i }).click();
-
-  const historySearch = page.getByPlaceholder(/buscar|search/i).first();
-  await expect(historySearch).toBeVisible({ timeout: 20_000 });
-  await historySearch.fill(supplier.name);
-
-  const row = purchaseRow(page, supplier.name);
-  await expect(row).toBeVisible({ timeout: 20_000 });
-  await expect(row).toContainText(supplier.name);
+  await expectPurchaseHistoryRow(page, invoiceRef, supplier.name);
 });
 
-test('@regression @purchases @manual creates a purchase with existing supplier and product', async ({ page }) => {
+test('@regression @purchases @manual creates a purchase with existing supplier and product', async (
+  { page },
+  testInfo: TestInfo
+) => {
   requireCredentialsOrSkip('purchase creation flows');
 
   await page.goto('/inventory/purchases', { waitUntil: 'domcontentloaded' });
@@ -483,7 +611,7 @@ test('@regression @purchases @manual creates a purchase with existing supplier a
   const { pair, reason } = await resolveCompatiblePurchasePair(page);
   skipWithReason(!pair, reason || 'Existing-data precondition not met.');
 
-  const invoiceRef = `INV-EXIST-${String(Date.now()).slice(-6)}`;
+  const invoiceRef = `INV-EXIST-${buildUniqueTestToken(testInfo, 'EX')}`;
   const unitCost = '11.25';
 
   await page.getByRole('button', { name: /nueva compra|new purchase/i }).click();
@@ -498,17 +626,13 @@ test('@regression @purchases @manual creates a purchase with existing supplier a
     timeout: 20_000,
   });
   await page.getByRole('button', { name: /ver historial|view history/i }).click();
-
-  const historySearch = page.getByPlaceholder(/buscar|search/i).first();
-  await expect(historySearch).toBeVisible({ timeout: 20_000 });
-  await historySearch.fill(pair!.supplierName);
-
-  const row = purchaseRow(page, pair!.supplierName);
-  await expect(row).toBeVisible({ timeout: 20_000 });
-  await expect(row).toContainText(pair!.supplierName);
+  await expectPurchaseHistoryRow(page, invoiceRef, pair!.supplierName);
 });
 
-test('@regression @purchases @manual creates a purchase with product without preferred supplier', async ({ page }) => {
+test('@regression @purchases @manual creates a purchase with product without preferred supplier', async (
+  { page },
+  testInfo: TestInfo
+) => {
   requireCredentialsOrSkip('purchase creation flows');
 
   await page.goto('/inventory/purchases', { waitUntil: 'domcontentloaded' });
@@ -518,7 +642,7 @@ test('@regression @purchases @manual creates a purchase with product without pre
   skipWithReason(!pair, reason || 'No-preferred-supplier precondition not met.');
 
   const selectedPair = pair as CompatiblePurchasePair;
-  const invoiceRef = `INV-NOPREF-${String(Date.now()).slice(-6)}`;
+  const invoiceRef = `INV-NOPREF-${buildUniqueTestToken(testInfo, 'NP')}`;
   const unitCost = '10.50';
 
   await page.getByRole('button', { name: /nueva compra|new purchase/i }).click();
@@ -534,17 +658,13 @@ test('@regression @purchases @manual creates a purchase with product without pre
     timeout: 20_000,
   });
   await page.getByRole('button', { name: /ver historial|view history/i }).click();
-
-  const historySearch = page.getByPlaceholder(/buscar|search/i).first();
-  await expect(historySearch).toBeVisible({ timeout: 20_000 });
-  await historySearch.fill(selectedPair.supplierName);
-
-  const row = purchaseRow(page, selectedPair.supplierName);
-  await expect(row).toBeVisible({ timeout: 20_000 });
-  await expect(row).toContainText(selectedPair.supplierName);
+  await expectPurchaseHistoryRow(page, invoiceRef, selectedPair.supplierName);
 });
 
-test('@regression @purchases @manual creates a purchase overriding preferred supplier', async ({ page }) => {
+test('@regression @purchases @manual creates a purchase overriding preferred supplier', async (
+  { page },
+  testInfo: TestInfo
+) => {
   requireCredentialsOrSkip('purchase creation flows');
 
   await page.goto('/inventory/purchases', { waitUntil: 'domcontentloaded' });
@@ -554,7 +674,7 @@ test('@regression @purchases @manual creates a purchase overriding preferred sup
   skipWithReason(!pair, reason || 'Preferred-supplier-override precondition not met.');
 
   const selectedPair = pair as CompatiblePurchasePair;
-  const invoiceRef = `INV-OVR-${String(Date.now()).slice(-6)}`;
+  const invoiceRef = `INV-OVR-${buildUniqueTestToken(testInfo, 'OV')}`;
   const unitCost = '14.75';
 
   await page.getByRole('button', { name: /nueva compra|new purchase/i }).click();
@@ -577,12 +697,5 @@ test('@regression @purchases @manual creates a purchase overriding preferred sup
     timeout: 20_000,
   });
   await page.getByRole('button', { name: /ver historial|view history/i }).click();
-
-  const historySearch = page.getByPlaceholder(/buscar|search/i).first();
-  await expect(historySearch).toBeVisible({ timeout: 20_000 });
-  await historySearch.fill(selectedPair.supplierName);
-
-  const row = purchaseRow(page, selectedPair.supplierName);
-  await expect(row).toBeVisible({ timeout: 20_000 });
-  await expect(row).toContainText(selectedPair.supplierName);
+  await expectPurchaseHistoryRow(page, invoiceRef, selectedPair.supplierName);
 });

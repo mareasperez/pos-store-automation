@@ -5,6 +5,7 @@ export type SupplierCreationOptions = {
   paymentTerm?: 'IMMEDIATE' | 'CREDIT';
   creditLimit?: string;
   allowCreditLimitExceed?: boolean;
+  uniqueTag?: string;
 };
 
 export async function createSupplier(
@@ -12,7 +13,7 @@ export async function createSupplier(
   seed: number,
   options?: SupplierCreationOptions
 ) {
-  const supplier = fakerDataService.buildSupplierFake(seed);
+  const supplier = fakerDataService.buildSupplierFake(seed, options?.uniqueTag);
 
   await page.goto('/suppliers', { waitUntil: 'domcontentloaded' });
   await expect(page).toHaveURL(/\/suppliers(?:$|[?#])/i, { timeout: 20_000 });
