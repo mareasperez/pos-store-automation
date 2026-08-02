@@ -53,6 +53,7 @@ const baseUrl = withoutTrailingSlash(
 );
 const username = optional(['TEST_USERNAME', 'E2E_USERNAME']);
 const password = optional(['TEST_PASSWORD', 'E2E_PASSWORD']);
+const tenantId = optional(['TEST_TENANT_ID', 'E2E_TENANT_ID']);
 
 if (!username || !password) {
   console.log('[auth-setup] Skipped: missing TEST_USERNAME/TEST_PASSWORD credentials.');
@@ -79,6 +80,36 @@ try {
   await page.waitForURL((url) => !/\/login(?:$|[?#])/i.test(url.pathname + url.search + url.hash), {
     timeout: 30_000,
   });
+
+  // Explicitly pin the active tenant so tests are deterministic even when the user has multiple tenants.
+  if (tenantId) {
+    // Validate that the user actually has access to this tenant before pinning it.
+    const stored = await page.evaluate(() => {
+      const raw = localStorage.getItem('pos_app_store');
+      return raw ? JSON.parse(raw) : { state: {} };
+    });
+    const userTenants = stored?.state?.tenants ?? [];
+    const hasAccess = userTenants.some((t) => t.id === tenantId);
+    if (!hasAccess) {
+      console.error(
+        `[auth-setup] FATAL: TEST_TENANT_ID "${tenantId}" is not in the user's tenant list. ` +
+        `Available: ${userTenants.map((t) => t.id).join(', ') || '(none loaded yet)'}. ` +
+        'Verify the user has been granted access to this tenant.'
+      );
+      process.exit(1);
+    }
+
+    await page.evaluate((id) => {
+      const raw = localStorage.getItem('pos_app_store');
+      const s = raw ? JSON.parse(raw) : { state: {} };
+      s.state.activeTenantId = id;
+      localStorage.setItem('pos_app_store', JSON.stringify(s));
+    }, tenantId);
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    console.log(`[auth-setup] Pinned activeTenantId → ${tenantId}`);
+  } else {
+    console.warn('[auth-setup] TEST_TENANT_ID not set — active tenant will be whatever the app auto-selects.');
+  }
 
   await context.storageState({ path: authStateFile });
   console.log(`[auth-setup] Saved storage state to ${authStateFile}`);
