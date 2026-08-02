@@ -40,8 +40,8 @@ test.describe('Purchase history — date filter', () => {
     await page.goto('/inventory/purchases', { waitUntil: 'domcontentloaded' });
     await expect(page).toHaveURL(/inventory\/purchases/i, { timeout: 20_000 });
 
-    await page.getByLabel(/desde|from/i).fill(todayStr);
-    await page.getByLabel(/hasta|to/i).fill(todayStr);
+    await page.getByTestId('purchase-filter-from').fill(todayStr);
+    await page.getByTestId('purchase-filter-to').fill(todayStr);
 
     await page.waitForResponse(
       (r) => r.url().includes('/api/inventory/purchase-receipts') && r.request().method() === 'GET',
@@ -60,14 +60,18 @@ test.describe('Purchase history — date filter', () => {
     await page.goto('/inventory/purchases', { waitUntil: 'domcontentloaded' });
     await expect(page).toHaveURL(/inventory\/purchases/i, { timeout: 20_000 });
 
-    await page.getByLabel(/desde|from/i).fill(yesterdayStr);
-
+    // Set up listener before filling — must match a response that includes both params
     const responsePromise = page.waitForResponse(
-      (r) => r.url().includes('/api/inventory/purchase-receipts') && r.request().method() === 'GET',
+      (r) => {
+        if (!r.url().includes('/api/inventory/purchase-receipts') || r.request().method() !== 'GET') return false;
+        const params = new URL(r.url()).searchParams;
+        return params.has('from') && params.has('to');
+      },
       { timeout: 15_000 }
     );
 
-    await page.getByLabel(/hasta|to/i).fill(yesterdayStr);
+    await page.getByTestId('purchase-filter-from').fill(yesterdayStr);
+    await page.getByTestId('purchase-filter-to').fill(yesterdayStr);
     const response = await responsePromise;
 
     const url = new URL(response.url());
