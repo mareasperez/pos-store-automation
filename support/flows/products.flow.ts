@@ -30,7 +30,9 @@ export async function createProductWithInitialStock(
   page: Page,
   productName: string,
   productSku: string,
-  initialStock: string
+  initialStock: string,
+  price = '150',
+  cost = '100'
 ): Promise<CreatedProductResponse> {
   await page.goto('/catalog/products/new', { waitUntil: 'domcontentloaded' });
   await expect(page).toHaveURL(/\/catalog\/products\/new(?:$|[?#])/i, { timeout: 20_000 });
@@ -44,6 +46,8 @@ export async function createProductWithInitialStock(
   await expect(stockInput).toBeVisible({ timeout: 20_000 });
   await stockInput.fill(initialStock);
 
+  await setBasePresentationPrice(page, price, cost);
+
   const createResponsePromise = page.waitForResponse(
     (response) => response.request().method() === 'POST' && response.url().includes('/api/products')
   );
@@ -54,6 +58,35 @@ export async function createProductWithInitialStock(
   await expectResponseStatus(createResponse, 201, 'Product create response');
 
   return (await createResponse.json()) as CreatedProductResponse;
+}
+
+/** Opens the base presentation editor, fills price and cost, and saves. */
+export async function setBasePresentationPrice(
+  page: Page,
+  price: string,
+  cost: string
+): Promise<void> {
+  // Wait for presentation types to load before interacting with the table
+  const addBtn = page.getByRole('button', { name: /add presentation|agregar presentaci[oó]n/i });
+  await expect(addBtn).toBeEnabled({ timeout: 10_000 });
+
+  const firstBodyRow = page.locator('tbody tr').first();
+  await firstBodyRow.getByRole('button', { name: /edit|editar/i }).click();
+
+  const modal = page.getByRole('dialog');
+  await expect(modal).toBeVisible({ timeout: 5_000 });
+
+  const costInput = modal.getByLabel(/^costo$|^cost$/i);
+  await costInput.fill(cost);
+
+  const priceInput = modal.getByLabel(/^precio$|^price$/i);
+  await priceInput.fill(price);
+
+  const saveButton = modal.getByRole('button', { name: /^save$|^guardar$/i });
+  await expect(saveButton).toBeEnabled({ timeout: 3_000 });
+  await saveButton.click();
+
+  await expect(modal).not.toBeVisible({ timeout: 5_000 });
 }
 
 export async function assertProductVisibleInCatalog(

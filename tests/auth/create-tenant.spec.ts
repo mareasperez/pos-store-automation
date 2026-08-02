@@ -35,7 +35,7 @@ async function openCreateModal(page: import('@playwright/test').Page) {
 async function fillStep0(page: import('@playwright/test').Page) {
   await page.getByLabel(/organization name|nombre/i).fill('E2E Test Tenant');
   await page.getByLabel(/contact email|email/i).fill('contact@e2etest.com');
-  await page.getByRole('button', { name: /next/i }).click();
+  await page.getByRole('dialog').getByRole('button', { name: /next|siguiente/i }).click();
 }
 
 // ── tests ─────────────────────────────────────────────────────────────────
@@ -57,7 +57,7 @@ test.describe('Tenant creation stepper (mocked API)', () => {
     await fillStep0(page);
 
     // Step 1 — Root Admin
-    await page.getByLabel(/username/i).fill('existing_user_e2e');
+    await page.getByTestId('tenant-stepper-username').fill('existing_user_e2e');
     // Wait for debounce (500 ms) and lookup response
     await page.waitForTimeout(800);
 
@@ -65,7 +65,7 @@ test.describe('Tenant creation stepper (mocked API)', () => {
     await expect(page.getByText(MOCK_EXISTING_USER.email)).toBeVisible();
 
     // Creation fields must be disabled when user exists
-    await expect(page.getByLabel(/email/i).nth(0)).toBeDisabled();
+    await expect(page.getByTestId('tenant-stepper-email')).toBeDisabled();
   });
 
   test('@regression @tenants @manual username lookup shows creation form when user not found', async ({
@@ -79,11 +79,11 @@ test.describe('Tenant creation stepper (mocked API)', () => {
     await openCreateModal(page);
     await fillStep0(page);
 
-    await page.getByLabel(/username/i).fill('brand_new_user_e2e');
+    await page.getByTestId('tenant-stepper-username').fill('brand_new_user_e2e');
     await page.waitForTimeout(800);
 
     // Creation fields must be enabled
-    await expect(page.getByLabel(/email/i).nth(0)).not.toBeDisabled();
+    await expect(page.getByTestId('tenant-stepper-email')).not.toBeDisabled();
     await expect(page.getByText(/usuario existente|existing user/i)).not.toBeVisible();
   });
 
@@ -98,17 +98,17 @@ test.describe('Tenant creation stepper (mocked API)', () => {
     await fillStep0(page);
 
     // Fill root admin for new user
-    await page.getByLabel(/username/i).fill('new_e2e_root');
+    await page.getByTestId('tenant-stepper-username').fill('new_e2e_root');
     await page.waitForTimeout(800);
 
-    await page.getByLabel(/email/i).nth(0).fill('root@e2etest.com');
-    await page.getByLabel(/nombre visible|display name/i).fill('Root E2E');
-    await page.getByLabel(/nombre$/i).fill('Root');
-    await page.getByLabel(/apellido/i).fill('E2E');
-    await page.getByLabel(/contraseña$/i).fill('SecurePass123!');
-    await page.getByLabel(/confirmar/i).fill('SecurePass123!');
+    await page.getByTestId('tenant-stepper-email').fill('root@e2etest.com');
+    await page.getByTestId('tenant-stepper-display-name').fill('Root E2E');
+    await page.getByTestId('tenant-stepper-first-name').fill('Root');
+    await page.getByTestId('tenant-stepper-last-name').fill('E2E');
+    await page.getByTestId('tenant-stepper-password').fill('SecurePass123!');
+    await page.getByTestId('tenant-stepper-password-confirm').fill('SecurePass123!');
 
-    await page.getByRole('button', { name: /next/i }).click();
+    await page.getByRole('dialog').getByRole('button', { name: /next|siguiente/i }).click();
 
     // Step 2 — confirm: both tenant and user summaries visible
     await expect(page.getByText('E2E Test Tenant')).toBeVisible({ timeout: 10_000 });
@@ -136,12 +136,12 @@ test.describe('Tenant creation stepper (mocked API)', () => {
     await openCreateModal(page);
     await fillStep0(page);
 
-    await page.getByLabel(/username/i).fill('existing_user_e2e');
+    await page.getByTestId('tenant-stepper-username').fill('existing_user_e2e');
     await page.waitForTimeout(800);
 
     await expect(page.getByText(/usuario existente|existing user/i)).toBeVisible({ timeout: 8_000 });
-    await page.getByRole('button', { name: /next/i }).click();
-    await page.getByRole('button', { name: /create tenant|crear/i }).click();
+    await page.getByRole('dialog').getByRole('button', { name: /next|siguiente/i }).click();
+    await page.getByRole('dialog').getByRole('button', { name: /create tenant|crear/i }).click();
 
     await page.waitForTimeout(1_000);
     expect(v2Called).toBe(true);

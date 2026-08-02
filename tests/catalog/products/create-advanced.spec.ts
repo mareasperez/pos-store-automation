@@ -6,6 +6,7 @@ import {
   addPresentationInEditorModal,
   escapeRegExp,
   requireCredentialsOrSkip,
+  setBasePresentationPrice,
   type CreatedProductResponse,
 } from '../../../support/flows/products.flow';
 
@@ -60,6 +61,8 @@ test('@regression @products @manual creates product with preferred supplier', as
 
   await selectPreferredSupplier(page, supplierName);
 
+  await setBasePresentationPrice(page, '150', '100');
+
   const createResponsePromise = page.waitForResponse(
     (response) => response.request().method() === 'POST' && response.url().includes('/api/products')
   );
@@ -105,6 +108,7 @@ test('@regression @products @manual creates product with additional presentation
   await page.locator('input[name="sku"]').fill(product.sku);
   await page.locator('input[name="stock"]').fill(product.initialStock);
 
+  await setBasePresentationPrice(page, '150', '100');
   await addPresentationInEditorModal(page, '6');
 
   const createResponsePromise = page.waitForResponse(

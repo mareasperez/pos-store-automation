@@ -5,6 +5,7 @@ import { buildUniqueTestToken } from '../../../services/uniqueData';
 import { expectResponseOk, expectResponseStatus } from '../../../support/flows/apiAssertions';
 import { requireCredentialsOrSkip } from '../../../support/flows/auth.flow';
 import { createSupplier } from '../../../support/flows/suppliers.flow';
+import { setBasePresentationPrice } from '../../../support/flows/products.flow';
 
 type ExistingSupplier = {
   id: number;
@@ -99,6 +100,8 @@ async function createPurchasableProduct(page: Page, seed: number, uniqueTag: str
   await page.locator('input[name="sku"]').fill(product.sku);
   await page.locator('input[name="stock"]').fill('0');
 
+  await setBasePresentationPrice(page, '150', '100');
+
   const createResponsePromise = page.waitForResponse(
     (response) => response.request().method() === 'POST' && response.url().includes('/api/products')
   );
@@ -113,11 +116,22 @@ async function createPurchasableProduct(page: Page, seed: number, uniqueTag: str
 }
 
 async function selectSupplier(page: Page, supplierName: string) {
-  const supplierInput = page.getByPlaceholder(/seleccionar proveedor|select supplier/i).first();
+  const supplierInput = page.getByTestId('purchase-supplier-input');
   await expect(supplierInput).toBeVisible({ timeout: 20_000 });
+  // Wait for the supplier list to finish loading (placeholder changes from 'Cargando...')
+  await expect(supplierInput).not.toHaveAttribute('placeholder', /cargando/i, { timeout: 15_000 });
   await supplierInput.click();
-  await supplierInput.fill(supplierName);
-  await page.getByText(supplierName).first().click();
+  // Confirm dropdown has items before typing
+  await expect(page.locator('[data-slot="combobox-item"]').first()).toBeVisible({ timeout: 10_000 });
+  const visibleItems = await page.locator('[data-slot="combobox-item"]').allTextContents();
+  console.log(`[selectSupplier] ${visibleItems.length} items loaded:`, visibleItems);
+  await supplierInput.pressSequentially(supplierName, { delay: 40 });
+  const option = page
+    .locator('[data-slot="combobox-item"]')
+    .filter({ hasText: supplierName })
+    .first();
+  await expect(option).toBeVisible({ timeout: 10_000 });
+  await option.click();
 }
 
 async function addPurchaseLine(page: Page, productName: string, unitCost: string) {

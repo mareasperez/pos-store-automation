@@ -43,11 +43,11 @@ test.describe('@regression @products @manual product list pagination', () => {
     await waitProductsLoaded(page);
 
     // Navigate to page 2 if possible
-    const page2 = page.getByRole('link', { name: '2' });
+    const page2 = page.getByRole('link', { name: '2', exact: true });
     const hasPage2 = await page2.isVisible().catch(() => false);
     if (hasPage2) {
       await page2.click();
-      await expect(page.getByRole('link', { name: '2' })).toHaveAttribute('data-active', 'true');
+      await expect(page.getByRole('link', { name: '2', exact: true })).toHaveAttribute('data-active', 'true');
     }
 
     // Change page size to 25
@@ -55,12 +55,12 @@ test.describe('@regression @products @manual product list pagination', () => {
     await page.getByRole('option', { name: '25', exact: true }).click();
 
     // Should be back on page 1, or have no page links when all results fit on one page.
-    const page1Link = page.getByRole('link', { name: '1' });
+    const page1Link = page.getByRole('link', { name: '1', exact: true });
     const isPage1Visible = await page1Link.isVisible().catch(() => false);
     if (isPage1Visible) {
       await expect(page1Link).toHaveAttribute('data-active', 'true', { timeout: 5_000 });
     } else {
-      await expect(page.getByRole('link', { name: '2' })).not.toBeVisible();
+      await expect(page.getByRole('link', { name: '2', exact: true })).not.toBeVisible();
     }
   });
 
@@ -68,11 +68,11 @@ test.describe('@regression @products @manual product list pagination', () => {
     await waitProductsLoaded(page);
 
     // Only navigate to page 2 if it exists
-    const page2 = page.getByRole('link', { name: '2' });
+    const page2 = page.getByRole('link', { name: '2', exact: true });
     const hasPage2 = await page2.isVisible().catch(() => false);
     if (hasPage2) {
       await page2.click();
-      await expect(page.getByRole('link', { name: '2' })).toHaveAttribute('data-active', 'true');
+      await expect(page.getByRole('link', { name: '2', exact: true })).toHaveAttribute('data-active', 'true');
     }
 
     // Type something in the search box
@@ -80,7 +80,7 @@ test.describe('@regression @products @manual product list pagination', () => {
     await search.fill('z');
 
     // Page 1 must be active (or no pages visible because 0 results)
-    const page1Link = page.getByRole('link', { name: '1' });
+    const page1Link = page.getByRole('link', { name: '1', exact: true });
     const isPage1Visible = await page1Link.isVisible().catch(() => false);
     if (isPage1Visible) {
       await expect(page1Link).toHaveAttribute('data-active', 'true', { timeout: 5_000 });
