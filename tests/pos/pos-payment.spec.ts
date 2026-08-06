@@ -37,30 +37,29 @@ async function getFirstSellableProduct(page: Page): Promise<string | null> {
   return product?.name ?? null;
 }
 
-/** Ensures the shift is open; opens it via the UI if not. */
-async function ensureShiftOpen(page: Page): Promise<void> {
+/** Opens the shift from the POS page if the "Abrir Caja" button is visible. */
+async function openShiftIfPrompted(page: Page): Promise<void> {
+  // API check first — avoid UI interaction if shift is already open
   const headers = await buildApiHeaders(page);
   const res = await page.request.get(`${config.apiUrl}/api/shifts/active`, { headers });
-  if (res.status() === 200) return; // already open
+  if (res.status() === 200) return;
 
-  // No active shift — open one via the UI
-  await page.goto('/pos?lng=es', { waitUntil: 'domcontentloaded' });
-  const openBtn = page.getByRole('button', { name: /abrir caja|open shift/i });
-  if (await openBtn.isVisible({ timeout: 8_000 })) {
-    await openBtn.click();
-    // Enter 0 initial cash and confirm
-    const cashInput = page.getByLabel(/efectivo inicial|initial cash/i);
-    if (await cashInput.isVisible({ timeout: 5_000 })) {
-      await cashInput.fill('0');
-    }
-    await page.getByRole('button', { name: /abrir|open|confirmar|confirm/i }).last().click();
-    await expect(page.getByRole('button', { name: /abrir caja|open shift/i })).not.toBeVisible({ timeout: 15_000 });
-  }
+  const openBtn = page.locator('[data-testid="pos-open-shift"]:visible');
+  await expect(openBtn).toBeAttached({ timeout: 20_000 });
+
+  await openBtn.click();
+  const cashInput = page.getByTestId('shift-initial-cash-input');
+  await expect(cashInput).toBeVisible({ timeout: 8_000 });
+  await cashInput.fill('1');
+  const submitBtn = page.getByTestId('shift-open-submit');
+  await expect(submitBtn).toBeEnabled({ timeout: 5_000 });
+  await submitBtn.click();
+  await expect(page.locator('[data-testid="pos-confirm-sale"]:visible')).toBeAttached({ timeout: 20_000 });
 }
 
 /** Adds the given product to the POS cart by searching in the product entry field. */
 async function addProductToCart(page: Page, productName: string): Promise<void> {
-  const searchInput = page.getByPlaceholder(/buscar producto|search product|sku|barcode/i).first();
+  const searchInput = page.getByTestId('pos-product-search');
   await searchInput.fill(productName.substring(0, 10));
   // Pick first result from autocomplete
   const option = page.getByRole('option').first();
@@ -70,9 +69,11 @@ async function addProductToCart(page: Page, productName: string): Promise<void> 
   await expect(page.getByText(productName, { exact: false })).toBeVisible({ timeout: 10_000 });
 }
 
-/** Opens the payment modal (Pay Now button). */
+/** Opens the payment modal via Confirm Sale → Pay Now. */
 async function openPaymentModal(page: Page): Promise<void> {
-  await page.getByRole('button', { name: /pay now|cobrar|pagar/i }).click();
+  await openShiftIfPrompted(page);
+  await page.locator('[data-testid="pos-confirm-sale"]:visible').click();
+  await page.getByTestId('pos-pay-now').click();
   await expect(page.locator('[role="dialog"]')).toBeVisible({ timeout: 10_000 });
 }
 
@@ -103,8 +104,7 @@ test.describe('@regression @pos @payment-manager @manual', () => {
     if (!productName) {
       test.skip(true, 'No sellable product available in the test tenant.');
     }
-    await ensureShiftOpen(page);
-    await page.goto('/pos?lng=es', { waitUntil: 'domcontentloaded' });
+    await page.goto('/pos?lng=es', { waitUntil: 'networkidle' });
     await addProductToCart(page, productName!);
   });
 
@@ -114,7 +114,7 @@ test.describe('@regression @pos @payment-manager @manual', () => {
     await openPaymentModal(page);
 
     // Should be in simple mode by default
-    await expect(page.getByRole('button', { name: /modo simple|simple mode/i })).toBeVisible();
+    await expect(page.getByTestId('pm-mode-simple')).toBeVisible();
 
     // Enter tendered amount equal to total
     const totalText = await page.locator('[class*="total"]').last().textContent();
@@ -128,12 +128,55 @@ test.describe('@regression @pos @payment-manager @manual', () => {
       (r) => r.url().includes('/api/sales') && r.request().method() === 'POST',
       { timeout: 20_000 }
     );
-    await page.getByRole('button', { name: /cobrar|confirm|pay/i }).click();
+    await page.getByTestId('pm-finalize').click();
     const saleResponse = await saleResponsePromise;
 
     expect(saleResponse.status()).toBe(201);
-    // Modal should close and POS resets
-    await expect(page.locator('[role="dialog"]')).not.toBeVisible({ timeout: 10_000 });
+    const saleBody = (await saleResponse.json()) as { id?: number; total?: number; customerName?: string };
+
+    // PaymentManager closes, invoice dialog opens
+    await expect(page.getByTestId('pm-dialog')).not.toBeVisible({ timeout: 10_000 });
+    await expect(page.getByTestId('invoice-dialog')).toBeVisible({ timeout: 5_000 });
+    await page.getByTestId('invoice-close').click();
+    await expect(page.getByTestId('invoice-dialog')).not.toBeVisible({ timeout: 5_000 });
+
+    return saleBody.id;
+  });
+
+  test('sale appears in history with correct product and total', async ({ page }) => {
+    const headers = await buildApiHeaders(page);
+    await openPaymentModal(page);
+
+    await expect(page.getByTestId('pm-mode-simple')).toBeVisible();
+    const totalText = await page.locator('[class*="total"]').last().textContent();
+    const expectedTotal = totalText?.replace(/[^\d.]/g, '') ?? '0';
+
+    const amountInput = page.locator('input[type="number"]').first();
+    await amountInput.fill(expectedTotal);
+
+    const saleResponsePromise = page.waitForResponse(
+      (r) => r.url().includes('/api/sales') && r.request().method() === 'POST',
+      { timeout: 20_000 }
+    );
+    await page.getByTestId('pm-finalize').click();
+    const saleResponse = await saleResponsePromise;
+    expect(saleResponse.status()).toBe(201);
+    const sale = (await saleResponse.json()) as { id: number; total: number; customerName?: string; lines?: { productName?: string; quantity?: number; unitPrice?: number }[] };
+
+    await page.getByTestId('invoice-close').click();
+
+    // Verify in history API
+    const histRes = await page.request.get(`${config.apiUrl}/api/sales/${sale.id}`, { headers });
+    expect(histRes.status()).toBe(200);
+    const detail = await histRes.json() as typeof sale;
+
+    expect(detail.id).toBe(sale.id);
+    expect(Number(detail.total)).toBeCloseTo(Number(expectedTotal), 1);
+    expect(detail.lines?.length).toBeGreaterThan(0);
+    const line = detail.lines![0];
+    expect(line.productName).toBeTruthy();
+    expect(Number(line.quantity)).toBeGreaterThan(0);
+    expect(Number(line.unitPrice)).toBeGreaterThan(0);
   });
 
   // ── Advanced mode (split payment: cash + card) ────────────────────────────
@@ -142,7 +185,7 @@ test.describe('@regression @pos @payment-manager @manual', () => {
     await openPaymentModal(page);
 
     // Switch to advanced mode
-    await page.getByRole('button', { name: /modo avanzado|advanced mode/i }).click();
+    await page.getByTestId('pm-mode-advanced').click();
     await expect(page.getByRole('button', { name: /agregar pago|add payment/i })).toBeVisible({ timeout: 5_000 });
 
     // Add a partial CASH payment (half the total, approx)
@@ -168,10 +211,13 @@ test.describe('@regression @pos @payment-manager @manual', () => {
       (r) => r.url().includes('/api/sales') && r.request().method() === 'POST',
       { timeout: 20_000 }
     );
-    await page.getByRole('button', { name: /cobrar|confirm|pay/i }).click();
+    await page.getByTestId('pm-finalize').click();
     const saleResponse = await saleResponsePromise;
 
     expect(saleResponse.status()).toBe(201);
-    await expect(page.locator('[role="dialog"]')).not.toBeVisible({ timeout: 10_000 });
+    await expect(page.getByTestId('pm-dialog')).not.toBeVisible({ timeout: 10_000 });
+    await expect(page.getByTestId('invoice-dialog')).toBeVisible({ timeout: 5_000 });
+    await page.getByTestId('invoice-close').click();
+    await expect(page.getByTestId('invoice-dialog')).not.toBeVisible({ timeout: 5_000 });
   });
 });
