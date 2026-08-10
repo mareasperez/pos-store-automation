@@ -6,7 +6,7 @@
  *
  * Runs under the `chromium-authenticated` project (stored auth state injected).
  */
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { requireCredentialsOrSkip } from '../../../support/flows/auth.flow';
 
 const PURCHASES_URL = /\/api\/inventory\/purchase-receipts/;
@@ -18,12 +18,12 @@ function urlParams(url: string): URLSearchParams {
   return new URL(url).searchParams;
 }
 
-async function gotoAndAwaitInitialLoad(page: Parameters<typeof test>[1]['page']) {
+async function gotoAndAwaitInitialLoad(page: Page) {
   await page.goto('/inventory/purchases', { waitUntil: 'domcontentloaded' });
   await expect(page).toHaveURL(/\/inventory\/purchases(?:$|[?#])/i, { timeout: 20_000 });
   // Wait for the first automatic data fetch to complete.
   await page.waitForResponse(
-    (r) => PURCHASES_URL.test(r.url()) && r.request().method() === 'GET',
+    (r: import('@playwright/test').Response) => PURCHASES_URL.test(r.url()) && r.request().method() === 'GET',
     { timeout: 15_000 }
   );
 }
@@ -108,7 +108,7 @@ test.describe('Purchase history — pagination', () => {
   test('@regression @purchases @manual next page button sends page=1 param', async ({ page }) => {
     await gotoAndAwaitInitialLoad(page);
 
-    const nextButton = page.getByRole('button', { name: /next|siguiente/i });
+    const nextButton = page.getByTestId('pagination-next');
     const isEnabled = await nextButton.isEnabled();
     test.skip(!isEnabled, 'Only one page of results — next page not applicable');
 
@@ -129,7 +129,7 @@ test.describe('Purchase history — pagination', () => {
   test('@regression @purchases @manual prev button returns to page 1', async ({ page }) => {
     await gotoAndAwaitInitialLoad(page);
 
-    const nextButton = page.getByRole('button', { name: /next|siguiente/i });
+    const nextButton = page.getByTestId('pagination-next');
     const isEnabled = await nextButton.isEnabled();
     test.skip(!isEnabled, 'Only one page of results — pagination not applicable');
 
@@ -142,17 +142,9 @@ test.describe('Purchase history — pagination', () => {
       { timeout: 15_000 }
     );
 
-    const prevResponse = page.waitForResponse(
-      (r) =>
-        PURCHASES_URL.test(r.url()) &&
-        r.request().method() === 'GET' &&
-        (urlParams(r.url()).get('page') === '0' || !urlParams(r.url()).has('page')),
-      { timeout: 15_000 }
-    );
+    await page.getByTestId('pagination-prev').click();
 
-    await page.getByRole('button', { name: /prev|anterior/i }).click();
-
-    await prevResponse;
+    // Page 1 may be served from React Query cache (no new network request) — check UI instead
     await expect(page.getByText(/page 1|página 1/i)).toBeVisible({ timeout: 10_000 });
   });
 
