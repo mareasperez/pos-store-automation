@@ -59,7 +59,7 @@ test.describe('@real @manual @shifts', () => {
     await expect(submitBtn).toBeEnabled({ timeout: 5_000 });
 
     // Fill close note to satisfy the discrepancy-note requirement (real shift likely has expected amounts)
-    await closeDialog.getByPlaceholder(/observaciones/i).fill('Cierre de prueba automático');
+    await closeDialog.getByTestId('shift-close-note').fill('Cierre de prueba automático');
 
     const closeResponse = page.waitForResponse(
       (r) =>

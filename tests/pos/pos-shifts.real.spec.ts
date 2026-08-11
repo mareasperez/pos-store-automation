@@ -61,9 +61,13 @@ test.describe('@real @manual @pos', () => {
     const submitBtn = closeDialog.getByTestId('shift-close-submit');
     await expect(submitBtn).toBeEnabled({ timeout: 15_000 });
 
-    // POS close uses useCloseShift → POST /api/shifts/close (no ID in path)
+    // Fill note — required when there are discrepancies (real shift has expected amounts)
+    await closeDialog.getByTestId('shift-close-note').fill('Cierre de prueba automático');
+
+
+    // POS close uses useCloseShift → POST /api/shifts/close OR /api/shifts/{id}/close
     const closeResponse = page.waitForResponse(
-      (r) => r.request().method() === 'POST' && r.url().includes('/api/shifts/close'),
+      (r) => r.request().method() === 'POST' && r.url().includes('/api/shifts') && r.url().endsWith('/close'),
       { timeout: 20_000 }
     );
     await submitBtn.click();
