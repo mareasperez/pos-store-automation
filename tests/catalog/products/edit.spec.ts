@@ -180,7 +180,9 @@ test.describe('@regression @products @manual product edit flow', () => {
     });
 
     // Try to add a second presentation with the SAME type (auto-selected) and SAME factor.
-    // The duplicate is rejected when saving the modal, before the presentation list is persisted.
+    // The modal saves freely — duplicate detection lives in the table, not the modal.
+    // The duplicate row IS added (row count increases by 1) but the Save Presentations
+    // button is disabled until the conflict is resolved.
     await page.getByRole('button', { name: /add presentation|agregar presentaci[oó]n/i }).click();
 
     const modal = page.getByRole('dialog');
@@ -193,7 +195,10 @@ test.describe('@regression @products @manual product edit flow', () => {
     await modal.getByRole('button', { name: /^save$|^guardar$/i }).click();
 
     await expect(modal).not.toBeVisible({ timeout: 5_000 });
-    await expect(presentationRows).toHaveCount(rowsBeforeDuplicateAttempt);
+    // Duplicate is added to the local list, highlighting it as a conflict
+    await expect(presentationRows).toHaveCount(rowsBeforeDuplicateAttempt + 1);
+    // Save button must be disabled until the duplicate is removed
+    await expect(page.getByRole('button', { name: /save presentations|guardar presentaciones/i })).toBeDisabled();
     expect(duplicatePostRequests).toHaveLength(0);
   });
 });
