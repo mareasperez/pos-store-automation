@@ -98,7 +98,8 @@ test('@regression @suppliers @purchases @manual supplier appears in purchase his
   await expect(historySearch).toBeVisible({ timeout: 20_000 });
   await historySearch.fill(invoiceRef);
 
-  const row = page.locator('tbody tr', { hasText: invoiceRef }).first();
+  // The table row shows the PO code and supplier name, not the invoice ref.
+  const row = page.locator('tbody tr', { hasText: supplier.name }).first();
   await expect(row).toBeVisible({ timeout: 20_000 });
   await expect(row).toContainText(supplier.name);
 });
