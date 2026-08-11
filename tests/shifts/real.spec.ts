@@ -1,10 +1,10 @@
 /**
- * Real shift management integration test — closes a shift from the /shifts page.
+ * Real shift management integration test — opens (if needed) and closes a shift from /shifts.
  * Tag: @real @manual — excluded from automated CI runs.
  * Run: npx playwright test tests/shifts/real.spec.ts
  *
- * Preconditions: auth setup done, frontend + backend running, an active shift exists.
- * To open a shift first, run tests/pos/pos-shifts.real.spec.ts.
+ * Preconditions: auth setup done, frontend + backend running.
+ * Opens a shift automatically if none is active.
  */
 import { expect, test } from '@playwright/test';
 import { config } from '@config';
@@ -16,12 +16,30 @@ test.describe('@real @manual @shifts', () => {
   test('@real @manual closes a real shift from the /shifts management page', async ({ page }) => {
     requireCredentialsOrSkip('real shift close');
 
+    // Open a shift via POS UI if none is active
     const existingResp = await page.request.get('/api/shifts/active', {
       headers: { 'X-Tenant-Id': config.tenantId },
     });
-    test.skip(existingResp.status() !== 200, 'No active shift — run the open-shift test first.');
+    if (existingResp.status() !== 200) {
+      await page.goto('/pos?lng=es', { waitUntil: 'domcontentloaded' });
+      const openTrigger = page.getByTestId('pos-open-shift').first();
+      await expect(openTrigger).toBeVisible({ timeout: 20_000 });
+      await openTrigger.click();
+      await expect(page.getByTestId('shift-initial-cash-input')).toBeVisible({ timeout: 10_000 });
+      await page.getByTestId('shift-initial-cash-input').fill('100');
+      const openResponse = page.waitForResponse(
+        (r) => r.request().method() === 'POST' && r.url().includes('/api/shifts/open'),
+        { timeout: 20_000 }
+      );
+      await page.getByTestId('shift-open-submit').click();
+      expect((await openResponse).status()).toBe(200);
+    }
 
-    const shiftId: number = (await existingResp.json()).id;
+    const activeResp = await page.request.get('/api/shifts/active', {
+      headers: { 'X-Tenant-Id': config.tenantId },
+    });
+    expect(activeResp.status()).toBe(200);
+    const shiftId: number = (await activeResp.json()).id;
 
     await page.goto('/shifts', { waitUntil: 'domcontentloaded' });
     await expect(page).toHaveURL(/\/shifts/, { timeout: 20_000 });
@@ -33,8 +51,15 @@ test.describe('@real @manual @shifts', () => {
     const closeDialog = page.getByTestId('close-shift-modal');
     await expect(closeDialog).toBeVisible({ timeout: 10_000 });
 
+    // Wait for payment methods to load — the useEffect initializes reconciliations only after
+    // paymentMethods arrive; submitting before that sends an empty array → 400.
+    await expect(closeDialog.getByText(/contado/i).first()).toBeVisible({ timeout: 15_000 });
+
     const submitBtn = closeDialog.getByTestId('shift-close-submit');
-    await expect(submitBtn).toBeEnabled({ timeout: 15_000 });
+    await expect(submitBtn).toBeEnabled({ timeout: 5_000 });
+
+    // Fill close note to satisfy the discrepancy-note requirement (real shift likely has expected amounts)
+    await closeDialog.getByPlaceholder(/observaciones/i).fill('Cierre de prueba automático');
 
     const closeResponse = page.waitForResponse(
       (r) =>
