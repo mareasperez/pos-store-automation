@@ -85,6 +85,9 @@ Use tags in test titles, for example:
 
 Keep smoke tests under 30 seconds and avoid data-heavy setup in smoke.
 
+Pending scenarios are tracked in [TEST-ROADMAP.md](TEST-ROADMAP.md). Check items off there
+in the same PR that adds the corresponding spec.
+
 ## Authentication — Saved Session
 
 Authenticated tests use a saved browser session stored in `playwright/.auth/user.json`.
