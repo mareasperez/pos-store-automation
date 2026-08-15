@@ -44,8 +44,14 @@ test.describe('@real @manual @shifts', () => {
     await page.goto('/shifts', { waitUntil: 'domcontentloaded' });
     await expect(page).toHaveURL(/\/shifts/, { timeout: 20_000 });
 
+    // The close action lives inside the row actions dropdown, which mounts only once opened.
+    const actionsBtn = page.getByTestId(`shift-actions-${shiftId}`);
+    await expect(actionsBtn).toBeVisible({ timeout: 20_000 });
+    await actionsBtn.click();
+
     const closeBtn = page.getByTestId(`shift-close-btn-${shiftId}`);
-    await expect(closeBtn).toBeVisible({ timeout: 20_000 });
+    await closeBtn.waitFor({ state: 'attached', timeout: 5_000 }); // Dropdown mounts after click
+    await expect(closeBtn).toBeVisible({ timeout: 10_000 });
     await closeBtn.click();
 
     const closeDialog = page.getByTestId('close-shift-modal');

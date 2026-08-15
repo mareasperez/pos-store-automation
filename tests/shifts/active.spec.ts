@@ -102,9 +102,14 @@ test.describe('@manual @shifts', () => {
     await page.goto('/shifts', { waitUntil: 'domcontentloaded' });
     await expect(page).toHaveURL(/\/shifts/, { timeout: 20_000 });
 
-    // Wait for the shift row with its close button to appear
+    // The close action lives inside the row actions dropdown, which mounts only once opened.
+    const actionsBtn = page.getByTestId(`shift-actions-${shift.id}`);
+    await expect(actionsBtn).toBeVisible({ timeout: 20_000 });
+    await actionsBtn.click();
+
     const closeBtn = page.getByTestId(`shift-close-btn-${shift.id}`);
-    await expect(closeBtn).toBeVisible({ timeout: 20_000 });
+    await closeBtn.waitFor({ state: 'attached', timeout: 5_000 }); // Dropdown mounts after click
+    await expect(closeBtn).toBeVisible({ timeout: 10_000 });
     await closeBtn.click();
 
     const closeDialog = page.getByTestId('close-shift-modal');
@@ -121,7 +126,7 @@ test.describe('@manual @shifts', () => {
     expect(closeResponse.status()).toBe(200);
 
     // After close, the row should disappear from the active shifts list.
-    await expect(closeBtn).not.toBeVisible({ timeout: 15_000 });
+    await expect(actionsBtn).not.toBeVisible({ timeout: 15_000 });
   });
 });
 
