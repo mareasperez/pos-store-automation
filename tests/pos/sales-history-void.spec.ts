@@ -44,7 +44,7 @@ test.describe('@regression @pos @sales-history @void @manual', () => {
     await page.goto('/sales-history?lng=es', { waitUntil: 'networkidle' });
 
     const saleIdentifier = createdSale.saleNumber ?? String(createdSale.id);
-    const searchInput = page.getByPlaceholder(/ID, cliente, total/i);
+    const searchInput = page.getByTestId('sales-history-search');
     await searchInput.fill(saleIdentifier);
 
     const saleRow = page.locator('tbody tr').first();
