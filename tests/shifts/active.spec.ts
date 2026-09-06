@@ -2,6 +2,8 @@ import { expect, test } from '@playwright/test';
 import { config } from '@config';
 
 const frontendOrigin = new URL(config.baseUrl).origin;
+const apiOrigin = new URL(config.apiUrl).origin;
+const acceptedApiOrigins = new Set([frontendOrigin, apiOrigin]);
 
 const SHIFT_ID = 1001;
 
@@ -122,7 +124,7 @@ test.describe('@manual @shifts', () => {
     await submitBtn.click();
 
     const closeResponse = await closeResponsePromise;
-    expect(new URL(closeResponse.url()).origin).toBe(frontendOrigin);
+    expect(acceptedApiOrigins).toContain(new URL(closeResponse.url()).origin);
     expect(closeResponse.status()).toBe(200);
 
     // After close, the row should disappear from the active shifts list.

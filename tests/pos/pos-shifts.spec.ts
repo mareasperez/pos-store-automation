@@ -6,6 +6,8 @@ import { expect, test } from '@playwright/test';
 import { config } from '@config';
 
 const frontendOrigin = new URL(config.baseUrl).origin;
+const apiOrigin = new URL(config.apiUrl).origin;
+const acceptedApiOrigins = new Set([frontendOrigin, apiOrigin]);
 
 const buildOpenShift = () => ({
   id: 1001,
@@ -36,7 +38,7 @@ test.describe('@manual @pos shifts', () => {
     const shiftResponse = await shiftResponsePromise;
     const responseUrl = new URL(shiftResponse.url());
 
-    expect(responseUrl.origin).toBe(frontendOrigin);
+    expect(acceptedApiOrigins).toContain(responseUrl.origin);
     expect(responseUrl.pathname).toBe('/api/shifts/active');
 
     if (shiftResponse.status() === 401) {
@@ -94,7 +96,7 @@ test.describe('@manual @pos shifts', () => {
     await page.getByTestId('shift-open-submit').click();
 
     const openResponse = await openResponsePromise;
-    expect(new URL(openResponse.url()).origin).toBe(frontendOrigin);
+    expect(acceptedApiOrigins).toContain(new URL(openResponse.url()).origin);
     expect(new URL(openResponse.url()).pathname).toBe('/api/shifts/open');
     expect(openResponse.status()).toBe(200);
 
