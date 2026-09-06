@@ -17,7 +17,8 @@ test.describe('@real @manual @shifts', () => {
     requireCredentialsOrSkip('real shift close');
 
     // Open a shift via POS UI if none is active
-    const existingResp = await page.request.get('/api/shifts/active', {
+    const activeShiftUrl = `${config.apiRoot}/shifts/active`;
+    const existingResp = await page.request.get(activeShiftUrl, {
       headers: { 'X-Tenant-Id': config.tenantId },
     });
     if (existingResp.status() !== 200) {
@@ -35,11 +36,12 @@ test.describe('@real @manual @shifts', () => {
       expect((await openResponse).status()).toBe(200);
     }
 
-    const activeResp = await page.request.get('/api/shifts/active', {
+    const activeResp = await page.request.get(activeShiftUrl, {
       headers: { 'X-Tenant-Id': config.tenantId },
     });
     expect(activeResp.status()).toBe(200);
-    const shiftId: number = (await activeResp.json()).id;
+    expect(activeResp.headers()['content-type']).toContain('application/json');
+    const shiftId: number = ((await activeResp.json()) as { id: number }).id;
 
     await page.goto('/shifts', { waitUntil: 'domcontentloaded' });
     await expect(page).toHaveURL(/\/shifts/, { timeout: 20_000 });
