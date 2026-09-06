@@ -32,7 +32,7 @@ async function getFirstSellableProduct(page: Page): Promise<string | null> {
 
   // stock-balance/all returns all products with available stock across warehouses
   const stockRes = await page.request.get(
-    `${config.apiUrl}/api/inventory/stock-balance/all`,
+    `${config.apiRoot}/inventory/stock-balance/all`,
     { headers }
   );
   if (!stockRes.ok()) return null;
@@ -45,7 +45,7 @@ async function getFirstSellableProduct(page: Page): Promise<string | null> {
 
   for (const candidate of candidates.slice(0, 5)) {
     const productRes = await page.request.get(
-      `${config.apiUrl}/api/products/${candidate.skuId}`,
+      `${config.apiRoot}/products/${candidate.skuId}`,
       { headers }
     );
     if (!productRes.ok()) continue;
@@ -62,7 +62,7 @@ async function getFirstSellableProduct(page: Page): Promise<string | null> {
 /** Opens the shift from the POS page if the "Abrir Caja" button is visible. */
 async function openShiftIfPrompted(page: Page): Promise<void> {
   const headers = await buildApiHeaders(page);
-  const res = await page.request.get(`${config.apiUrl}/api/shifts/active`, { headers });
+  const res = await page.request.get(`${config.apiRoot}/shifts/active`, { headers });
 
   if (res.status() !== 200) {
     const openBtn = page.locator('[data-testid="pos-open-shift"]:visible');
@@ -219,7 +219,7 @@ test.describe('@regression @pos @payment-manager @manual', () => {
     await page.getByTestId('invoice-close').click();
 
     // Verify in history API
-    const histRes = await page.request.get(`${config.apiUrl}/api/sales/${sale.id}`, { headers });
+    const histRes = await page.request.get(`${config.apiRoot}/sales/${sale.id}`, { headers });
     expect(histRes.status()).toBe(200);
     const detail = await histRes.json() as typeof sale;
 

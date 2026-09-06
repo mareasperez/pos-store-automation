@@ -27,7 +27,7 @@ export async function buildApiHeaders(page: Page): Promise<Record<string, string
 
 export async function getFirstSellableProduct(page: Page): Promise<string | null> {
   const headers = await buildApiHeaders(page);
-  const stockResponse = await page.request.get(`${config.apiUrl}/api/inventory/stock-balance/all`, {
+  const stockResponse = await page.request.get(`${config.apiRoot}/inventory/stock-balance/all`, {
     headers,
   });
 
@@ -41,7 +41,7 @@ export async function getFirstSellableProduct(page: Page): Promise<string | null
     .sort((left, right) => right.onHandQty - left.onHandQty);
 
   for (const candidate of candidates.slice(0, 5)) {
-    const productResponse = await page.request.get(`${config.apiUrl}/api/products/${candidate.skuId}`, {
+    const productResponse = await page.request.get(`${config.apiRoot}/products/${candidate.skuId}`, {
       headers,
     });
 
@@ -71,7 +71,7 @@ export async function getFirstSellableProduct(page: Page): Promise<string | null
 
 async function openShiftIfPrompted(page: Page): Promise<void> {
   const headers = await buildApiHeaders(page);
-  const activeShiftResponse = await page.request.get(`${config.apiUrl}/api/shifts/active`, {
+  const activeShiftResponse = await page.request.get(`${config.apiRoot}/shifts/active`, {
     headers,
   });
 

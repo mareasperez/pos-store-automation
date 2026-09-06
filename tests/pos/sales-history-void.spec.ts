@@ -87,7 +87,7 @@ test.describe('@regression @pos @sales-history @void @manual', () => {
     const voidResponse = await voidResponsePromise;
     expect(voidResponse.status()).toBe(200);
 
-    const saleResponse = await page.request.get(`${config.apiUrl}/api/sales/${createdSale.id}`, {
+    const saleResponse = await page.request.get(`${config.apiRoot}/sales/${createdSale.id}`, {
       headers,
     });
     expect(saleResponse.status()).toBe(200);

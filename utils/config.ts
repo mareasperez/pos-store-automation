@@ -63,6 +63,7 @@ const baseUrl = withoutTrailingSlash(
 const apiUrl = withoutTrailingSlash(
   requireOne(['API_URL', 'BACKEND_BASE_URL', 'E2E_API_URL', 'DEV_API_URL', 'VITE_API_PROXY_TARGET'])
 );
+const apiRoot = apiUrl.endsWith('/api') ? apiUrl : `${apiUrl}/api`;
 
 const username = readOptional(['TEST_USERNAME', 'E2E_USERNAME']);
 const password = readOptional(['TEST_PASSWORD', 'E2E_PASSWORD']);
@@ -92,6 +93,7 @@ export const config = {
   environment,
   baseUrl,
   apiUrl,
+  apiRoot,
   credentials: {
     username: username ?? '',
     password: password ?? '',
