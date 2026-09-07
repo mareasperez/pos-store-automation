@@ -54,6 +54,7 @@ const baseUrl = withoutTrailingSlash(
 const username = optional(['TEST_USERNAME', 'E2E_USERNAME']);
 const password = optional(['TEST_PASSWORD', 'E2E_PASSWORD']);
 const tenantId = optional(['TEST_TENANT_ID', 'E2E_TENANT_ID']);
+const authHeadless = optional(['E2E_AUTH_HEADLESS']).toLowerCase() !== 'false';
 
 if (!username || !password) {
   console.log('[auth-setup] Skipped: missing TEST_USERNAME/TEST_PASSWORD credentials.');
@@ -62,7 +63,7 @@ if (!username || !password) {
 
 fs.mkdirSync(path.dirname(authStateFile), { recursive: true });
 
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({ headless: authHeadless });
 const context = await browser.newContext({
   locale: 'es',
   timezoneId: 'America/Managua',
@@ -76,6 +77,19 @@ try {
   await page.goto(`${baseUrl}/login?lng=es`, { waitUntil: 'domcontentloaded', timeout: 45_000 });
   await page.locator('input[name="username"]').fill(username);
   await page.locator('input[name="password"]').fill(password);
+  if (!authHeadless) {
+    console.log(
+      '[auth-setup] Complete the Turnstile challenge in the browser. The script will submit the form after a token is available.'
+    );
+    await page.waitForFunction(
+      () =>
+        Array.from(
+          document.querySelectorAll('input[name="cf-turnstile-response"], textarea[name="cf-turnstile-response"]')
+        ).some((element) => element.value.trim().length > 0),
+      undefined,
+      { timeout: 120_000 }
+    );
+  }
   await page.locator('button[type="submit"]').click();
   await page.waitForURL((url) => !/\/login(?:$|[?#])/i.test(url.pathname + url.search + url.hash), {
     timeout: 30_000,

@@ -90,6 +90,44 @@ in the same PR that adds the corresponding spec.
 
 ## Authentication — Saved Session
 
+### Run Against Localhost
+
+The checked-in E2E defaults target the deployed `dev` environment. To run locally, override the
+target variables in PowerShell. Keep captcha disabled in the local backend and frontend because
+the real Turnstile challenge requires an interactive browser user.
+
+```powershell
+cd e2e
+$env:E2E_ENV = 'dev'
+$env:BASE_URL = 'http://localhost:5173'
+$env:API_URL = 'http://localhost:8081/api'
+npm run test:auth:setup
+npm run test:dev:headless
+```
+
+Before starting the local frontend, set `VITE_TURNSTILE_ENABLED=false` in `frontend/.env.local`
+and restart Vite. For the local backend, set `APP_SECURITY_CAPTCHA_ENABLED=false` in
+`backend/mystore-api/.env`.
+
+To run against deployed dev instead, use the existing `.env` values and omit the localhost
+overrides above.
+
+### Generate Auth State Against Deployed Dev
+
+Because deployed dev has real Turnstile enabled, generate the saved session in headed mode and
+complete the challenge manually once:
+
+```powershell
+cd e2e
+$env:E2E_AUTH_HEADLESS = 'false'
+npm run test:auth:setup
+npm run test:dev:headless
+```
+
+The generated `playwright/.auth/user.json` is then reused by the authenticated E2E tests. Refresh
+it when the session expires or the credentials change. Do not disable captcha in the deployed dev
+backend just to make this setup pass.
+
 Authenticated tests use a saved browser session stored in `playwright/.auth/user.json`.
 This file is generated once by logging in through the UI and persisted on disk.
 
