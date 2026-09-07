@@ -53,7 +53,8 @@ test.describe('@manual @pos shifts', () => {
 
   test('UI opens shift from POS and resolves /api/shifts/active as open', async ({ page }) => {
     // Skip if a real shift is already open — the mocked open call would conflict.
-    const realShiftResp = await page.request.get('/api/shifts/active', {
+    // Absolute URL on purpose: a relative path hits the SPA, which answers 200 with index.html.
+    const realShiftResp = await page.request.get(`${config.apiRoot}/shifts/active`, {
       headers: { 'X-Tenant-Id': config.tenantId },
     });
     test.skip(
