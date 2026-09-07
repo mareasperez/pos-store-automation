@@ -1,10 +1,9 @@
 /**
- * Real shift management integration test — opens (if needed) and closes a shift from /shifts.
+ * Real shift management integration test — opens (if needed), closes from /shifts, then reopens.
  * Tag: @real @manual — excluded from automated CI runs.
  * Run: npx playwright test tests/shifts/real.spec.ts
  *
- * Preconditions: auth setup done, frontend + backend running.
- * Opens a shift automatically if none is active.
+ * Self-contained: never skips on pre-existing state, and leaves an open till behind.
  */
 import { expect, test } from '@fixtures';
 import { config } from '@config';
@@ -80,5 +79,19 @@ test.describe('@real @manual @shifts @shift-destructive', () => {
     expect((await closeResponse).status()).toBe(200);
 
     await expect(closeBtn).not.toBeVisible({ timeout: 15_000 });
+
+    // Leave a till open for POS specs that may share this worker.
+    await page.goto('/pos?lng=es', { waitUntil: 'domcontentloaded' });
+    const reopenTrigger = page.getByTestId('pos-open-shift').first();
+    await expect(reopenTrigger).toBeVisible({ timeout: 20_000 });
+    await reopenTrigger.click();
+    await expect(page.getByTestId('shift-initial-cash-input')).toBeVisible({ timeout: 10_000 });
+    await page.getByTestId('shift-initial-cash-input').fill('100');
+    const reopenResponse = page.waitForResponse(
+      (r) => r.request().method() === 'POST' && r.url().includes('/api/shifts/open'),
+      { timeout: 20_000 }
+    );
+    await page.getByTestId('shift-open-submit').click();
+    expect((await reopenResponse).status()).toBe(200);
   });
 });

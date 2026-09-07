@@ -29,7 +29,7 @@ const paymentMethodsFixture = [
   { id: 1, code: 'CASH', name: 'Efectivo', isCash: true, active: true, currency: 'NIO' },
 ];
 
-test.describe('@manual @shifts @shift-destructive', () => {
+test.describe('@manual @shifts', () => {
   test('UI closes an active shift from /shifts page calling /api/shifts/{id}/close', async ({
     page,
   }) => {
