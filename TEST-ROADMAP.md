@@ -155,6 +155,40 @@ These are the highest-value gaps: every one of them moves money or stock backwar
 
 ---
 
+## Known Gaps
+
+Accepted limitations of the current suite. Each one has a mitigation in place and a real fix pending.
+
+### Shift contention between workers (resolved)
+
+Shifts are scoped per user (`ShiftRepository.findActiveShiftByUserId`), not per tenant. Each worker
+signs in as a different cashier via `@fixtures`, so no two workers share a till and everything runs
+in parallel again.
+
+- **Original symptom**: sporadic `400 DOMAIN_ERROR — No active shift found` on POS sale tests, when
+  every worker reused the same `user.json` and one spec closed the shared user's shift.
+- **Removed**: the `chromium-shift-exclusive` project and its `dependencies` serialization. The
+  `@shift-destructive` tag is kept as documentation — those specs really do open/close tills — and
+  can still be targeted with `--grep` when you want to run them on their own.
+- **Kept**: POS specs re-assert the shift right before each sale POST. Cheap, and it turns any future
+  regression into a readable failure instead of a bare 400.
+- **By design**: tenant-wide singletons (stock, numbering sequences) stay shared. That contention is
+  the production scenario worth testing, not a bug to isolate away.
+
+### Login cannot be automated while Turnstile is enabled
+
+`/api/auth/login` is gated by a real Cloudflare Turnstile challenge on the deployed environments, and
+the widget renders inside a closed shadow root (no locator can reach it).
+
+- **Mitigation**: `tests/auth/critical-login.spec.ts` detects the captcha by the request to
+  `challenges.cloudflare.com` and self-adapts — it asserts the submit gate when the captcha is on,
+  and runs the real login/invalid-credentials flows when it is off. Authenticated sessions come from
+  the one-time manual `npm run test:auth:setup`.
+- **Real fix**: none needed while the captcha stays on; the specs re-enable themselves automatically
+  if `VITE_TURNSTILE_ENABLED` is turned off.
+
+---
+
 ## Suggested Order
 
 1. Sales void + customer returns (P0) — biggest correctness gap today.

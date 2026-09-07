@@ -8,7 +8,8 @@
  *
  * These tests create real sale records in the test tenant.
  */
-import { expect, test, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
+import { expect, test } from '@fixtures';
 import { config } from '@config';
 import { requireCredentialsOrSkip } from '../../support/flows/auth.flow';
 
@@ -59,12 +60,16 @@ async function getFirstSellableProduct(page: Page): Promise<string | null> {
   return null;
 }
 
-/** Opens the shift from the POS page if the "Abrir Caja" button is visible. */
-async function openShiftIfPrompted(page: Page): Promise<void> {
+/** True when the tenant currently has an open shift. */
+async function hasActiveShift(page: Page): Promise<boolean> {
   const headers = await buildApiHeaders(page);
   const res = await page.request.get(`${config.apiRoot}/shifts/active`, { headers });
+  return res.status() === 200;
+}
 
-  if (res.status() !== 200) {
+/** Opens the shift from the POS page if the "Abrir Caja" button is visible. */
+async function openShiftIfPrompted(page: Page): Promise<void> {
+  if (!(await hasActiveShift(page))) {
     const openBtn = page.locator('[data-testid="pos-open-shift"]:visible');
     await expect(openBtn).toBeAttached({ timeout: 20_000 });
 
@@ -72,13 +77,36 @@ async function openShiftIfPrompted(page: Page): Promise<void> {
     const cashInput = page.getByTestId('shift-initial-cash-input');
     await expect(cashInput).toBeVisible({ timeout: 8_000 });
     await cashInput.fill('1');
+
+    const openResponse = page.waitForResponse(
+      (r) => r.request().method() === 'POST' && r.url().includes('/api/shifts/open'),
+      { timeout: 20_000 }
+    );
     const submitBtn = page.getByTestId('shift-open-submit');
     await expect(submitBtn).toBeEnabled({ timeout: 5_000 });
     await submitBtn.click();
+    expect((await openResponse).status()).toBeLessThan(300);
   }
+
+  // The shift must be open on the server, not merely rendered as open in the DOM.
+  expect(
+    await hasActiveShift(page),
+    'No active shift after setup. Another spec (shifts/*.real.spec.ts) may have closed it concurrently.'
+  ).toBe(true);
 
   // Always wait for the POS to be ready, regardless of whether the shift was just opened or already active
   await expect(page.locator('[data-testid="pos-confirm-sale"]:visible')).toBeAttached({ timeout: 20_000 });
+}
+
+/**
+ * Last-moment guard before a sale POST. The shift is a tenant-wide singleton, so a parallel worker
+ * can close it mid-test; this narrows the race window and turns the 400 into a readable failure.
+ */
+async function assertShiftStillActive(page: Page): Promise<void> {
+  expect(
+    await hasActiveShift(page),
+    'Shift was closed after the payment modal opened — a parallel spec closed the tenant shift.'
+  ).toBe(true);
 }
 
 /** Adds the given product to the POS cart by searching in the product entry field. */
@@ -135,14 +163,14 @@ async function openPaymentModal(page: Page): Promise<void> {
 test.describe('@regression @pos @payment-manager @manual', () => {
   let productName: string | null = null;
 
-  test.beforeAll(async ({ browser }) => {
+  test.beforeAll(async ({ browser, workerStorageState }) => {
     requireCredentialsOrSkip('PaymentManager POS flows');
     if (!config.tenantId) {
       console.warn('[E2E] TEST_TENANT_ID not set — skipping POS payment tests.');
       return;
     }
     // Resolve a sellable product once for all tests in this suite
-    const ctx = await browser.newContext({ storageState: 'playwright/.auth/user.json' });
+    const ctx = await browser.newContext({ storageState: workerStorageState });
     const p = await ctx.newPage();
     productName = await getFirstSellableProduct(p);
     await ctx.close();
@@ -181,6 +209,7 @@ test.describe('@regression @pos @payment-manager @manual', () => {
       (r) => r.url().includes('/api/sales') && r.request().method() === 'POST',
       { timeout: 20_000 }
     );
+    await assertShiftStillActive(page);
     await page.getByTestId('pm-finalize').click();
     const saleResponse = await saleResponsePromise;
 
@@ -211,6 +240,7 @@ test.describe('@regression @pos @payment-manager @manual', () => {
       (r) => r.url().includes('/api/sales') && r.request().method() === 'POST',
       { timeout: 20_000 }
     );
+    await assertShiftStillActive(page);
     await page.getByTestId('pm-finalize').click();
     const saleResponse = await saleResponsePromise;
     expect(saleResponse.status()).toBe(201);
@@ -264,6 +294,7 @@ test.describe('@regression @pos @payment-manager @manual', () => {
       (r) => r.url().includes('/api/sales') && r.request().method() === 'POST',
       { timeout: 20_000 }
     );
+    await assertShiftStillActive(page);
     await page.getByTestId('pm-finalize').click();
     const saleResponse = await saleResponsePromise;
 

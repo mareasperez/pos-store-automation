@@ -3,7 +3,7 @@
  * Guards against the scenario where a user has multiple tenants and the app
  * auto-selects the wrong one.
  */
-import { expect, test } from '@playwright/test';
+import { expect, test } from '@fixtures';
 import { config } from '@config';
 import { ensureCorrectTenant } from '../../support/flows/auth.flow';
 

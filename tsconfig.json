@@ -10,7 +10,8 @@
     "resolveJsonModule": true,
     "baseUrl": ".",
     "paths": {
-      "@config": ["utils/config"]
+      "@config": ["utils/config"],
+      "@fixtures": ["support/fixtures"]
     }
   },
   "include": ["**/*.ts"]

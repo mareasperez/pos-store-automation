@@ -12,7 +12,7 @@ export default defineConfig({
   },
   fullyParallel: false,
   retries: 0,
-  workers: 2,
+  workers: 3,
   outputDir: 'test-results',
   reporter: [['list'], ['html', { open: 'never' }]],
   use: {

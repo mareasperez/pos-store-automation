@@ -2,7 +2,7 @@
  * POS shift smoke and open-shift tests.
  * These tests exercise shift state from the /pos screen, not from /shifts management.
  */
-import { expect, test } from '@playwright/test';
+import { expect, test } from '@fixtures';
 import { config } from '@config';
 
 const frontendOrigin = new URL(config.baseUrl).origin;

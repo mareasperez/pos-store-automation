@@ -136,6 +136,35 @@ credentials, and tenant ID. The commands load that file automatically. They refu
 `TEST_TENANT_ID` equals `E2E_PROD_TEST_TENANT_ID`. Use the dedicated sandbox credentials and data
 only. The `test:prod:smoke` command remains available for read-only checks.
 
+### One Cashier Per Worker
+
+Shifts are scoped per user in the backend (`findActiveShiftByUserId`), so every Playwright worker
+signs in as a different test user in the **same** tenant. That mirrors production — several cashiers
+billing at once — instead of cloning one cashier N times and having it fight over its own till.
+Tenant-wide state (stock, numbering sequences) stays shared on purpose: that contention is the
+scenario worth testing.
+
+Configure one credential pair per worker in `e2e/.env` (never commit them):
+
+```ini
+TEST_USERNAME=<cashier-1>
+TEST_PASSWORD=<cashier-1-password>
+TEST_USERNAME_2=<cashier-2>
+TEST_PASSWORD_2=<cashier-2-password>
+TEST_USERNAME_3=<cashier-3>
+TEST_PASSWORD_3=<cashier-3-password>
+```
+
+All users must belong to `TEST_TENANT_ID` and hold the same POS permissions. `npm run test:auth:setup`
+walks through every configured user in a single run — with Turnstile enabled you solve one challenge
+per user — and writes `playwright/.auth/user-0.json`, `user-1.json`, ... plus a `user.json` mirror of
+slot 0 kept for backwards compatibility.
+
+Workers pick their session by `workerIndex` through the `@fixtures` module, so specs import `test`
+and `expect` from `@fixtures` instead of `@playwright/test` (type-only imports still come from
+`@playwright/test`). If there are more workers than users, the extras reuse a session and the suite
+warns about it.
+
 ### Generate Auth State Against Deployed Dev
 
 Because deployed dev has real Turnstile enabled, generate the saved session in headed mode and
@@ -147,9 +176,9 @@ npm run test:auth:setup
 npm run test:dev:headless
 ```
 
-The generated `playwright/.auth/user.json` is then reused by the authenticated E2E tests. Refresh
-it when the session expires or the credentials change. Do not disable captcha in the deployed dev
-backend just to make this setup pass.
+The generated `playwright/.auth/user-*.json` files are then reused by the authenticated E2E tests.
+Refresh them when the sessions expire or the credentials change. Do not disable captcha in the
+deployed dev backend just to make this setup pass.
 
 The auth setup is headed by default. Set `$env:E2E_AUTH_HEADLESS = 'true'` only for an environment
 where captcha is disabled or where a pre-solved test token is available.

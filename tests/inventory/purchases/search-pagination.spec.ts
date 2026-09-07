@@ -6,7 +6,8 @@
  *
  * Runs under the `chromium-authenticated` project (stored auth state injected).
  */
-import { expect, test, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
+import { expect, test } from '@fixtures';
 import { requireCredentialsOrSkip } from '../../../support/flows/auth.flow';
 
 const PURCHASES_URL = /\/api\/inventory\/purchase-receipts/;

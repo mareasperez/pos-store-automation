@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from '@fixtures';
 
 import { config } from '@config';
 import { requireCredentialsOrSkip } from '../../support/flows/auth.flow';
@@ -11,7 +11,7 @@ import {
 test.describe('@regression @pos @sales-history @void @manual', () => {
   let productName: string | null = null;
 
-  test.beforeAll(async ({ browser }) => {
+  test.beforeAll(async ({ browser, workerStorageState }) => {
     requireCredentialsOrSkip('sales history void flow');
 
     if (!config.tenantId) {
@@ -19,7 +19,7 @@ test.describe('@regression @pos @sales-history @void @manual', () => {
       return;
     }
 
-    const context = await browser.newContext({ storageState: 'playwright/.auth/user.json' });
+    const context = await browser.newContext({ storageState: workerStorageState });
     const page = await context.newPage();
     productName = await getFirstSellableProduct(page);
     await context.close();

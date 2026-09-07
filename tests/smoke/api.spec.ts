@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from '@fixtures';
 import { config } from '@config';
 
 test('@smoke @auth @api backend health endpoint is up', async ({ request }) => {

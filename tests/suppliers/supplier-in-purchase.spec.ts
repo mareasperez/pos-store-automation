@@ -1,4 +1,5 @@
-import { expect, test, type TestInfo } from '@playwright/test';
+import { type TestInfo } from '@playwright/test';
+import { expect, test } from '@fixtures';
 import { buildUniqueTestToken } from '../../services/uniqueData';
 import { requireCredentialsOrSkip } from '../../support/flows/auth.flow';
 import { createSupplier } from '../../support/flows/suppliers.flow';

@@ -6,13 +6,13 @@
  * Preconditions: auth setup done, frontend + backend running, no active shift.
  * After this test, an open shift exists — run tests/shifts/real.spec.ts to close it.
  */
-import { expect, test } from '@playwright/test';
+import { expect, test } from '@fixtures';
 import { config } from '@config';
 import { requireCredentialsOrSkip } from '../../support/flows/auth.flow';
 
 test.setTimeout(120_000);
 
-test.describe('@real @manual @pos', () => {
+test.describe('@real @manual @pos @shift-destructive', () => {
   test('@real @manual opens a real shift from the POS screen', async ({ page }) => {
     requireCredentialsOrSkip('real pos open-shift');
 

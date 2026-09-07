@@ -4,7 +4,7 @@
  *
  * Roadmap: once tenant cleanup is implemented, add flows that hit the real API.
  */
-import { expect, test } from '@playwright/test';
+import { expect, test } from '@fixtures';
 import { requireCredentialsOrSkip } from '../../support/flows/auth.flow';
 
 const TENANTS_URL = '/platform/tenants';

@@ -12,8 +12,12 @@ const environment = (envArg || process.env.E2E_ENV || 'dev').trim().toLowerCase(
 const currentFilePath = fileURLToPath(import.meta.url);
 const e2eRoot = path.resolve(path.dirname(currentFilePath), '..');
 const repoRoot = path.resolve(e2eRoot, '..');
-const authStateFile = path.join(e2eRoot, 'playwright', '.auth', 'user.json');
+const authDir = path.join(e2eRoot, 'playwright', '.auth');
+/** Legacy alias kept so specs that hardcode `user.json` keep resolving to the first cashier. */
+const legacyAuthStateFile = path.join(authDir, 'user.json');
 const postmanCookieFile = path.join(repoRoot, 'postman', '.auth-cookies.json');
+
+const authStateFileForIndex = (index) => path.join(authDir, `user-${index}.json`);
 
 function loadEnvFile(filePath) {
   const result = dotenv.config({ path: filePath, override: true, quiet: true });
@@ -93,8 +97,31 @@ async function launchNormalChrome() {
 const baseUrl = withoutTrailingSlash(
   requireOne(['BASE_URL', 'FRONTEND_BASE_URL', 'E2E_BASE_URL', 'DEV_FRONTEND_URL'])
 );
-const username = optional(['TEST_USERNAME', 'E2E_USERNAME']);
-const password = optional(['TEST_PASSWORD', 'E2E_PASSWORD']);
+
+/**
+ * One cashier per Playwright worker. Shifts are scoped per user, so distinct users keep their own
+ * till instead of fighting over a single one — while still sharing tenant-wide stock on purpose.
+ * Slot 0 keeps the original TEST_USERNAME vars; extra slots use the _2, _3, ... suffixes.
+ */
+function resolveTestUsers() {
+  const users = [];
+  const first = {
+    username: optional(['TEST_USERNAME', 'E2E_USERNAME']),
+    password: optional(['TEST_PASSWORD', 'E2E_PASSWORD']),
+  };
+  if (first.username && first.password) users.push(first);
+
+  for (let suffix = 2; ; suffix += 1) {
+    const username = optional([`TEST_USERNAME_${suffix}`, `E2E_USERNAME_${suffix}`]);
+    const password = optional([`TEST_PASSWORD_${suffix}`, `E2E_PASSWORD_${suffix}`]);
+    if (!username || !password) break;
+    users.push({ username, password });
+  }
+
+  return users;
+}
+
+const testUsers = resolveTestUsers();
 const tenantId = optional(['TEST_TENANT_ID', 'E2E_TENANT_ID']);
 const authHeadless = optional(['E2E_AUTH_HEADLESS']).toLowerCase() === 'true';
 let cdpUrl = optional(['E2E_AUTH_CDP_URL']);
@@ -116,12 +143,18 @@ if (
 }
 const manualAuth = Boolean(cdpUrl);
 
-if (!manualAuth && (!username || !password)) {
+if (!manualAuth && !testUsers.length) {
   console.log('[auth-setup] Skipped: missing TEST_USERNAME/TEST_PASSWORD credentials.');
   process.exit(0);
 }
 
-fs.mkdirSync(path.dirname(authStateFile), { recursive: true });
+if (!testUsers.length) {
+  throw new Error(
+    '[auth-setup] No test users configured. Set at least TEST_USERNAME/TEST_PASSWORD.'
+  );
+}
+
+fs.mkdirSync(authDir, { recursive: true });
 
 let browser;
 let context;
@@ -149,22 +182,28 @@ if (cdpUrl) {
 
 const page = context.pages()[0] ?? (await context.newPage());
 
-try {
+/** Drops any previous session so the next cashier starts from a clean login. */
+async function resetSession() {
+  await context.clearCookies();
   await page.goto(`${baseUrl}/login?lng=es`, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+  await page.evaluate(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+  });
+  await page.reload({ waitUntil: 'domcontentloaded' });
+}
+
+async function captureSession(user, index) {
+  const label = `[auth-setup] (${index + 1}/${testUsers.length}) ${user.username}`;
+  await resetSession();
+
+  await page.locator('input[name="username"]').fill(user.username);
+  await page.locator('input[name="password"]').fill(user.password);
+
   if (manualAuth) {
-    if (username && password) {
-      await page.locator('input[name="username"]').fill(username);
-      await page.locator('input[name="password"]').fill(password);
-    }
-    console.log(
-      '[auth-setup] Credentials filled. Complete Turnstile and click Ingresar in the Chrome window.'
-    );
+    console.log(`${label}: credentials filled. Complete Turnstile and click Ingresar in Chrome.`);
   } else {
-    await page.locator('input[name="username"]').fill(username);
-    await page.locator('input[name="password"]').fill(password);
-    console.log(
-      '[auth-setup] Complete the Turnstile challenge if shown. The script will submit after the login button is enabled.'
-    );
+    console.log(`${label}: complete the Turnstile challenge if shown; submit happens automatically.`);
     await page.waitForFunction(
       () => !(document.querySelector('button[type="submit"]') instanceof HTMLButtonElement)
         || !document.querySelector('button[type="submit"]').disabled,
@@ -173,8 +212,9 @@ try {
     );
     await page.locator('button[type="submit"]').click();
   }
+
   await page.waitForURL((url) => !/\/login(?:$|[?#])/i.test(url.pathname + url.search + url.hash), {
-    timeout: 30_000,
+    timeout: 180_000,
   });
 
   // Explicitly pin the active tenant so tests are deterministic even when the user has multiple tenants.
@@ -188,7 +228,7 @@ try {
     const hasAccess = userTenants.some((t) => t.id === tenantId);
     if (!hasAccess) {
       console.error(
-        `[auth-setup] FATAL: TEST_TENANT_ID "${tenantId}" is not in the user's tenant list. ` +
+        `${label}: FATAL: TEST_TENANT_ID "${tenantId}" is not in the user's tenant list. ` +
         `Available: ${userTenants.map((t) => t.id).join(', ') || '(none loaded yet)'}. ` +
         'Verify the user has been granted access to this tenant.'
       );
@@ -202,15 +242,27 @@ try {
       localStorage.setItem('pos_app_store', JSON.stringify(s));
     }, tenantId);
     await page.reload({ waitUntil: 'domcontentloaded' });
-    console.log(`[auth-setup] Pinned activeTenantId → ${tenantId}`);
+    console.log(`${label}: pinned activeTenantId → ${tenantId}`);
   } else {
-    console.warn('[auth-setup] TEST_TENANT_ID not set — active tenant will be whatever the app auto-selects.');
+    console.warn(`${label}: TEST_TENANT_ID not set — active tenant will be whatever the app auto-selects.`);
   }
 
-  await context.storageState({ path: authStateFile });
-  console.log(`[auth-setup] Saved storage state to ${authStateFile}`);
+  const target = authStateFileForIndex(index);
+  await context.storageState({ path: target });
+  console.log(`${label}: saved storage state to ${target}`);
+}
 
-  const authCookies = (await context.cookies()).filter((cookie) =>
+try {
+  for (const [index, user] of testUsers.entries()) {
+    await captureSession(user, index);
+  }
+
+  fs.copyFileSync(authStateFileForIndex(0), legacyAuthStateFile);
+  console.log(`[auth-setup] Mirrored slot 0 to ${legacyAuthStateFile} for backwards compatibility.`);
+
+  // Postman reuses the first cashier's cookies; the browser currently holds the last user's session.
+  const firstState = JSON.parse(fs.readFileSync(authStateFileForIndex(0), 'utf8'));
+  const authCookies = (firstState.cookies ?? []).filter((cookie) =>
     ['access_token', 'refresh_token'].includes(cookie.name)
   );
   fs.writeFileSync(

@@ -6,13 +6,13 @@
  * Preconditions: auth setup done, frontend + backend running.
  * Opens a shift automatically if none is active.
  */
-import { expect, test } from '@playwright/test';
+import { expect, test } from '@fixtures';
 import { config } from '@config';
 import { requireCredentialsOrSkip } from '../../support/flows/auth.flow';
 
 test.setTimeout(120_000);
 
-test.describe('@real @manual @shifts', () => {
+test.describe('@real @manual @shifts @shift-destructive', () => {
   test('@real @manual closes a real shift from the /shifts management page', async ({ page }) => {
     requireCredentialsOrSkip('real shift close');
 

@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from '@fixtures';
 import { config } from '@config';
 
 const frontendOrigin = new URL(config.baseUrl).origin;
@@ -29,7 +29,7 @@ const paymentMethodsFixture = [
   { id: 1, code: 'CASH', name: 'Efectivo', isCash: true, active: true, currency: 'NIO' },
 ];
 
-test.describe('@manual @shifts', () => {
+test.describe('@manual @shifts @shift-destructive', () => {
   test('UI closes an active shift from /shifts page calling /api/shifts/{id}/close', async ({
     page,
   }) => {

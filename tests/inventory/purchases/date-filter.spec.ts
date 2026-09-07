@@ -8,7 +8,7 @@
  * so no explicit login is needed. The Playwright config also sets
  * `timezoneId: 'America/Managua'` (UTC-6) to simulate the real tenant environment.
  */
-import { expect, test } from '@playwright/test';
+import { expect, test } from '@fixtures';
 import { requireCredentialsOrSkip } from '../../../support/flows/auth.flow';
 
 // ── helpers ────────────────────────────────────────────────────────────────

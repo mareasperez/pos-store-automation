@@ -1,4 +1,5 @@
-import { expect, test, type Page, type TestInfo } from '@playwright/test';
+import { type Page, type TestInfo } from '@playwright/test';
+import { expect, test } from '@fixtures';
 import { fakerDataService } from '../../../services/fakerDataService';
 import { buildUniqueTestToken } from '../../../services/uniqueData';
 import { expectResponseStatus } from '../../../support/flows/apiAssertions';
