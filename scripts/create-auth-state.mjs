@@ -1,5 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawn } from 'node:child_process';
+import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import dotenv from 'dotenv';
 import { chromium } from '@playwright/test';
@@ -11,6 +13,7 @@ const currentFilePath = fileURLToPath(import.meta.url);
 const e2eRoot = path.resolve(path.dirname(currentFilePath), '..');
 const repoRoot = path.resolve(e2eRoot, '..');
 const authStateFile = path.join(e2eRoot, 'playwright', '.auth', 'user.json');
+const postmanCookieFile = path.join(repoRoot, 'postman', '.auth-cookies.json');
 
 function loadEnvFile(filePath) {
   const result = dotenv.config({ path: filePath, override: true, quiet: true });
@@ -48,49 +51,128 @@ function withoutTrailingSlash(value) {
   return value.replace(/\/+$/, '');
 }
 
+async function launchNormalChrome() {
+  const candidates = [
+    path.join(process.env.PROGRAMFILES || '', 'Google/Chrome/Application/chrome.exe'),
+    path.join(process.env['PROGRAMFILES(X86)'] || '', 'Google/Chrome/Application/chrome.exe'),
+    path.join(process.env.LOCALAPPDATA || '', 'Google/Chrome/Application/chrome.exe'),
+  ];
+  const executable = candidates.find((candidate) => fs.existsSync(candidate));
+  if (!executable) {
+    throw new Error('[auth-setup] Google Chrome was not found. Set E2E_AUTH_CDP_URL manually.');
+  }
+
+  const port = 9222;
+  const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'my-pos-store-e2e-chrome-'));
+  const chrome = spawn(
+    executable,
+    [
+      `--remote-debugging-port=${port}`,
+      `--user-data-dir=${profile}`,
+      '--no-first-run',
+      '--no-default-browser-check',
+    ],
+    { detached: true, stdio: 'ignore', windowsHide: false }
+  );
+  chrome.unref();
+
+  const cdpUrl = `http://127.0.0.1:${port}`;
+  const deadline = Date.now() + 15_000;
+  while (Date.now() < deadline) {
+    try {
+      const response = await fetch(`${cdpUrl}/json/version`);
+      if (response.ok) return cdpUrl;
+    } catch {
+      // Chrome is still starting.
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  throw new Error('[auth-setup] Chrome did not expose the local debugging endpoint.');
+}
+
 const baseUrl = withoutTrailingSlash(
   requireOne(['BASE_URL', 'FRONTEND_BASE_URL', 'E2E_BASE_URL', 'DEV_FRONTEND_URL'])
 );
 const username = optional(['TEST_USERNAME', 'E2E_USERNAME']);
 const password = optional(['TEST_PASSWORD', 'E2E_PASSWORD']);
 const tenantId = optional(['TEST_TENANT_ID', 'E2E_TENANT_ID']);
-const authHeadless = optional(['E2E_AUTH_HEADLESS']).toLowerCase() !== 'false';
+const authHeadless = optional(['E2E_AUTH_HEADLESS']).toLowerCase() === 'true';
+let cdpUrl = optional(['E2E_AUTH_CDP_URL']);
+if (environment === 'prod') {
+  const approvedTenant = optional(['E2E_PROD_TEST_TENANT_ID']);
+  if (optional(['E2E_ALLOW_PROD']) !== 'true' || !approvedTenant || tenantId !== approvedTenant) {
+    throw new Error(
+      '[auth-setup] Production setup requires E2E_ALLOW_PROD=true and TEST_TENANT_ID equal to E2E_PROD_TEST_TENANT_ID.'
+    );
+  }
+}
+if (
+  !cdpUrl
+  && ['dev', 'prod'].includes(environment)
+  && optional(['E2E_AUTH_NORMAL_CHROME']).toLowerCase() !== 'false'
+) {
+  cdpUrl = await launchNormalChrome();
+  console.log('[auth-setup] Opened an isolated normal Chrome profile for the dev login.');
+}
+const manualAuth = Boolean(cdpUrl);
 
-if (!username || !password) {
+if (!manualAuth && (!username || !password)) {
   console.log('[auth-setup] Skipped: missing TEST_USERNAME/TEST_PASSWORD credentials.');
   process.exit(0);
 }
 
 fs.mkdirSync(path.dirname(authStateFile), { recursive: true });
 
-const browser = await chromium.launch({ headless: authHeadless });
-const context = await browser.newContext({
-  locale: 'es',
-  timezoneId: 'America/Managua',
-  extraHTTPHeaders: {
-    'Accept-Language': 'es',
-  },
-});
-const page = await context.newPage();
+let browser;
+let context;
+let ownsBrowser = false;
+let closeConnectedBrowser = false;
+
+if (cdpUrl) {
+  browser = await chromium.connectOverCDP(cdpUrl);
+  context = browser.contexts()[0];
+  if (!context) {
+    throw new Error('[auth-setup] Connected Chrome has no browser context.');
+  }
+  console.log('[auth-setup] Connected to the existing browser through CDP.');
+} else {
+  browser = await chromium.launch({ headless: authHeadless });
+  context = await browser.newContext({
+    locale: 'es',
+    timezoneId: 'America/Managua',
+    extraHTTPHeaders: {
+      'Accept-Language': 'es',
+    },
+  });
+  ownsBrowser = true;
+}
+
+const page = context.pages()[0] ?? (await context.newPage());
 
 try {
   await page.goto(`${baseUrl}/login?lng=es`, { waitUntil: 'domcontentloaded', timeout: 45_000 });
-  await page.locator('input[name="username"]').fill(username);
-  await page.locator('input[name="password"]').fill(password);
-  if (!authHeadless) {
+  if (manualAuth) {
+    if (username && password) {
+      await page.locator('input[name="username"]').fill(username);
+      await page.locator('input[name="password"]').fill(password);
+    }
     console.log(
-      '[auth-setup] Complete the Turnstile challenge in the browser. The script will submit the form after a token is available.'
+      '[auth-setup] Credentials filled. Complete Turnstile and click Ingresar in the Chrome window.'
+    );
+  } else {
+    await page.locator('input[name="username"]').fill(username);
+    await page.locator('input[name="password"]').fill(password);
+    console.log(
+      '[auth-setup] Complete the Turnstile challenge if shown. The script will submit after the login button is enabled.'
     );
     await page.waitForFunction(
-      () =>
-        Array.from(
-          document.querySelectorAll('input[name="cf-turnstile-response"], textarea[name="cf-turnstile-response"]')
-        ).some((element) => element.value.trim().length > 0),
+      () => !(document.querySelector('button[type="submit"]') instanceof HTMLButtonElement)
+        || !document.querySelector('button[type="submit"]').disabled,
       undefined,
       { timeout: 120_000 }
     );
+    await page.locator('button[type="submit"]').click();
   }
-  await page.locator('button[type="submit"]').click();
   await page.waitForURL((url) => !/\/login(?:$|[?#])/i.test(url.pathname + url.search + url.hash), {
     timeout: 30_000,
   });
@@ -127,7 +209,19 @@ try {
 
   await context.storageState({ path: authStateFile });
   console.log(`[auth-setup] Saved storage state to ${authStateFile}`);
+
+  const authCookies = (await context.cookies()).filter((cookie) =>
+    ['access_token', 'refresh_token'].includes(cookie.name)
+  );
+  fs.writeFileSync(
+    postmanCookieFile,
+    `${JSON.stringify({ generatedAt: new Date().toISOString(), baseUrl, cookies: authCookies }, null, 2)}\n`,
+    { mode: 0o600 }
+  );
+  console.log(`[auth-setup] Saved Postman cookies to ${postmanCookieFile}`);
 } finally {
-  await context.close();
-  await browser.close();
+  if (ownsBrowser) {
+    await context.close();
+    await browser.close();
+  }
 }

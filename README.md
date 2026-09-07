@@ -112,6 +112,30 @@ and restart Vite. For the local backend, set `APP_SECURITY_CAPTCHA_ENABLED=false
 To run against deployed dev instead, use the existing `.env` values and omit the localhost
 overrides above.
 
+### Production Sandbox Testing
+
+Production E2E is allowed only against the dedicated fake-data tenant and requires an explicit
+tenant confirmation:
+
+```powershell
+cd e2e
+$env:E2E_ENV = 'prod'
+$env:BASE_URL = 'https://myposgo.app'
+$env:API_URL = '<your-production-api-base>/api'
+$env:TEST_USERNAME = '<production-sandbox-user>'
+$env:TEST_PASSWORD = '<production-sandbox-password>'
+$env:TEST_TENANT_ID = '<production-sandbox-tenant-id>'
+$env:E2E_PROD_TEST_TENANT_ID = '<production-sandbox-tenant-id>'
+$env:E2E_ALLOW_PROD = 'true'
+npm run test:auth:setup:prod
+npm run test:prod
+```
+
+Create `e2e/prod.env` from the included template and fill in the production API host, sandbox
+credentials, and tenant ID. The commands load that file automatically. They refuse to run unless
+`TEST_TENANT_ID` equals `E2E_PROD_TEST_TENANT_ID`. Use the dedicated sandbox credentials and data
+only. The `test:prod:smoke` command remains available for read-only checks.
+
 ### Generate Auth State Against Deployed Dev
 
 Because deployed dev has real Turnstile enabled, generate the saved session in headed mode and
@@ -119,7 +143,6 @@ complete the challenge manually once:
 
 ```powershell
 cd e2e
-$env:E2E_AUTH_HEADLESS = 'false'
 npm run test:auth:setup
 npm run test:dev:headless
 ```
@@ -127,6 +150,46 @@ npm run test:dev:headless
 The generated `playwright/.auth/user.json` is then reused by the authenticated E2E tests. Refresh
 it when the session expires or the credentials change. Do not disable captcha in the deployed dev
 backend just to make this setup pass.
+
+The auth setup is headed by default. Set `$env:E2E_AUTH_HEADLESS = 'true'` only for an environment
+where captcha is disabled or where a pre-solved test token is available.
+
+### Capture Auth From Normal Chrome
+
+The normal command already launches an isolated Chrome profile automatically:
+
+```powershell
+cd e2e
+npm run test:auth:setup
+```
+
+Complete the login and Turnstile in the window that opens. The script then saves the session.
+
+For manual CDP control, use the longer flow below.
+
+If Cloudflare rejects the Playwright-controlled browser, connect Playwright to a normal Chrome
+instance through CDP. Close regular Chrome windows first, then start an isolated profile:
+
+```powershell
+& "$env:ProgramFiles\Google\Chrome\Application\chrome.exe" `
+	--remote-debugging-port=9222 `
+	--user-data-dir="$env:TEMP\my-pos-store-e2e-chrome"
+```
+
+In that Chrome window, the script fills the configured credentials. Complete Turnstile and click
+`Ingresar` manually.
+Then, from another terminal:
+
+```powershell
+cd e2e
+$env:E2E_AUTH_CDP_URL = 'http://127.0.0.1:9222'
+npm run test:auth:setup
+npm run test:dev:headless
+```
+
+In CDP mode the script does not fill credentials or click the login form. It only waits for the
+manual login to finish and saves the authenticated browser state. The Turnstile token itself is
+not reused; the saved session cookies and local storage are what the E2E tests reuse.
 
 Authenticated tests use a saved browser session stored in `playwright/.auth/user.json`.
 This file is generated once by logging in through the UI and persisted on disk.
