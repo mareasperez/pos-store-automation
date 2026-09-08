@@ -28,10 +28,13 @@ test.describe('@real @manual @auth @login-captcha', () => {
   }) => {
     const { status, body } = await probeLogin(request, 'forged-token-not-issued-by-cloudflare');
 
-    test.skip(
-      status === 429,
-      'IP rate limit window still active from a prior run — wait ~60s and re-run this spec alone.'
-    );
+    if (status === 429) {
+      console.log(
+        '[skip] Got 429: the IP rate limit window from a prior run is still active. ' +
+          'Wait ~60s and re-run this spec alone.'
+      );
+      test.skip(true, 'IP rate limit window still active from a prior run.');
+    }
 
     // A non-400 here means the backend accepted a token it never verified with Cloudflare —
     // captcha may be decorative on the UI only. Fail loudly instead of assuming it's fine.
@@ -47,10 +50,13 @@ test.describe('@real @manual @auth @login-captcha', () => {
   }) => {
     const { status, body } = await probeLogin(request, undefined);
 
-    test.skip(
-      status === 429,
-      'IP rate limit window still active from a prior run — wait ~60s and re-run this spec alone.'
-    );
+    if (status === 429) {
+      console.log(
+        '[skip] Got 429: the IP rate limit window from a prior run is still active. ' +
+          'Wait ~60s and re-run this spec alone.'
+      );
+      test.skip(true, 'IP rate limit window still active from a prior run.');
+    }
 
     expect(
       status,
