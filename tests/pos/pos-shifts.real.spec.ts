@@ -10,6 +10,7 @@ import { type Page } from '@playwright/test';
 import { expect, test } from '@fixtures';
 import { config } from '@config';
 import { requireCredentialsOrSkip } from '../../support/flows/auth.flow';
+import { buildApiHeaders } from '../../support/flows/sales.flow';
 
 test.setTimeout(180_000);
 
@@ -17,9 +18,12 @@ test.setTimeout(180_000);
 async function hasActiveShift(page: Page): Promise<boolean> {
   // Absolute URL on purpose: a relative path resolves against baseURL (the SPA), which answers
   // 200 with index.html for unknown routes and would make this always report an open shift.
+  // Authorization/Cookie must be attached manually: our stored cookies are scoped to `localhost`
+  // (the browser talks to the API via the Vite proxy), so a direct cross-domain request to
+  // config.apiRoot never gets them auto-attached by the context's cookie jar — 401 otherwise.
   const res = await page.request.get(`${config.apiRoot}/shifts/active`, {
     headers: {
-      'X-Tenant-Id': config.tenantId,
+      ...(await buildApiHeaders(page)),
       // page.request shares the browser cache; without this the app's earlier 200 can come back.
       'Cache-Control': 'no-cache',
     },

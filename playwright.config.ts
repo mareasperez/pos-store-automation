@@ -28,6 +28,10 @@ export default defineConfig({
   },
   projects: [
     {
+      // Serial-only tags (@shift-destructive, @receivables-destructive) are excluded from the
+      // default suite via --grep-invert on the full-run npm scripts (not here) — project-level
+      // grepInvert would AND-combine with the dedicated test:destructive:* scripts' --grep and
+      // produce "no tests found".
       name: 'chromium-authenticated',
       grepInvert: /@auth/,
       use: {

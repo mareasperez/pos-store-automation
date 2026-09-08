@@ -135,7 +135,7 @@ if (environment === 'prod') {
 }
 if (
   !cdpUrl
-  && ['dev', 'prod'].includes(environment)
+  && ['dev', 'prod', 'local'].includes(environment)
   && optional(['E2E_AUTH_NORMAL_CHROME']).toLowerCase() !== 'false'
 ) {
   cdpUrl = await launchNormalChrome();

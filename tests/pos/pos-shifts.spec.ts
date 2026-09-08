@@ -42,10 +42,11 @@ test.describe('@manual @pos shifts', () => {
     expect(responseUrl.pathname).toBe('/api/shifts/active');
 
     if (shiftResponse.status() === 401) {
-      test.skip(
-        true,
-        'Authenticated UI session is stale. Refresh state with npm run test:auth:setup.'
+      console.log(
+        '[skip] Got 401 from /api/shifts/active: authenticated UI session is stale. ' +
+          'Run npm run test:auth:setup to refresh it.'
       );
+      test.skip(true, 'Authenticated UI session is stale.');
     }
 
     expect([200, 204]).toContain(shiftResponse.status());
@@ -57,10 +58,14 @@ test.describe('@manual @pos shifts', () => {
     const realShiftResp = await page.request.get(`${config.apiRoot}/shifts/active`, {
       headers: { 'X-Tenant-Id': config.tenantId },
     });
-    test.skip(
-      realShiftResp.status() === 200,
-      'An active shift already exists — close it first or run test:auth:setup.'
-    );
+    if (realShiftResp.status() === 200) {
+      console.log(
+        '[skip] This worker\'s cashier already has an active shift — the mocked open call would ' +
+          'conflict with it. Close it first (npx playwright test tests/shifts/real.spec.ts) or run ' +
+          'npm run test:auth:setup.'
+      );
+      test.skip(true, 'An active shift already exists for this worker\'s cashier.');
+    }
 
     let isShiftOpen = false;
 

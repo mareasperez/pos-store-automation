@@ -1,7 +1,7 @@
 import dotenv from 'dotenv';
 import path from 'path';
 
-const environments = ['dev', 'qa', 'staging', 'prod'] as const;
+const environments = ['dev', 'local', 'qa', 'staging', 'prod'] as const;
 type E2EEnvironment = (typeof environments)[number];
 
 function resolveEnvironment(): E2EEnvironment {

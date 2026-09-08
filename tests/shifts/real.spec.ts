@@ -4,11 +4,18 @@
  * Run: npx playwright test tests/shifts/real.spec.ts
  *
  * Self-contained: never skips on pre-existing state, and leaves an open till behind.
+ *
+ * Pinned to cashier 1 (user-0.json) — safe because @shift-destructive tests are excluded from
+ * the default suite and only run via `npm run test:destructive:*` (--workers=1), never
+ * concurrently with the parallel pool that also uses cashier 1 for worker 0.
  */
+import path from 'node:path';
 import { expect, test } from '@fixtures';
 import { config } from '@config';
 import { requireCredentialsOrSkip } from '../../support/flows/auth.flow';
+import { buildApiHeaders } from '../../support/flows/sales.flow';
 
+test.use({ storageState: path.join(__dirname, '../../playwright/.auth/user-0.json') });
 test.setTimeout(120_000);
 
 test.describe('@real @manual @shifts @shift-destructive', () => {
@@ -17,8 +24,13 @@ test.describe('@real @manual @shifts @shift-destructive', () => {
 
     // Open a shift via POS UI if none is active
     const activeShiftUrl = `${config.apiRoot}/shifts/active`;
+    // Cache-Control: no-cache is required — page.request can replay a stale cached 200/204 for
+    // this exact URL, which is fatal here since this test intentionally leaves a shift open behind.
+    // Authorization/Cookie must be attached manually: our stored cookies are scoped to `localhost`
+    // (the browser talks to the API via the Vite proxy), so a direct cross-domain request to
+    // config.apiRoot never gets them auto-attached by the context's cookie jar — 401 otherwise.
     const existingResp = await page.request.get(activeShiftUrl, {
-      headers: { 'X-Tenant-Id': config.tenantId },
+      headers: { ...(await buildApiHeaders(page)), 'Cache-Control': 'no-cache' },
     });
     if (existingResp.status() !== 200) {
       await page.goto('/pos?lng=es', { waitUntil: 'domcontentloaded' });
@@ -36,7 +48,7 @@ test.describe('@real @manual @shifts @shift-destructive', () => {
     }
 
     const activeResp = await page.request.get(activeShiftUrl, {
-      headers: { 'X-Tenant-Id': config.tenantId },
+      headers: { ...(await buildApiHeaders(page)), 'Cache-Control': 'no-cache' },
     });
     expect(activeResp.status()).toBe(200);
     expect(activeResp.headers()['content-type']).toContain('application/json');
