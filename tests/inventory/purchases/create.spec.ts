@@ -95,7 +95,9 @@ async function selectSupplier(page: Page, supplierName: string) {
   await expect(supplierInput).not.toHaveAttribute('placeholder', /cargando/i, { timeout: 15_000 });
   await supplierInput.click();
   // Confirm dropdown has items before typing
-  await expect(page.locator('[data-slot="combobox-item"]').first()).toBeVisible({ timeout: 10_000 });
+  await expect(page.locator('[data-slot="combobox-item"]').first()).toBeVisible({
+    timeout: 10_000,
+  });
   const visibleItems = await page.locator('[data-slot="combobox-item"]').allTextContents();
   console.log(`[selectSupplier] ${visibleItems.length} items loaded:`, visibleItems);
   await supplierInput.pressSequentially(supplierName, { delay: 40 });
@@ -112,7 +114,10 @@ async function addPurchaseLine(page: Page, productName: string, unitCost: string
   await expect(productSearchInput).toBeVisible({ timeout: 20_000 });
   await productSearchInput.fill(productName);
 
-  await page.getByRole('option', { name: new RegExp(productName, 'i') }).first().click();
+  await page
+    .getByRole('option', { name: new RegExp(productName, 'i') })
+    .first()
+    .click();
 
   const lineRow = page.locator('tbody tr', { hasText: productName }).first();
   await expect(lineRow).toBeVisible({ timeout: 20_000 });
@@ -249,14 +254,18 @@ async function addPurchaseLineFromSearchModal(
 async function confirmPurchase(page: Page): Promise<PurchaseRequestPayload> {
   const createResponsePromise = page.waitForResponse(
     (response) =>
-      response.request().method() === 'POST' && response.url().includes('/api/inventory/purchase-receipts')
+      response.request().method() === 'POST' &&
+      response.url().includes('/api/inventory/purchase-receipts')
   );
 
   await page.getByRole('button', { name: /comprar|purchase/i }).click();
   await expect(page.getByText(/confirmar compra|confirm purchase/i).first()).toBeVisible({
     timeout: 20_000,
   });
-  await page.getByRole('button', { name: /confirmar|confirm/i }).last().click();
+  await page
+    .getByRole('button', { name: /confirmar|confirm/i })
+    .last()
+    .click();
 
   const createResponse = await createResponsePromise;
   await expectResponseOk(createResponse, 'Purchase receipt create response');
@@ -327,7 +336,10 @@ async function fetchPurchaseHistory(page: Page): Promise<PurchaseReceipt[]> {
   return toPurchaseArray(result.payload);
 }
 
-async function waitForPurchaseHistoryToContain(page: Page, invoiceRef: string): Promise<PurchaseReceipt> {
+async function waitForPurchaseHistoryToContain(
+  page: Page,
+  invoiceRef: string
+): Promise<PurchaseReceipt> {
   let matchingPurchase: PurchaseReceipt | undefined;
 
   await expect
@@ -371,8 +383,8 @@ async function fetchExistingSuppliersAndProducts(page: Page): Promise<ExistingDa
   const suppliersPayload = suppliersResult.payload;
   const productsPayload = productsResult.payload;
 
-  const suppliers = toSupplierArray(suppliersPayload).filter((supplier) =>
-    supplier.active !== false
+  const suppliers = toSupplierArray(suppliersPayload).filter(
+    (supplier) => supplier.active !== false
   );
   const products = toProductArray(productsPayload).filter(
     (product) => product.active !== false && product.type !== 'SERVICE'
@@ -414,9 +426,7 @@ async function resolveCompatiblePurchasePair(page: Page): Promise<PairResolution
   };
 }
 
-async function resolvePairWithoutPreferredSupplier(
-  page: Page
-): Promise<PairResolution> {
+async function resolvePairWithoutPreferredSupplier(page: Page): Promise<PairResolution> {
   const data = await fetchExistingSuppliersAndProducts(page);
   if (!data.ok) {
     return { pair: null, reason: data.reason };
@@ -447,9 +457,7 @@ async function resolvePairWithoutPreferredSupplier(
   };
 }
 
-async function resolvePairForPreferredSupplierOverride(
-  page: Page
-): Promise<PairResolution> {
+async function resolvePairForPreferredSupplierOverride(page: Page): Promise<PairResolution> {
   const data = await fetchExistingSuppliersAndProducts(page);
   if (!data.ok) {
     return { pair: null, reason: data.reason };
@@ -460,7 +468,9 @@ async function resolvePairForPreferredSupplierOverride(
   for (const product of products) {
     if (product.preferredSupplierId == null) continue;
 
-    const alternativeSupplier = suppliers.find((supplier) => supplier.id !== product.preferredSupplierId);
+    const alternativeSupplier = suppliers.find(
+      (supplier) => supplier.id !== product.preferredSupplierId
+    );
     if (!alternativeSupplier) continue;
 
     return {
@@ -526,10 +536,9 @@ async function expectPurchaseHistoryRow(
   }
 }
 
-test('@regression @purchases @manual creates a purchase and shows it in purchase history', async (
-  { page },
-  testInfo: TestInfo
-) => {
+test('@regression @purchases @manual creates a purchase and shows it in purchase history', async ({
+  page,
+}, testInfo: TestInfo) => {
   requireCredentialsOrSkip('purchase creation flows');
 
   // Resolve an existing supplier — supplier CRUD is tested in the suppliers suite
@@ -558,15 +567,17 @@ test('@regression @purchases @manual creates a purchase and shows it in purchase
   await expectPurchaseHistoryRow(page, invoiceRef, '1');
 });
 
-test('@regression @purchases @manual creates a credit purchase with a credit supplier', async (
-  { page },
-  testInfo: TestInfo
-) => {
+test('@regression @purchases @manual creates a credit purchase with a credit supplier', async ({
+  page,
+}, testInfo: TestInfo) => {
   requireCredentialsOrSkip('purchase creation flows');
 
   // Needs an existing credit supplier — creation is tested in the suppliers suite
   const creditSupplier = await resolveExistingCreditSupplier(page);
-  skipWithReason(!creditSupplier, 'No active credit supplier found; create one in the suppliers suite first.');
+  skipWithReason(
+    !creditSupplier,
+    'No active credit supplier found; create one in the suppliers suite first.'
+  );
 
   const { pair: productPair, reason: productReason } = await resolveCompatiblePurchasePair(page);
   skipWithReason(!productPair, productReason || 'No active product available.');
@@ -595,10 +606,9 @@ test('@regression @purchases @manual creates a credit purchase with a credit sup
   await expectPurchaseHistoryRow(page, invoiceRef);
 });
 
-test('@regression @purchases @manual creates a purchase with existing supplier and product', async (
-  { page },
-  testInfo: TestInfo
-) => {
+test('@regression @purchases @manual creates a purchase with existing supplier and product', async ({
+  page,
+}, testInfo: TestInfo) => {
   requireCredentialsOrSkip('purchase creation flows');
 
   await page.goto('/inventory/purchases', { waitUntil: 'domcontentloaded' });
@@ -625,10 +635,9 @@ test('@regression @purchases @manual creates a purchase with existing supplier a
   await expectPurchaseHistoryRow(page, invoiceRef);
 });
 
-test('@regression @purchases @manual creates a purchase with product without preferred supplier', async (
-  { page },
-  testInfo: TestInfo
-) => {
+test('@regression @purchases @manual creates a purchase with product without preferred supplier', async ({
+  page,
+}, testInfo: TestInfo) => {
   requireCredentialsOrSkip('purchase creation flows');
 
   await page.goto('/inventory/purchases', { waitUntil: 'domcontentloaded' });
@@ -657,10 +666,9 @@ test('@regression @purchases @manual creates a purchase with product without pre
   await expectPurchaseHistoryRow(page, invoiceRef);
 });
 
-test('@regression @purchases @manual creates a purchase overriding preferred supplier', async (
-  { page },
-  testInfo: TestInfo
-) => {
+test('@regression @purchases @manual creates a purchase overriding preferred supplier', async ({
+  page,
+}, testInfo: TestInfo) => {
   requireCredentialsOrSkip('purchase creation flows');
 
   await page.goto('/inventory/purchases', { waitUntil: 'domcontentloaded' });

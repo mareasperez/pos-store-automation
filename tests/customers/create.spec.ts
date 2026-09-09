@@ -37,14 +37,16 @@ test('@regression @customers @manual creates a cash customer', async ({ page }) 
   await openNewCustomerForm(page);
   await fillBaseCustomerForm(page, fakeCustomer);
 
-  await expect(page.getByRole('checkbox', { name: /habilitar cr[eé]dito|credit enabled/i })).toHaveAttribute(
-    'aria-checked',
-    'false'
-  );
+  await expect(
+    page.getByRole('checkbox', { name: /habilitar cr[eé]dito|credit enabled/i })
+  ).toHaveAttribute('aria-checked', 'false');
   await expect(page.getByLabel(/l[ií]mite de cr[eé]dito|credit limit/i)).toHaveCount(0);
   await expect(page.getByLabel(/plazo .*d[ií]as|credit term/i)).toHaveCount(0);
 
-  await page.getByRole('button', { name: /guardar|save/i }).last().click();
+  await page
+    .getByRole('button', { name: /guardar|save/i })
+    .last()
+    .click();
 
   const searchInput = page.getByPlaceholder(/buscar|search/i).first();
   await searchInput.fill(fakeCustomer.name);
@@ -53,11 +55,12 @@ test('@regression @customers @manual creates a cash customer', async ({ page }) 
   await expect(row).toBeVisible({ timeout: 20_000 });
 
   await row.getByRole('button', { name: /editar|edit/i }).click();
-  await expect(page.getByText(/editar cliente|edit customer/i).first()).toBeVisible({ timeout: 20_000 });
-  await expect(page.getByRole('checkbox', { name: /habilitar cr[eé]dito|credit enabled/i })).toHaveAttribute(
-    'aria-checked',
-    'false'
-  );
+  await expect(page.getByText(/editar cliente|edit customer/i).first()).toBeVisible({
+    timeout: 20_000,
+  });
+  await expect(
+    page.getByRole('checkbox', { name: /habilitar cr[eé]dito|credit enabled/i })
+  ).toHaveAttribute('aria-checked', 'false');
   await expect(page.getByLabel(/l[ií]mite de cr[eé]dito|credit limit/i)).toHaveCount(0);
 });
 
@@ -70,12 +73,17 @@ test('@regression @customers @manual creates a credit customer with limit', asyn
   await fillBaseCustomerForm(page, fakeCustomer);
 
   await page.getByRole('checkbox', { name: /habilitar cr[eé]dito|credit enabled/i }).click();
-  await expect(page.getByLabel(/l[ií]mite de cr[eé]dito|credit limit/i)).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByLabel(/l[ií]mite de cr[eé]dito|credit limit/i)).toBeVisible({
+    timeout: 20_000,
+  });
 
   await page.getByLabel(/l[ií]mite de cr[eé]dito|credit limit/i).fill('1800');
   await page.getByLabel(/plazo .*d[ií]as|credit term/i).fill('30');
 
-  await page.getByRole('button', { name: /guardar|save/i }).last().click();
+  await page
+    .getByRole('button', { name: /guardar|save/i })
+    .last()
+    .click();
 
   const searchInput = page.getByPlaceholder(/buscar|search/i).first();
   await searchInput.fill(fakeCustomer.name);
@@ -85,11 +93,12 @@ test('@regression @customers @manual creates a credit customer with limit', asyn
   await expect(row).toContainText('1800.00');
 
   await row.getByRole('button', { name: /editar|edit/i }).click();
-  await expect(page.getByText(/editar cliente|edit customer/i).first()).toBeVisible({ timeout: 20_000 });
-  await expect(page.getByRole('checkbox', { name: /habilitar cr[eé]dito|credit enabled/i })).toHaveAttribute(
-    'aria-checked',
-    'true'
-  );
+  await expect(page.getByText(/editar cliente|edit customer/i).first()).toBeVisible({
+    timeout: 20_000,
+  });
+  await expect(
+    page.getByRole('checkbox', { name: /habilitar cr[eé]dito|credit enabled/i })
+  ).toHaveAttribute('aria-checked', 'true');
   await expect(page.getByLabel(/l[ií]mite de cr[eé]dito|credit limit/i)).toHaveValue('1800');
   await expect(page.getByLabel(/plazo .*d[ií]as|credit term/i)).toHaveValue('30');
 });

@@ -36,10 +36,9 @@ async function createPurchasableProductForSupplierTest(
 
 // ── tests ──────────────────────────────────────────────────────────────────────
 
-test('@regression @suppliers @purchases @manual supplier appears in purchase history row after creating a purchase', async (
-  { page },
-  testInfo: TestInfo
-) => {
+test('@regression @suppliers @purchases @manual supplier appears in purchase history row after creating a purchase', async ({
+  page,
+}, testInfo: TestInfo) => {
   requireCredentialsOrSkip('supplier-in-purchase flows');
 
   const seed = Date.now();
@@ -59,7 +58,9 @@ test('@regression @suppliers @purchases @manual supplier appears in purchase his
   await expect(supplierInput).toBeVisible({ timeout: 20_000 });
   await expect(supplierInput).not.toHaveAttribute('placeholder', /cargando/i, { timeout: 15_000 });
   await supplierInput.click();
-  await expect(page.locator('[data-slot="combobox-item"]').first()).toBeVisible({ timeout: 10_000 });
+  await expect(page.locator('[data-slot="combobox-item"]').first()).toBeVisible({
+    timeout: 10_000,
+  });
   await supplierInput.pressSequentially(supplier.name, { delay: 40 });
 
   const option = page
@@ -75,22 +76,31 @@ test('@regression @suppliers @purchases @manual supplier appears in purchase his
   const productSearchInput = page.locator('input[name="productSearch"]').first();
   await expect(productSearchInput).toBeVisible({ timeout: 20_000 });
   await productSearchInput.fill(product.name.substring(0, 10));
-  await page.getByRole('option', { name: new RegExp(product.name, 'i') }).first().click();
+  await page
+    .getByRole('option', { name: new RegExp(product.name, 'i') })
+    .first()
+    .click();
   const lineRow = page.locator('tbody tr', { hasText: product.name }).first();
   await expect(lineRow).toBeVisible({ timeout: 20_000 });
 
   // Confirm purchase
   const purchaseResponsePromise = page.waitForResponse(
-    (r) =>
-      r.request().method() === 'POST' && r.url().includes('/api/inventory/purchase-receipts')
+    (r) => r.request().method() === 'POST' && r.url().includes('/api/inventory/purchase-receipts')
   );
   await page.getByRole('button', { name: /comprar|purchase/i }).click();
-  await expect(page.getByText(/confirmar compra|confirm purchase/i).first()).toBeVisible({ timeout: 20_000 });
-  await page.getByRole('button', { name: /confirmar|confirm/i }).last().click();
+  await expect(page.getByText(/confirmar compra|confirm purchase/i).first()).toBeVisible({
+    timeout: 20_000,
+  });
+  await page
+    .getByRole('button', { name: /confirmar|confirm/i })
+    .last()
+    .click();
   const purchaseResponse = await purchaseResponsePromise;
   expect(purchaseResponse.status()).toBeLessThan(300);
 
-  await expect(page.getByText(/compra registrada|purchase registered/i).first()).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText(/compra registrada|purchase registered/i).first()).toBeVisible({
+    timeout: 20_000,
+  });
   await page.getByRole('button', { name: /ver historial|view history/i }).click();
 
   // Find the purchase row and assert supplier is visible

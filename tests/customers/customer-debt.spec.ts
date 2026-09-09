@@ -69,7 +69,10 @@ test.describe('@regression @customers @customer-debt', () => {
     });
 
     // Scoped to the dialog — react-toastify also renders a "close" icon button globally.
-    await page.getByRole('dialog').getByRole('button', { name: /cerrar|close/i }).click();
+    await page
+      .getByRole('dialog')
+      .getByRole('button', { name: /cerrar|close/i })
+      .click();
     await expect(page.getByTestId('customer-debt-register-payment')).not.toBeVisible({
       timeout: 5_000,
     });

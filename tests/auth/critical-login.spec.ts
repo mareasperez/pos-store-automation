@@ -22,7 +22,9 @@ async function openLoginAndDetectCaptcha(page: Page): Promise<boolean> {
   return captchaScriptRequested;
 }
 
-test('@critical @auth login submit stays disabled until the captcha is solved', async ({ page }) => {
+test('@critical @auth login submit stays disabled until the captcha is solved', async ({
+  page,
+}) => {
   const captchaEnabled = await openLoginAndDetectCaptcha(page);
 
   const username = page.locator('input[name="username"]');
@@ -34,7 +36,9 @@ test('@critical @auth login submit stays disabled until the captcha is solved', 
   await expect(submit).toBeVisible();
 
   if (!captchaEnabled) {
-    console.log('[skip] Turnstile script never requested: captcha is disabled in this environment.');
+    console.log(
+      '[skip] Turnstile script never requested: captcha is disabled in this environment.'
+    );
     test.skip(true, 'Captcha disabled in this environment — nothing to gate.');
   }
 

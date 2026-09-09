@@ -28,14 +28,20 @@ const MOCK_TENANT_RESPONSE = {
 async function openCreateModal(page: import('@playwright/test').Page) {
   await page.goto(TENANTS_URL, { waitUntil: 'domcontentloaded' });
   await page.waitForLoadState('networkidle');
-  await page.getByRole('button', { name: /create tenant|crear tenant/i }).first().click();
+  await page
+    .getByRole('button', { name: /create tenant|crear tenant/i })
+    .first()
+    .click();
   await expect(page.locator('.tenant-stepper')).toBeVisible({ timeout: 15_000 });
 }
 
 async function fillStep0(page: import('@playwright/test').Page) {
   await page.getByLabel(/organization name|nombre/i).fill('E2E Test Tenant');
   await page.getByLabel(/contact email|email/i).fill('contact@e2etest.com');
-  await page.getByRole('dialog').getByRole('button', { name: /next|siguiente/i }).click();
+  await page
+    .getByRole('dialog')
+    .getByRole('button', { name: /next|siguiente/i })
+    .click();
 }
 
 // ── tests ─────────────────────────────────────────────────────────────────
@@ -50,7 +56,11 @@ test.describe('Tenant creation stepper (mocked API)', () => {
   }) => {
     // Mock the lookup endpoint to return an existing user
     await page.route('**/platform/users/lookup?username=existing_user_e2e', (route) =>
-      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK_EXISTING_USER) })
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(MOCK_EXISTING_USER),
+      })
     );
 
     await openCreateModal(page);
@@ -61,7 +71,9 @@ test.describe('Tenant creation stepper (mocked API)', () => {
     // Wait for debounce (500 ms) and lookup response
     await page.waitForTimeout(800);
 
-    await expect(page.getByText(/usuario existente|existing user/i)).toBeVisible({ timeout: 8_000 });
+    await expect(page.getByText(/usuario existente|existing user/i)).toBeVisible({
+      timeout: 8_000,
+    });
     await expect(page.getByText(MOCK_EXISTING_USER.email)).toBeVisible();
 
     // Creation fields must be disabled when user exists
@@ -108,7 +120,10 @@ test.describe('Tenant creation stepper (mocked API)', () => {
     await page.getByTestId('tenant-stepper-password').fill('SecurePass123!');
     await page.getByTestId('tenant-stepper-password-confirm').fill('SecurePass123!');
 
-    await page.getByRole('dialog').getByRole('button', { name: /next|siguiente/i }).click();
+    await page
+      .getByRole('dialog')
+      .getByRole('button', { name: /next|siguiente/i })
+      .click();
 
     // Step 2 — confirm: both tenant and user summaries visible
     await expect(page.getByText('E2E Test Tenant')).toBeVisible({ timeout: 10_000 });
@@ -119,14 +134,22 @@ test.describe('Tenant creation stepper (mocked API)', () => {
     page,
   }) => {
     await page.route('**/platform/users/lookup?username=existing_user_e2e', (route) =>
-      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK_EXISTING_USER) })
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(MOCK_EXISTING_USER),
+      })
     );
 
     // Mock V2 create endpoint
     let v2Called = false;
     await page.route('**/v2/tenants', (route) => {
       v2Called = true;
-      route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify(MOCK_TENANT_RESPONSE) });
+      route.fulfill({
+        status: 201,
+        contentType: 'application/json',
+        body: JSON.stringify(MOCK_TENANT_RESPONSE),
+      });
     });
     // Ensure V1 is NOT called
     await page.route('**/api/tenants', (route) => {
@@ -139,9 +162,17 @@ test.describe('Tenant creation stepper (mocked API)', () => {
     await page.getByTestId('tenant-stepper-username').fill('existing_user_e2e');
     await page.waitForTimeout(800);
 
-    await expect(page.getByText(/usuario existente|existing user/i)).toBeVisible({ timeout: 8_000 });
-    await page.getByRole('dialog').getByRole('button', { name: /next|siguiente/i }).click();
-    await page.getByRole('dialog').getByRole('button', { name: /create tenant|crear/i }).click();
+    await expect(page.getByText(/usuario existente|existing user/i)).toBeVisible({
+      timeout: 8_000,
+    });
+    await page
+      .getByRole('dialog')
+      .getByRole('button', { name: /next|siguiente/i })
+      .click();
+    await page
+      .getByRole('dialog')
+      .getByRole('button', { name: /create tenant|crear/i })
+      .click();
 
     await page.waitForTimeout(1_000);
     expect(v2Called).toBe(true);

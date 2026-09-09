@@ -41,7 +41,10 @@ async function getReceivableBalance(page: Page, customerId: number): Promise<num
     `${config.apiRoot}/receivables/summary?customerId=${customerId}`,
     { headers: { ...headers, 'Cache-Control': 'no-cache' } }
   );
-  expect(res.ok(), `GET /receivables/summary failed: ${res.status()} ${await res.text()}`).toBeTruthy();
+  expect(
+    res.ok(),
+    `GET /receivables/summary failed: ${res.status()} ${await res.text()}`
+  ).toBeTruthy();
   const summary = (await res.json()) as ReceivableBalanceSummary;
   return Number(summary.totalOutstanding);
 }
@@ -63,7 +66,9 @@ async function findOrCreateCreditCustomer(page: Page): Promise<{ id: number; nam
   await expect(page).toHaveURL(/\/customers(?:$|[?#])/i, { timeout: 20_000 });
 
   await page.getByRole('button', { name: /nuevo cliente|new customer/i }).click();
-  await expect(page.getByText(/nuevo cliente|new customer/i).first()).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText(/nuevo cliente|new customer/i).first()).toBeVisible({
+    timeout: 20_000,
+  });
 
   await page.getByLabel(/nombre completo|full name/i).fill(fake.name);
   await page.getByLabel(/email/i).fill(fake.email);
@@ -73,7 +78,9 @@ async function findOrCreateCreditCustomer(page: Page): Promise<{ id: number; nam
   await page.getByLabel(/estado|provincia|state/i).fill(fake.state);
 
   await page.getByRole('checkbox', { name: /habilitar cr[eé]dito|credit enabled/i }).click();
-  await expect(page.getByLabel(/l[ií]mite de cr[eé]dito|credit limit/i)).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByLabel(/l[ií]mite de cr[eé]dito|credit limit/i)).toBeVisible({
+    timeout: 10_000,
+  });
   await page.getByLabel(/l[ií]mite de cr[eé]dito|credit limit/i).fill('5000');
   await page.getByLabel(/plazo .*d[ií]as|credit term/i).fill('30');
 
@@ -81,7 +88,10 @@ async function findOrCreateCreditCustomer(page: Page): Promise<{ id: number; nam
     (r) => r.request().method() === 'POST' && r.url().includes('/api/customers'),
     { timeout: 20_000 }
   );
-  await page.getByRole('button', { name: /guardar|save/i }).last().click();
+  await page
+    .getByRole('button', { name: /guardar|save/i })
+    .last()
+    .click();
   const createResponse = await createResponsePromise;
   expect(createResponse.status(), await createResponse.text()).toBe(201);
   const created = (await createResponse.json()) as Customer;

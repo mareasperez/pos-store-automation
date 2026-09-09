@@ -8,18 +8,16 @@ export type SupplierCreationOptions = {
   uniqueTag?: string;
 };
 
-export async function createSupplier(
-  page: Page,
-  seed: number,
-  options?: SupplierCreationOptions
-) {
+export async function createSupplier(page: Page, seed: number, options?: SupplierCreationOptions) {
   const supplier = fakerDataService.buildSupplierFake(seed, options?.uniqueTag);
 
   await page.goto('/suppliers', { waitUntil: 'domcontentloaded' });
   await expect(page).toHaveURL(/\/suppliers(?:$|[?#])/i, { timeout: 20_000 });
 
   await page.getByRole('button', { name: /nuevo proveedor|new supplier/i }).click();
-  await expect(page.getByText(/nuevo proveedor|new supplier/i).first()).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText(/nuevo proveedor|new supplier/i).first()).toBeVisible({
+    timeout: 20_000,
+  });
 
   await page.getByLabel(/nombre de empresa|company name/i).fill(supplier.name);
   await page.getByLabel(/nombre de contacto|contact name/i).fill(supplier.contactName);
@@ -41,7 +39,10 @@ export async function createSupplier(
     }
   }
 
-  await page.getByRole('button', { name: /guardar|save/i }).last().click();
+  await page
+    .getByRole('button', { name: /guardar|save/i })
+    .last()
+    .click();
   await expect(page.getByText(supplier.name)).toBeVisible({ timeout: 20_000 });
 
   return supplier;

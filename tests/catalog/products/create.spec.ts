@@ -7,7 +7,9 @@ import {
   requireCredentialsOrSkip,
 } from '../../../support/flows/products.flow';
 
-test('@regression @products @manual creates a standard product and shows it in catalog', async ({ page }) => {
+test('@regression @products @manual creates a standard product and shows it in catalog', async ({
+  page,
+}) => {
   requireCredentialsOrSkip();
 
   const product = fakerDataService.buildProductFake(Date.now(), 'catalog');
@@ -22,7 +24,9 @@ test('@regression @products @manual creates a standard product and shows it in c
   await assertProductVisibleInCatalog(page, createdProduct);
 });
 
-test('@regression @products @manual creates a standard product and shows it in inventory', async ({ page }) => {
+test('@regression @products @manual creates a standard product and shows it in inventory', async ({
+  page,
+}) => {
   requireCredentialsOrSkip();
 
   const product = fakerDataService.buildProductFake(Date.now(), 'inventory');

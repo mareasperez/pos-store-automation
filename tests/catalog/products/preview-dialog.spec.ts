@@ -56,7 +56,10 @@ test.describe('@regression @products @manual product preview dialog', () => {
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible({ timeout: 5_000 });
 
-    const badge = dialog.locator('span').filter({ hasText: /activo|inactivo/i }).first();
+    const badge = dialog
+      .locator('span')
+      .filter({ hasText: /activo|inactivo/i })
+      .first();
     await expect(badge).toBeVisible();
   });
 

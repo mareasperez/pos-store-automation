@@ -63,7 +63,8 @@ test.describe('Purchase history — date filter', () => {
     // Set up listener before filling — must match a response that includes both params
     const responsePromise = page.waitForResponse(
       (r) => {
-        if (!r.url().includes('/api/inventory/purchase-receipts') || r.request().method() !== 'GET') return false;
+        if (!r.url().includes('/api/inventory/purchase-receipts') || r.request().method() !== 'GET')
+          return false;
         const params = new URL(r.url()).searchParams;
         return params.has('from') && params.has('to');
       },

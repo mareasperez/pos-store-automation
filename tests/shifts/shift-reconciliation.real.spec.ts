@@ -36,7 +36,11 @@ async function buildApiHeaders(page: Page): Promise<Record<string, string>> {
 
 type ActiveShift = {
   id: number;
-  paymentReconciliations: { paymentMethodId: number; paymentMethodName: string; expectedAmount: number }[];
+  paymentReconciliations: {
+    paymentMethodId: number;
+    paymentMethodName: string;
+    expectedAmount: number;
+  }[];
 };
 
 async function getActiveShift(page: Page): Promise<ActiveShift | null> {
@@ -81,15 +85,25 @@ async function closeShiftViaApi(page: Page, shift: ActiveShift): Promise<void> {
 
 async function getFirstSellableProduct(page: Page): Promise<string | null> {
   const headers = await buildApiHeaders(page);
-  const stockRes = await page.request.get(`${config.apiRoot}/inventory/stock-balance/all`, { headers });
+  const stockRes = await page.request.get(`${config.apiRoot}/inventory/stock-balance/all`, {
+    headers,
+  });
   if (!stockRes.ok()) return null;
   const stockItems = (await stockRes.json()) as { skuId: number; onHandQty: number }[];
-  const candidates = stockItems.filter((s) => s.onHandQty > 0).sort((a, b) => b.onHandQty - a.onHandQty);
+  const candidates = stockItems
+    .filter((s) => s.onHandQty > 0)
+    .sort((a, b) => b.onHandQty - a.onHandQty);
 
   for (const candidate of candidates.slice(0, 5)) {
-    const productRes = await page.request.get(`${config.apiRoot}/products/${candidate.skuId}`, { headers });
+    const productRes = await page.request.get(`${config.apiRoot}/products/${candidate.skuId}`, {
+      headers,
+    });
     if (!productRes.ok()) continue;
-    const product = (await productRes.json()) as { name?: string; active?: boolean; sellableType?: string };
+    const product = (await productRes.json()) as {
+      name?: string;
+      active?: boolean;
+      sellableType?: string;
+    };
     if (product.active === false) continue;
     if (product.sellableType && product.sellableType !== 'PRODUCT') continue;
     if (product.name) return product.name;
@@ -192,7 +206,9 @@ async function closeShiftFromPos(page: Page, cashPaymentMethodId: number): Promi
   const closeDialog = page.getByTestId('close-shift-modal');
   await expect(closeDialog).toBeVisible({ timeout: 10_000 });
 
-  const expectedInput = closeDialog.getByTestId(`payment-reconciliation-expected-${cashPaymentMethodId}`);
+  const expectedInput = closeDialog.getByTestId(
+    `payment-reconciliation-expected-${cashPaymentMethodId}`
+  );
   await expect(expectedInput).toBeVisible({ timeout: 15_000 });
   const expectedText = (await expectedInput.inputValue()).replace(/[^\d.]/g, '');
 
@@ -204,7 +220,10 @@ async function closeShiftFromPos(page: Page, cashPaymentMethodId: number): Promi
   await expect(submitBtn).toBeEnabled({ timeout: 15_000 });
 
   const closeResponse = page.waitForResponse(
-    (r) => r.request().method() === 'POST' && r.url().includes('/api/shifts') && r.url().endsWith('/close'),
+    (r) =>
+      r.request().method() === 'POST' &&
+      r.url().includes('/api/shifts') &&
+      r.url().endsWith('/close'),
     { timeout: 20_000 }
   );
   await submitBtn.click();
@@ -237,7 +256,9 @@ test.describe('@real @manual @shifts @shift-destructive @shift-reconciliation', 
     const shift = await getActiveShift(page);
     expect(shift, 'Shift closed unexpectedly before reconciliation could be read.').toBeTruthy();
 
-    const cashRow = shift!.paymentReconciliations.find((r) => /efectivo|cash/i.test(r.paymentMethodName));
+    const cashRow = shift!.paymentReconciliations.find((r) =>
+      /efectivo|cash/i.test(r.paymentMethodName)
+    );
     expect(
       cashRow,
       `No CASH reconciliation row found. Rows: ${JSON.stringify(shift!.paymentReconciliations)}`

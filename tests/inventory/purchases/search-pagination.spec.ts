@@ -24,7 +24,8 @@ async function gotoAndAwaitInitialLoad(page: Page) {
   await expect(page).toHaveURL(/\/inventory\/purchases(?:$|[?#])/i, { timeout: 20_000 });
   // Wait for the first automatic data fetch to complete.
   await page.waitForResponse(
-    (r: import('@playwright/test').Response) => PURCHASES_URL.test(r.url()) && r.request().method() === 'GET',
+    (r: import('@playwright/test').Response) =>
+      PURCHASES_URL.test(r.url()) && r.request().method() === 'GET',
     { timeout: 15_000 }
   );
 }

@@ -60,11 +60,11 @@ test.describe('@manual @pos shifts', () => {
     });
     if (realShiftResp.status() === 200) {
       console.log(
-        '[skip] This worker\'s cashier already has an active shift — the mocked open call would ' +
+        "[skip] This worker's cashier already has an active shift — the mocked open call would " +
           'conflict with it. Close it first (npx playwright test tests/shifts/real.spec.ts) or run ' +
           'npm run test:auth:setup.'
       );
-      test.skip(true, 'An active shift already exists for this worker\'s cashier.');
+      test.skip(true, "An active shift already exists for this worker's cashier.");
     }
 
     let isShiftOpen = false;

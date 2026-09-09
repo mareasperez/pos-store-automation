@@ -33,9 +33,7 @@ async function hasActiveShift(page: Page): Promise<boolean> {
 
 /** The UI reflects the mutation before the server settles, so poll instead of reading once. */
 async function expectShiftState(page: Page, open: boolean, because: string): Promise<void> {
-  await expect
-    .poll(() => hasActiveShift(page), { timeout: 20_000, message: because })
-    .toBe(open);
+  await expect.poll(() => hasActiveShift(page), { timeout: 20_000, message: because }).toBe(open);
 }
 
 /** Opens a shift from the POS screen and asserts the server accepted it. */

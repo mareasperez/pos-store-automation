@@ -32,12 +32,11 @@ async function getFirstSellableProduct(page: Page): Promise<string | null> {
   const headers = await buildApiHeaders(page);
 
   // stock-balance/all returns all products with available stock across warehouses
-  const stockRes = await page.request.get(
-    `${config.apiRoot}/inventory/stock-balance/all`,
-    { headers }
-  );
+  const stockRes = await page.request.get(`${config.apiRoot}/inventory/stock-balance/all`, {
+    headers,
+  });
   if (!stockRes.ok()) return null;
-  const stockItems = await stockRes.json() as { skuId: number; onHandQty: number }[];
+  const stockItems = (await stockRes.json()) as { skuId: number; onHandQty: number }[];
 
   // Try candidates in order of descending stock to pick the most available one
   const candidates = stockItems
@@ -45,12 +44,15 @@ async function getFirstSellableProduct(page: Page): Promise<string | null> {
     .sort((a, b) => b.onHandQty - a.onHandQty);
 
   for (const candidate of candidates.slice(0, 5)) {
-    const productRes = await page.request.get(
-      `${config.apiRoot}/products/${candidate.skuId}`,
-      { headers }
-    );
+    const productRes = await page.request.get(`${config.apiRoot}/products/${candidate.skuId}`, {
+      headers,
+    });
     if (!productRes.ok()) continue;
-    const product = await productRes.json() as { name?: string; active?: boolean; sellableType?: string };
+    const product = (await productRes.json()) as {
+      name?: string;
+      active?: boolean;
+      sellableType?: string;
+    };
     // Only PRODUCT type sellables are sold in POS (not SERVICE or GENERIC_CHARGE)
     if (product.active === false) continue;
     if (product.sellableType && product.sellableType !== 'PRODUCT') continue;
@@ -95,7 +97,9 @@ async function openShiftIfPrompted(page: Page): Promise<void> {
   ).toBe(true);
 
   // Always wait for the POS to be ready, regardless of whether the shift was just opened or already active
-  await expect(page.locator('[data-testid="pos-confirm-sale"]:visible')).toBeAttached({ timeout: 20_000 });
+  await expect(page.locator('[data-testid="pos-confirm-sale"]:visible')).toBeAttached({
+    timeout: 20_000,
+  });
 }
 
 /**
@@ -138,7 +142,10 @@ async function addProductToCart(page: Page, productName: string): Promise<void> 
     for (let i = 0; i < count; i++) {
       const option = options.nth(i);
       const text = (await option.textContent()) ?? '';
-      if (!text.toLowerCase().includes('sin stock') && !text.toLowerCase().includes('out of stock')) {
+      if (
+        !text.toLowerCase().includes('sin stock') &&
+        !text.toLowerCase().includes('out of stock')
+      ) {
         await option.click();
         clicked = true;
         break;
@@ -214,7 +221,11 @@ test.describe('@regression @pos @payment-manager @manual', () => {
     const saleResponse = await saleResponsePromise;
 
     expect(saleResponse.status()).toBe(201);
-    const saleBody = (await saleResponse.json()) as { id?: number; total?: number; customerName?: string };
+    const saleBody = (await saleResponse.json()) as {
+      id?: number;
+      total?: number;
+      customerName?: string;
+    };
 
     // PaymentManager closes, invoice dialog opens
     await expect(page.getByTestId('pm-dialog')).not.toBeVisible({ timeout: 10_000 });
@@ -244,14 +255,19 @@ test.describe('@regression @pos @payment-manager @manual', () => {
     await page.getByTestId('pm-finalize').click();
     const saleResponse = await saleResponsePromise;
     expect(saleResponse.status()).toBe(201);
-    const sale = (await saleResponse.json()) as { id: number; total: number; customerName?: string; lines?: { productName?: string; quantity?: number; presentationPrice?: number }[] };
+    const sale = (await saleResponse.json()) as {
+      id: number;
+      total: number;
+      customerName?: string;
+      lines?: { productName?: string; quantity?: number; presentationPrice?: number }[];
+    };
 
     await page.getByTestId('invoice-close').click();
 
     // Verify in history API
     const histRes = await page.request.get(`${config.apiRoot}/sales/${sale.id}`, { headers });
     expect(histRes.status()).toBe(200);
-    const detail = await histRes.json() as typeof sale;
+    const detail = (await histRes.json()) as typeof sale;
 
     expect(detail.id).toBe(sale.id);
     expect(Number(detail.total)).toBeCloseTo(Number(expectedTotal), 1);
@@ -269,7 +285,9 @@ test.describe('@regression @pos @payment-manager @manual', () => {
 
     // Switch to advanced mode
     await page.getByTestId('pm-mode-advanced').click();
-    await expect(page.getByRole('button', { name: /agregar pago|add payment/i })).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByRole('button', { name: /agregar pago|add payment/i })).toBeVisible({
+      timeout: 5_000,
+    });
 
     // Add a partial CASH payment (half the total, approx)
     const cashMethodBtn = page.getByRole('button', { name: /efectivo|cash/i }).first();

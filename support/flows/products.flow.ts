@@ -124,7 +124,9 @@ export async function assertProductVisibleInInventory(
 
   const inventoryMatch = page
     .locator('main')
-    .getByText(new RegExp(`${escapeRegExp(createdProduct.name)}|${escapeRegExp(createdProduct.sku)}`, 'i'))
+    .getByText(
+      new RegExp(`${escapeRegExp(createdProduct.name)}|${escapeRegExp(createdProduct.sku)}`, 'i')
+    )
     .first();
   await expect(inventoryMatch).toBeVisible({ timeout: 20_000 });
 }

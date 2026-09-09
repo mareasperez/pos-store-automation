@@ -1,11 +1,7 @@
 import { faker } from '@faker-js/faker';
 
 export type ProductFlavor =
-  | 'catalog'
-  | 'inventory'
-  | 'preferred'
-  | 'multi-presentation'
-  | 'standard';
+  'catalog' | 'inventory' | 'preferred' | 'multi-presentation' | 'standard';
 
 export type SupplierFake = {
   name: string;
@@ -59,9 +55,7 @@ export class FakerDataService {
     return {
       name: `${firstName} ${lastName} ${stamp}`,
       phone: `505${phoneTail}`,
-      email: faker.internet
-        .email({ firstName, lastName, provider: 'example.test' })
-        .toLowerCase(),
+      email: faker.internet.email({ firstName, lastName, provider: 'example.test' }).toLowerCase(),
       street: faker.location.streetAddress(),
       city: faker.location.city(),
       state: faker.location.state(),
@@ -83,14 +77,16 @@ export class FakerDataService {
       name: `${companyName} ${stamp}`,
       contactName: `${firstName} ${lastName}`,
       phone: `505${phoneTail}`,
-      email: faker.internet
-        .email({ firstName, lastName, provider: 'example.test' })
-        .toLowerCase(),
+      email: faker.internet.email({ firstName, lastName, provider: 'example.test' }).toLowerCase(),
       address: faker.location.streetAddress(),
     };
   }
 
-  buildProductFake(seed: number, flavor: ProductFlavor = 'standard', uniqueTag?: string): ProductFake {
+  buildProductFake(
+    seed: number,
+    flavor: ProductFlavor = 'standard',
+    uniqueTag?: string
+  ): ProductFake {
     const normalizedSeed = stableNumber(seed);
     faker.seed(normalizedSeed + 101);
 

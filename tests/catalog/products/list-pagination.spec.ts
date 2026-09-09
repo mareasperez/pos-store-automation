@@ -1,8 +1,5 @@
 import { expect, test } from '@fixtures';
-import {
-  gotoProductList,
-  waitProductsLoaded,
-} from '../../../support/pages/products-list.page';
+import { gotoProductList, waitProductsLoaded } from '../../../support/pages/products-list.page';
 
 /**
  * Product list pagination smoke tests.
@@ -47,7 +44,10 @@ test.describe('@regression @products @manual product list pagination', () => {
     const hasPage2 = await page2.isVisible().catch(() => false);
     if (hasPage2) {
       await page2.click();
-      await expect(page.getByRole('link', { name: '2', exact: true })).toHaveAttribute('data-active', 'true');
+      await expect(page.getByRole('link', { name: '2', exact: true })).toHaveAttribute(
+        'data-active',
+        'true'
+      );
     }
 
     // Change page size to 25
@@ -72,7 +72,10 @@ test.describe('@regression @products @manual product list pagination', () => {
     const hasPage2 = await page2.isVisible().catch(() => false);
     if (hasPage2) {
       await page2.click();
-      await expect(page.getByRole('link', { name: '2', exact: true })).toHaveAttribute('data-active', 'true');
+      await expect(page.getByRole('link', { name: '2', exact: true })).toHaveAttribute(
+        'data-active',
+        'true'
+      );
     }
 
     // Type something in the search box

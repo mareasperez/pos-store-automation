@@ -41,7 +41,9 @@ if (environment === 'prod') {
   }
 }
 
-const playwrightCliPath = fileURLToPath(new URL('../node_modules/playwright/cli.js', import.meta.url));
+const playwrightCliPath = fileURLToPath(
+  new URL('../node_modules/playwright/cli.js', import.meta.url)
+);
 
 const result = spawnSync(process.execPath, [playwrightCliPath, 'test', ...args], {
   env: runtimeEnv,

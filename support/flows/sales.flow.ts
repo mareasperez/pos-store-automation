@@ -41,9 +41,12 @@ export async function getFirstSellableProduct(page: Page): Promise<string | null
     .sort((left, right) => right.onHandQty - left.onHandQty);
 
   for (const candidate of candidates.slice(0, 5)) {
-    const productResponse = await page.request.get(`${config.apiRoot}/products/${candidate.skuId}`, {
-      headers,
-    });
+    const productResponse = await page.request.get(
+      `${config.apiRoot}/products/${candidate.skuId}`,
+      {
+        headers,
+      }
+    );
 
     if (!productResponse.ok()) {
       continue;

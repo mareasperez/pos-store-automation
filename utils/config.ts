@@ -88,7 +88,6 @@ function withoutTrailingSlash(value: string): string {
   return value.replace(/\/+$/, '');
 }
 
-
 export const config = {
   environment,
   baseUrl,

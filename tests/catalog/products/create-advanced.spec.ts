@@ -24,7 +24,10 @@ async function createSupplier(page: Page, suffix: number, uniqueTag: string): Pr
   await page.getByLabel(/email/i).fill(fakeSupplier.email);
   await page.getByLabel(/direcci[oó]n|address/i).fill(fakeSupplier.address);
 
-  await page.getByRole('button', { name: /guardar|save/i }).last().click();
+  await page
+    .getByRole('button', { name: /guardar|save/i })
+    .last()
+    .click();
   await expect(page.getByText(fakeSupplier.name)).toBeVisible({ timeout: 20_000 });
 
   return fakeSupplier.name;
@@ -42,10 +45,9 @@ async function selectPreferredSupplier(page: Page, supplierName: string) {
   await page.getByRole('option', { name: new RegExp(escapeRegExp(supplierName), 'i') }).click();
 }
 
-test('@regression @products @manual creates product with preferred supplier', async (
-  { page },
-  testInfo: TestInfo
-) => {
+test('@regression @products @manual creates product with preferred supplier', async ({
+  page,
+}, testInfo: TestInfo) => {
   requireCredentialsOrSkip();
 
   const suffix = Date.now();
@@ -71,7 +73,11 @@ test('@regression @products @manual creates product with preferred supplier', as
   await page.getByRole('button', { name: /guardar y salir|save and exit/i }).click();
 
   const createResponse = await createResponsePromise;
-  await expectResponseStatus(createResponse, 201, 'Product with preferred supplier create response');
+  await expectResponseStatus(
+    createResponse,
+    201,
+    'Product with preferred supplier create response'
+  );
 
   await expect(page).toHaveURL(/\/catalog\/products(?:$|[?#])/i, { timeout: 20_000 });
 
@@ -90,10 +96,9 @@ test('@regression @products @manual creates product with preferred supplier', as
   await expect(row).toBeVisible({ timeout: 20_000 });
 });
 
-test('@regression @products @manual creates product with additional presentation', async (
-  { page },
-  testInfo: TestInfo
-) => {
+test('@regression @products @manual creates product with additional presentation', async ({
+  page,
+}, testInfo: TestInfo) => {
   requireCredentialsOrSkip();
 
   const product = fakerDataService.buildProductFake(
@@ -118,7 +123,11 @@ test('@regression @products @manual creates product with additional presentation
   await page.getByRole('button', { name: /guardar y salir|save and exit/i }).click();
 
   const createResponse = await createResponsePromise;
-  await expectResponseStatus(createResponse, 201, 'Product with additional presentation create response');
+  await expectResponseStatus(
+    createResponse,
+    201,
+    'Product with additional presentation create response'
+  );
 
   const createdProduct = (await createResponse.json()) as CreatedProductResponse;
 

@@ -131,4 +131,3 @@ test.describe('@manual @shifts', () => {
     await expect(actionsBtn).not.toBeVisible({ timeout: 15_000 });
   });
 });
-

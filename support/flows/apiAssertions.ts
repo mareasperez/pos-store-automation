@@ -13,7 +13,8 @@ export async function expectResponseStatus(
 export async function expectResponseOk(response: Response, context: string): Promise<void> {
   const body = await response.text();
 
-  expect(response.ok(), `${context} failed with status ${response.status()} and body: ${body}`).toBe(
-    true
-  );
+  expect(
+    response.ok(),
+    `${context} failed with status ${response.status()} and body: ${body}`
+  ).toBe(true);
 }

@@ -172,10 +172,7 @@ test.describe('@regression @products @manual product edit flow', () => {
 
     const duplicatePostRequests: string[] = [];
     page.on('request', (request) => {
-      if (
-        request.method() === 'POST' &&
-        request.url().includes('/api/product-presentations')
-      ) {
+      if (request.method() === 'POST' && request.url().includes('/api/product-presentations')) {
         duplicatePostRequests.push(request.url());
       }
     });
@@ -199,7 +196,9 @@ test.describe('@regression @products @manual product edit flow', () => {
     // Duplicate is added to the local list, highlighting it as a conflict
     await expect(presentationRows).toHaveCount(rowsBeforeDuplicateAttempt + 1);
     // Save button must be disabled until the duplicate is removed
-    await expect(page.getByRole('button', { name: /save presentations|guardar presentaciones/i })).toBeDisabled();
+    await expect(
+      page.getByRole('button', { name: /save presentations|guardar presentaciones/i })
+    ).toBeDisabled();
     expect(duplicatePostRequests).toHaveLength(0);
   });
 });

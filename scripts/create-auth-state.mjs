@@ -134,9 +134,9 @@ if (environment === 'prod') {
   }
 }
 if (
-  !cdpUrl
-  && ['dev', 'prod', 'local'].includes(environment)
-  && optional(['E2E_AUTH_NORMAL_CHROME']).toLowerCase() !== 'false'
+  !cdpUrl &&
+  ['dev', 'prod', 'local'].includes(environment) &&
+  optional(['E2E_AUTH_NORMAL_CHROME']).toLowerCase() !== 'false'
 ) {
   cdpUrl = await launchNormalChrome();
   console.log('[auth-setup] Opened an isolated normal Chrome profile for the dev login.');
@@ -203,10 +203,13 @@ async function captureSession(user, index) {
   if (manualAuth) {
     console.log(`${label}: credentials filled. Complete Turnstile and click Ingresar in Chrome.`);
   } else {
-    console.log(`${label}: complete the Turnstile challenge if shown; submit happens automatically.`);
+    console.log(
+      `${label}: complete the Turnstile challenge if shown; submit happens automatically.`
+    );
     await page.waitForFunction(
-      () => !(document.querySelector('button[type="submit"]') instanceof HTMLButtonElement)
-        || !document.querySelector('button[type="submit"]').disabled,
+      () =>
+        !(document.querySelector('button[type="submit"]') instanceof HTMLButtonElement) ||
+        !document.querySelector('button[type="submit"]').disabled,
       undefined,
       { timeout: 120_000 }
     );
@@ -229,8 +232,8 @@ async function captureSession(user, index) {
     if (!hasAccess) {
       console.error(
         `${label}: FATAL: TEST_TENANT_ID "${tenantId}" is not in the user's tenant list. ` +
-        `Available: ${userTenants.map((t) => t.id).join(', ') || '(none loaded yet)'}. ` +
-        'Verify the user has been granted access to this tenant.'
+          `Available: ${userTenants.map((t) => t.id).join(', ') || '(none loaded yet)'}. ` +
+          'Verify the user has been granted access to this tenant.'
       );
       process.exit(1);
     }
@@ -244,7 +247,9 @@ async function captureSession(user, index) {
     await page.reload({ waitUntil: 'domcontentloaded' });
     console.log(`${label}: pinned activeTenantId → ${tenantId}`);
   } else {
-    console.warn(`${label}: TEST_TENANT_ID not set — active tenant will be whatever the app auto-selects.`);
+    console.warn(
+      `${label}: TEST_TENANT_ID not set — active tenant will be whatever the app auto-selects.`
+    );
   }
 
   const target = authStateFileForIndex(index);
@@ -258,7 +263,9 @@ try {
   }
 
   fs.copyFileSync(authStateFileForIndex(0), legacyAuthStateFile);
-  console.log(`[auth-setup] Mirrored slot 0 to ${legacyAuthStateFile} for backwards compatibility.`);
+  console.log(
+    `[auth-setup] Mirrored slot 0 to ${legacyAuthStateFile} for backwards compatibility.`
+  );
 
   // Postman reuses the first cashier's cookies; the browser currently holds the last user's session.
   const firstState = JSON.parse(fs.readFileSync(authStateFileForIndex(0), 'utf8'));
