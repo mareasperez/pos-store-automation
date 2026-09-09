@@ -34,9 +34,7 @@ test.describe('@regression @pos @inventory', () => {
       candidate!.presentationName
     );
 
-    const soldLine = sale.lines?.find(
-      (line) => line.presentationId === candidate!.presentationId
-    );
+    const soldLine = sale.lines?.find((line) => line.presentationId === candidate!.presentationId);
     expect(
       soldLine,
       `Sale #${sale.id} has no line for presentation #${candidate!.presentationId}`
@@ -57,7 +55,10 @@ test.describe('@regression @pos @inventory', () => {
         `expectedBaseUnitsSold=${expectedBaseUnitsSold} stockAfter=${stockAfter}`
     );
 
-    expect(conversionFactor, 'This test only proves something when the factor is > 1.').toBeGreaterThan(1);
+    expect(
+      conversionFactor,
+      'This test only proves something when the factor is > 1.'
+    ).toBeGreaterThan(1);
     expect(
       stockAfter,
       `Stock should drop by ${expectedBaseUnitsSold} base units after the sale. ` +
