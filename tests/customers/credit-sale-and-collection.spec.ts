@@ -19,6 +19,7 @@ import { config } from '@config';
 import { requireCredentialsOrSkip } from '../../support/flows/auth.flow';
 import { fakerDataService } from '../../services/fakerDataService';
 import { buildApiHeaders, getFirstSellableProduct } from '../../support/flows/sales.flow';
+import { getReceivableBalance, registerCollectionPayment } from '../../support/flows/receivables.flow';
 
 test.setTimeout(120_000);
 
@@ -28,26 +29,6 @@ type Customer = {
   status?: string;
   creditActive?: boolean;
 };
-
-type ReceivableBalanceSummary = {
-  customerId: number;
-  totalOutstanding: number;
-  hasOutstandingBalance: boolean;
-};
-
-async function getReceivableBalance(page: Page, customerId: number): Promise<number> {
-  const headers = await buildApiHeaders(page);
-  const res = await page.request.get(
-    `${config.apiRoot}/receivables/summary?customerId=${customerId}`,
-    { headers: { ...headers, 'Cache-Control': 'no-cache' } }
-  );
-  expect(
-    res.ok(),
-    `GET /receivables/summary failed: ${res.status()} ${await res.text()}`
-  ).toBeTruthy();
-  const summary = (await res.json()) as ReceivableBalanceSummary;
-  return Number(summary.totalOutstanding);
-}
 
 /** Finds an active credit-enabled customer (excluding the walk-in id=1), or creates one via the UI. */
 async function findOrCreateCreditCustomer(page: Page): Promise<{ id: number; name: string }> {
@@ -193,35 +174,6 @@ async function makeCreditSale(page: Page, productName: string): Promise<number> 
   await expect(page.getByTestId('invoice-dialog')).not.toBeVisible({ timeout: 5_000 });
 
   return Number(sale.total);
-}
-
-/** Registers a payment against the customer's oldest debt (FIFO, the default allocation mode). */
-async function registerCollectionPayment(
-  page: Page,
-  customerName: string,
-  amount: number
-): Promise<void> {
-  await page.goto('/customer-collections', { waitUntil: 'domcontentloaded' });
-  await expect(page).toHaveURL(/\/customer-collections(?:$|[?#])/i, { timeout: 20_000 });
-
-  await page.getByRole('button', { name: /nueva cobranza/i }).click();
-
-  await page.getByTestId('collection-customer-select').click();
-  await page.getByRole('option', { name: new RegExp(customerName, 'i') }).click();
-
-  await page.getByLabel(/^monto$/i).fill(String(amount));
-
-  await page.getByLabel(/tipo de pago/i).click();
-  await expect(page.getByRole('option').first()).toBeVisible({ timeout: 10_000 });
-  await page.getByRole('option').first().click();
-
-  const collectionResponsePromise = page.waitForResponse(
-    (r) => r.request().method() === 'POST' && r.url().includes('/api/customer-collections'),
-    { timeout: 20_000 }
-  );
-  await page.getByRole('button', { name: /crear cobranza/i }).click();
-  const collectionResponse = await collectionResponsePromise;
-  expect(collectionResponse.status(), await collectionResponse.text()).toBe(201);
 }
 
 test.describe('@real @manual @receivables-serial', () => {

@@ -3,33 +3,9 @@
  * and the "Ver"/"Registrar pago" placeholders (wired to a shared "not implemented" toast).
  * Non-destructive — nothing is created or mutated, so it runs in the default parallel suite.
  */
-import { type Page } from '@playwright/test';
 import { expect, test } from '@fixtures';
-import { config } from '@config';
 import { requireCredentialsOrSkip } from '../../support/flows/auth.flow';
-import { buildApiHeaders } from '../../support/flows/sales.flow';
-
-interface CustomerDebtSummary {
-  customerId: number;
-  customerName: string | null;
-  totalOutstanding: number;
-}
-
-interface PageResponse<T> {
-  content: T[];
-}
-
-/** Finds an existing customer with a pending balance in the test tenant, or null if none. */
-async function findExistingDebtor(page: Page) {
-  const headers = await buildApiHeaders(page);
-  const res = await page.request.get(
-    `${config.apiRoot}/receivables/customers-summary?page=0&size=50`,
-    { headers }
-  );
-  expect(res.ok(), `GET /receivables/customers-summary failed: ${res.status()}`).toBeTruthy();
-  const body = (await res.json()) as PageResponse<CustomerDebtSummary>;
-  return body.content.find((row) => row.totalOutstanding > 0 && row.customerName) ?? null;
-}
+import { findExistingDebtor } from '../../support/flows/receivables.flow';
 
 test.describe('@regression @customers @customer-debt', () => {
   test('@regression @customers @customer-debt lists a debtor and opens the detail dialog', async ({
@@ -68,11 +44,9 @@ test.describe('@regression @customers @customer-debt', () => {
       timeout: 5_000,
     });
 
-    // Scoped to the dialog — react-toastify also renders a "close" icon button globally.
-    await page
-      .getByRole('dialog')
-      .getByRole('button', { name: /cerrar|close/i })
-      .click();
+    // Escape instead of clicking "Cerrar" — with enough accumulated pending sales the table
+    // can grow tall enough that a trailing cell intercepts the footer button's click point.
+    await page.keyboard.press('Escape');
     await expect(page.getByTestId('customer-debt-register-payment')).not.toBeVisible({
       timeout: 5_000,
     });
