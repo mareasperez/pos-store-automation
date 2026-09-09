@@ -2,6 +2,7 @@
   "name": "my-pos-store-e2e",
   "version": "2.0.0",
   "private": true,
+  "type": "module",
   "description": "Manual-first Playwright E2E suite for my_pos_store",
   "scripts": {
     "test": "node ./scripts/run-playwright-env.mjs dev --ui --no-deps --grep-invert \"@shift-destructive|@receivables-destructive\"",
