@@ -1,17 +1,17 @@
 /**
  * Cross-module e2e: credit sale -> customer collection payment -> receivable balance validation.
- * Tag: @real @manual @receivables-destructive — a customer's receivable balance is tenant-wide
+ * Tag: @real @manual @receivables-serial — a customer's receivable balance is tenant-wide
  * shared state (like stock/sequences), but unlike stock lookups this test can't route around
  * contention by trying another candidate: it reads the balance before/after each action and
  * asserts an exact delta, so a concurrent worker touching the same customer would make it flaky.
- * Excluded from the default parallel suite the same way @shift-destructive is (see
- * playwright.config.ts) and only runs via `npm run test:destructive:*` with --workers=1.
+ * Excluded from the default parallel suite the same way @shift-serial is (see
+ * playwright.config.ts) and only runs via `npm run test:serial:*` with --workers=1.
  *
  * Flow: find an existing credit-enabled customer (or create one) -> sell to them on credit with
  * no initial payment -> assert the server's receivable balance grew by the sale total -> register
  * a partial payment via Customer Collections (FIFO) -> assert the balance shrank by that payment.
  *
- * Run: npm run test:destructive:local (or test:destructive:dev)
+ * Run: npm run test:serial:local (or test:serial:dev)
  */
 import { type Page } from '@playwright/test';
 import { expect, test } from '@fixtures';
@@ -224,8 +224,8 @@ async function registerCollectionPayment(
   expect(collectionResponse.status(), await collectionResponse.text()).toBe(201);
 }
 
-test.describe('@real @manual @receivables-destructive', () => {
-  test('@real @manual @receivables-destructive credit sale then a partial collection reduces the customer balance', async ({
+test.describe('@real @manual @receivables-serial', () => {
+  test('@real @manual @receivables-serial credit sale then a partial collection reduces the customer balance', async ({
     page,
   }) => {
     requireCredentialsOrSkip('credit sale + collection flow');

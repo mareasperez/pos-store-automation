@@ -5,8 +5,8 @@
  *
  * Self-contained: never skips on pre-existing state, and leaves an open till behind.
  *
- * Pinned to cashier 1 (user-0.json) — safe because @shift-destructive tests are excluded from
- * the default suite and only run via `npm run test:destructive:*` (--workers=1), never
+ * Pinned to cashier 1 (user-0.json) — safe because @shift-serial tests are excluded from
+ * the default suite and only run via `npm run test:serial:*` (--workers=1), never
  * concurrently with the parallel pool that also uses cashier 1 for worker 0.
  */
 import path from 'node:path';
@@ -20,7 +20,7 @@ const dirname = dirnameFromUrl(import.meta.url);
 test.use({ storageState: path.join(dirname, '../../playwright/.auth/user-0.json') });
 test.setTimeout(120_000);
 
-test.describe('@real @manual @shifts @shift-destructive', () => {
+test.describe('@real @manual @shifts @shift-serial', () => {
   test('@real @manual closes a real shift from the /shifts management page', async ({ page }) => {
     requireCredentialsOrSkip('real shift close');
 

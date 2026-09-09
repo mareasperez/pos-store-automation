@@ -88,7 +88,7 @@ async function closeShiftFromPos(page: Page): Promise<void> {
   await expect(page.getByTestId('pos-open-shift').first()).toBeVisible({ timeout: 15_000 });
 }
 
-test.describe('@real @manual @pos @shift-destructive', () => {
+test.describe('@real @manual @pos @shift-serial', () => {
   test('@real @manual opens and closes a real shift from the POS screen', async ({ page }) => {
     requireCredentialsOrSkip('real pos shift cycle');
 

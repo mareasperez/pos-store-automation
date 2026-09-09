@@ -2,12 +2,12 @@
  * Dedicated cross-module e2e worker: open shift -> N real cash sales -> verify the server's own
  * expected-cash reconciliation matches what we actually sold -> close shift.
  *
- * Tag: @real @manual @shifts @shift-destructive @shift-reconciliation — pinned to cashier 1
- * (user-0.json). @shift-destructive tests are excluded from the default suite (see
- * playwright.config.ts) and only run via `npm run test:destructive:*` with --workers=1, so
+ * Tag: @real @manual @shifts @shift-serial @shift-reconciliation — pinned to cashier 1
+ * (user-0.json). @shift-serial tests are excluded from the default suite (see
+ * playwright.config.ts) and only run via `npm run test:serial:*` with --workers=1, so
  * reusing cashier 1 here never collides with the parallel pool's worker 0.
  *
- * Run: npm run test:destructive:local (or test:destructive:dev)
+ * Run: npm run test:serial:local (or test:serial:dev)
  */
 import path from 'node:path';
 import { type Page } from '@playwright/test';
@@ -232,7 +232,7 @@ async function closeShiftFromPos(page: Page, cashPaymentMethodId: number): Promi
   expect((await closeResponse).status()).toBe(200);
 }
 
-test.describe('@real @manual @shifts @shift-destructive @shift-reconciliation', () => {
+test.describe('@real @manual @shifts @shift-serial @shift-reconciliation', () => {
   test('@real @manual open -> sell -> close: sold cash matches the server-computed expected amount', async ({
     page,
   }) => {

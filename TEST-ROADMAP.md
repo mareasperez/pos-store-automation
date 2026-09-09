@@ -168,7 +168,7 @@ in parallel again.
 - **Original symptom**: sporadic `400 DOMAIN_ERROR — No active shift found` on POS sale tests, when
   every worker reused the same `user.json` and one spec closed the shared user's shift.
 - **Removed**: the `chromium-shift-exclusive` project and its `dependencies` serialization. The
-  `@shift-destructive` tag is kept as documentation — those specs really do open/close tills — and
+  `@shift-serial` tag is kept as documentation — those specs really do open/close tills — and
   can still be targeted with `--grep` when you want to run them on their own.
 - **Kept**: POS specs re-assert the shift right before each sale POST. Cheap, and it turns any future
   regression into a readable failure instead of a bare 400.
