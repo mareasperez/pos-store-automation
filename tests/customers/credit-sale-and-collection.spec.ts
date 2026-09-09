@@ -146,8 +146,16 @@ async function addProductToCart(page: Page, productName: string): Promise<void> 
 
 /** Attaches the given customer to the current sale via the POS customer selector. */
 async function selectPosCustomer(page: Page, customerName: string): Promise<void> {
+  // Selecting a customer triggers an async fetch of their receivable balance (used to gate
+  // "Venta a crédito" in the checkout decision modal). Wait for it so the credit-sale click
+  // below doesn't race a still-pending balance and get silently blocked.
+  const balanceResponsePromise = page.waitForResponse(
+    (r) => r.request().method() === 'GET' && r.url().includes('/api/receivables/summary'),
+    { timeout: 15_000 }
+  );
   await page.getByTestId('pos-customer-select').click();
   await page.getByRole('option', { name: new RegExp(customerName, 'i') }).click();
+  await balanceResponsePromise;
 }
 
 /** Confirms a credit sale with no initial payment and returns the created sale total. */
