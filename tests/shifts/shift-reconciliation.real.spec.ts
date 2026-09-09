@@ -13,8 +13,10 @@ import path from 'node:path';
 import { type Page } from '@playwright/test';
 import { expect, test } from '@fixtures';
 import { config } from '@config';
+import { dirnameFromUrl } from '../../utils/esm';
 
-test.use({ storageState: path.join(__dirname, '../../playwright/.auth/user-0.json') });
+const dirname = dirnameFromUrl(import.meta.url);
+test.use({ storageState: path.join(dirname, '../../playwright/.auth/user-0.json') });
 test.setTimeout(180_000);
 
 const INITIAL_CASH = 100;

@@ -1,8 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { test as base, expect } from '@playwright/test';
+import { dirnameFromUrl } from '../utils/esm';
 
-const authDir = path.join(__dirname, '..', 'playwright', '.auth');
+const dirname = dirnameFromUrl(import.meta.url);
+const authDir = path.join(dirname, '..', 'playwright', '.auth');
 
 /** Session files produced by `npm run test:auth:setup`, one per test cashier. */
 function listAuthStateFiles(): string[] {

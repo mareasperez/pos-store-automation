@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
 import path from 'path';
+import { dirnameFromUrl } from './esm';
 
 const environments = ['dev', 'local', 'qa', 'staging', 'prod'] as const;
 type E2EEnvironment = (typeof environments)[number];
@@ -19,9 +20,10 @@ function loadEnvFile(filePath: string): Record<string, string> {
   return result.parsed ?? {};
 }
 
+const dirname = dirnameFromUrl(import.meta.url);
 const environment = resolveEnvironment();
-const e2eRoot = path.resolve(__dirname, '..');
-const repoRoot = path.resolve(__dirname, '../..');
+const e2eRoot = path.resolve(dirname, '..');
+const repoRoot = path.resolve(dirname, '../..');
 
 const rootEnv = loadEnvFile(path.join(repoRoot, '.env'));
 const e2eEnv = loadEnvFile(path.join(e2eRoot, '.env'));

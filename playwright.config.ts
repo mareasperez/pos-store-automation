@@ -1,8 +1,10 @@
 import { defineConfig, devices } from '@playwright/test';
 import path from 'node:path';
+import { dirnameFromUrl } from './utils/esm';
 import { config } from './utils/config';
 
-const authStateFile = path.join(__dirname, 'playwright', '.auth', 'user.json');
+const dirname = dirnameFromUrl(import.meta.url);
+const authStateFile = path.join(dirname, 'playwright', '.auth', 'user.json');
 
 export default defineConfig({
   testDir: './tests',

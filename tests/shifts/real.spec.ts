@@ -14,8 +14,10 @@ import { expect, test } from '@fixtures';
 import { config } from '@config';
 import { requireCredentialsOrSkip } from '../../support/flows/auth.flow';
 import { buildApiHeaders } from '../../support/flows/sales.flow';
+import { dirnameFromUrl } from '../../utils/esm';
 
-test.use({ storageState: path.join(__dirname, '../../playwright/.auth/user-0.json') });
+const dirname = dirnameFromUrl(import.meta.url);
+test.use({ storageState: path.join(dirname, '../../playwright/.auth/user-0.json') });
 test.setTimeout(120_000);
 
 test.describe('@real @manual @shifts @shift-destructive', () => {
