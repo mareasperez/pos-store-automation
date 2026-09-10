@@ -104,8 +104,12 @@ export async function getProductStock(page: Page, skuId: number): Promise<number
     `GET /inventory/stock-balance/all failed: ${stockResponse.status()}`
   ).toBeTruthy();
 
+  // The endpoint returns one row per (warehouseId, skuId) pair — a product can have stock spread
+  // across several warehouses, so this must SUM every matching row, not just find the first one.
   const stockItems = (await stockResponse.json()) as { skuId: number; onHandQty: number }[];
-  return stockItems.find((item) => item.skuId === skuId)?.onHandQty ?? 0;
+  return stockItems
+    .filter((item) => item.skuId === skuId)
+    .reduce((total, item) => total + item.onHandQty, 0);
 }
 
 /** Reads a presentation's conversion factor to base units (1 for the base presentation itself). */
