@@ -1,22 +1,18 @@
 /**
- * Regression e2e proving a currency-contamination bug in return refunds: `ReturnService.create`
- * always registers the CASH refund's cash movement via
+ * Regression e2e for a currency-contamination bug in return refunds: `ReturnService.create` used
+ * to always register the CASH refund's cash movement via
  * `shiftService.registerCashMovement(userId, "OUT", totalRefunded, reason)` — the 4-arg overload
  * that defaults to the tenant's BASE-currency CASH payment method
  * (`ShiftService.getCashPaymentMethodId()`) — regardless of which payment method/currency the
  * original sale was actually paid with.
  *
- * A sale paid ENTIRELY in a secondary currency (USD) must not move the base-currency CASH
- * drawer's expected amount at all — neither when it's sold (already correct: sale_payments are
- * tracked per specific payment method id) nor when it's returned. Today, returning it DOES move
- * the base drawer, proving the refund exits from the wrong till/currency.
+ * Fixed: the operator now explicitly selects the refund's destination payment method
+ * (`paymentMethodId`, required for refundMethod CASH/CARD/TRANSFER — the system never infers
+ * it). A sale paid ENTIRELY in a secondary currency (USD) and refunded into the USD CASH method
+ * must move the USD drawer, and must NOT move the base-currency CASH drawer at all.
  *
  * See docs/KNOWN_GAPS.md gap #11 (Return Refund Currency Is Not Modeled) and gap #12 (Shift Cash
  * Balances Lack Explicit Currency Denomination).
- *
- * This test intentionally FAILS until that gap is closed (the refund cash movement must be
- * registered against the original sale's payment method instead of always the base CASH method).
- * Once fixed, it should pass without modification.
  *
  * Tag: @real @manual @shift-serial — pinned to cashier 1 (user-0.json), mutates shift state (cash
  * movements), so it needs the same single-worker isolation as shift-reconciliation.real.spec.ts.
@@ -271,6 +267,7 @@ test.describe('@real @manual @shift-serial @returns-currency @session-mc-2026090
           warehouseId,
           reasonType: 'CUSTOMER_REGRET',
           refundMethod: 'CASH',
+          paymentMethodId: usdCashMethod!.id,
           notes: null,
           items: sale.lines.map((line) => ({
             saleLineId: line.id,
@@ -293,17 +290,23 @@ test.describe('@real @manual @shift-serial @returns-currency @session-mc-2026090
           `after=${usdExpectedAfterReturn}`
       );
 
-      // The sale was paid ENTIRELY in USD — the base-currency drawer must be untouched by both
-      // the sale and its return. Today, ReturnService.create always calls
-      // shiftService.registerCashMovement(userId, "OUT", totalRefunded, reason) WITHOUT a
-      // paymentMethodId, which defaults to the tenant's base CASH method
-      // (ShiftService.getCashPaymentMethodId()) regardless of the original sale's currency.
+      // The sale was paid ENTIRELY in USD and the operator explicitly selected the USD CASH
+      // method as the refund destination — the base-currency drawer must be untouched by both the
+      // sale and its return.
       expect(
         baseExpectedAfterReturn,
-        'Refunding a USD-only sale moved the BASE-currency CASH drawer\'s expected amount ' +
-          `(before=${baseExpectedBeforeReturn}, after=${baseExpectedAfterReturn}). The refund ` +
-          'cash movement was registered against the wrong payment method/currency.'
+        'Refunding a USD-only sale into the USD payment method moved the BASE-currency CASH ' +
+          `drawer's expected amount (before=${baseExpectedBeforeReturn}, after=${baseExpectedAfterReturn}). ` +
+          'The refund cash movement was registered against the wrong payment method/currency.'
       ).toBeCloseTo(baseExpectedBeforeReturn, 2);
+
+      // The USD drawer must actually receive the refund — proving the money landed in the
+      // correct till, not just that it avoided the wrong one.
+      expect(
+        usdExpectedAfterReturn,
+        `USD drawer expected amount should drop by the refunded amount. ` +
+          `Before: ${usdExpectedBeforeReturn}, after: ${usdExpectedAfterReturn}.`
+      ).toBeLessThan(usdExpectedBeforeReturn);
     } finally {
       // Always leave the tenant's shift closed, whether the assertion above passed or failed.
       const finalShift = await getActiveShift(page);

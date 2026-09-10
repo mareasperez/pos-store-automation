@@ -7,6 +7,10 @@
  *
  * These are base-currency (NIO) flows only — see return-cash-currency-mismatch.real.spec.ts for
  * the foreign-currency (USD) refund-drawer regression.
+ *
+ * Tag: @shift-serial — reads/asserts on the shift's live CASH expected amount, so it must not
+ * run concurrently with other shift-mutating specs pinned to the same cashier. Run via
+ * `npm run test:serial:local` (or `test:serial:dev`), same as return-cash-currency-mismatch.
  */
 import { type Page } from '@playwright/test';
 import { expect, test } from '@fixtures';
@@ -85,7 +89,12 @@ async function getShiftExpectedAmount(page: Page, paymentMethodId: number): Prom
 }
 
 /** Fully returns every line of the given sale and returns the created ReturnDTO. */
-async function returnFullSale(page: Page, sale: CreatedSale, warehouseId: number) {
+async function returnFullSale(
+  page: Page,
+  sale: CreatedSale,
+  warehouseId: number,
+  paymentMethodId: number
+) {
   const headers = await buildApiHeaders(page);
   const res = await page.request.post(`${config.apiRoot}/returns`, {
     headers: { ...headers, 'Content-Type': 'application/json' },
@@ -94,6 +103,7 @@ async function returnFullSale(page: Page, sale: CreatedSale, warehouseId: number
       warehouseId,
       reasonType: 'CUSTOMER_REGRET',
       refundMethod: 'CASH',
+      paymentMethodId,
       notes: null,
       items: sale.lines.map((line) => ({
         saleLineId: line.id,
@@ -113,7 +123,8 @@ async function returnPartialLine(
   sale: CreatedSale,
   line: CreatedSaleLine,
   quantity: number,
-  warehouseId: number
+  warehouseId: number,
+  paymentMethodId: number
 ) {
   const headers = await buildApiHeaders(page);
   const res = await page.request.post(`${config.apiRoot}/returns`, {
@@ -123,6 +134,7 @@ async function returnPartialLine(
       warehouseId,
       reasonType: 'CUSTOMER_REGRET',
       refundMethod: 'CASH',
+      paymentMethodId,
       notes: null,
       items: [
         {
@@ -259,7 +271,7 @@ async function sellMultipleUnitsCashNio(
   return sale;
 }
 
-test.describe('@regression @pos @returns @session-mc-20260909', () => {
+test.describe('@regression @pos @returns @shift-serial @session-mc-20260909', () => {
   test("partial return: returning 1 of 2 sold units refunds proportionally and restores only that unit's stock", async ({
     page,
   }) => {
@@ -296,7 +308,7 @@ test.describe('@regression @pos @returns @session-mc-20260909', () => {
     const cashExpectedBeforeReturn = await getShiftExpectedAmount(page, cashMethodId!);
 
     // Return only 1 of the 2 sold units.
-    const created = await returnPartialLine(page, sale, soldLine!, 1, warehouseId!);
+    const created = await returnPartialLine(page, sale, soldLine!, 1, warehouseId!, cashMethodId!);
 
     const stockAfterReturn = await getProductStock(page, product!.skuId);
     const cashExpectedAfterReturn = await getShiftExpectedAmount(page, cashMethodId!);
@@ -360,7 +372,7 @@ test.describe('@regression @pos @returns @session-mc-20260909', () => {
         `saleTotal=${sale.total} cashExpectedBeforeReturn=${cashExpectedBeforeReturn}`
     );
 
-    const created = await returnFullSale(page, sale, warehouseId!);
+    const created = await returnFullSale(page, sale, warehouseId!, cashMethodId!);
     const cashExpectedAfterReturn = await getShiftExpectedAmount(page, cashMethodId!);
 
     console.log(
@@ -414,7 +426,7 @@ test.describe('@regression @pos @returns @session-mc-20260909', () => {
         `cashExpectedBeforeReturn=${cashExpectedBeforeReturn}`
     );
 
-    const created = await returnFullSale(page, sale, warehouseId!);
+    const created = await returnFullSale(page, sale, warehouseId!, cashMethodId!);
     const cashExpectedAfterReturn = await getShiftExpectedAmount(page, cashMethodId!);
 
     console.log(
