@@ -72,7 +72,7 @@ test.describe('@regression @pos @cash-receipts @currency @session-mc-20260909', 
         paymentMethods: [{ paymentMethodId: usdMethod!.id, amount: 100 }],
       },
     });
-    expect(createRes.status(), await createRes.text()).toBe(200);
+    expect(createRes.status(), await createRes.text()).toBe(201);
     const receipt = (await createRes.json()) as {
       id: number;
       currencyCode: string;
