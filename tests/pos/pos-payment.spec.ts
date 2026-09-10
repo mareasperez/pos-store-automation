@@ -322,4 +322,91 @@ test.describe('@regression @pos @payment-manager @manual', () => {
     await page.getByTestId('invoice-close').click();
     await expect(page.getByTestId('invoice-dialog')).not.toBeVisible({ timeout: 5_000 });
   });
+
+  // ── Foreign currency (secondary currency) payments ────────────────────────
+  //
+  // Regression coverage for the PaymentManager currency-contract fix: `amount` must stay in the
+  // payment's own currency (not pre-converted to base) and `pricingAmountEquiv` must be the base
+  // equivalent the backend recomputes as amount * exchangeRate. Before the fix, any secondary
+  // currency payment was rejected by SaleService.resolvePricingAmountEquivalent with
+  // "pricingAmountEquiv does not match the server-calculated payment equivalent".
+
+  async function findActiveUsdCashMethod(page: Page): Promise<string | null> {
+    const headers = await buildApiHeaders(page);
+    const res = await page.request.get(`${config.apiRoot}/payment-methods`, { headers });
+    if (!res.ok()) return null;
+    const methods = (await res.json()) as {
+      code: string;
+      type: string;
+      active: boolean;
+      currency: string;
+    }[];
+    return methods.find((m) => m.type === 'CASH' && m.active && m.currency === 'USD')?.code ?? null;
+  }
+
+  test('simple-mode USD cash payment completes the sale @session-mc-20260909', async ({ page }) => {
+    const usdMethodCode = await findActiveUsdCashMethod(page);
+    test.skip(!usdMethodCode, 'No active USD CASH payment method in the test tenant.');
+
+    await openPaymentModal(page);
+
+    const usdButton = page.getByRole('button', { name: 'USD' });
+    test.skip(!(await usdButton.isEnabled()), 'No active USD exchange rate in the test tenant.');
+    await usdButton.click();
+    await page.getByTestId('payment-method-select').selectOption(usdMethodCode!);
+
+    const saleResponsePromise = page.waitForResponse(
+      (r) => r.url().includes('/api/sales') && r.request().method() === 'POST',
+      { timeout: 20_000 }
+    );
+    await assertShiftStillActive(page);
+    await page.getByTestId('pm-finalize').click();
+    const saleResponse = await saleResponsePromise;
+
+    expect(saleResponse.status(), await saleResponse.text()).toBe(201);
+    await expect(page.getByTestId('invoice-dialog')).toBeVisible({ timeout: 5_000 });
+    await page.getByTestId('invoice-close').click();
+  });
+
+  test('advanced-mode split payment mixing base currency and USD completes the sale @session-mc-20260909', async ({
+    page,
+  }) => {
+    const usdMethodCode = await findActiveUsdCashMethod(page);
+    test.skip(!usdMethodCode, 'No active USD CASH payment method in the test tenant.');
+
+    await openPaymentModal(page);
+    await page.getByTestId('pm-mode-advanced').click();
+    await expect(page.getByRole('button', { name: /agregar pago|add payment/i })).toBeVisible({
+      timeout: 5_000,
+    });
+
+    // Pay half the total in base currency (NIO) cash first.
+    await page.getByRole('button', { name: /efectivo|cash/i }).first().click();
+    const amountInput = page.locator('input[type="number"]').first();
+    const totalText = await page.locator('[class*="total"]').last().textContent();
+    const total = parseFloat(totalText?.replace(/[^\d.]/g, '') ?? '10');
+    const half = (total / 2).toFixed(2);
+    await amountInput.fill(half);
+    await page.getByRole('button', { name: /agregar pago|add payment/i }).click();
+
+    // Switch to USD and pay the remainder — auto-filled amount must already be capped/converted
+    // against the still-outstanding base-currency balance (normalizePayments' cap-by-base fix).
+    const usdButton = page.getByRole('button', { name: 'USD' });
+    test.skip(!(await usdButton.isEnabled()), 'No active USD exchange rate in the test tenant.');
+    await usdButton.click();
+    await page.getByRole('button', { name: /efectivo|cash/i }).first().click();
+    await page.getByRole('button', { name: /agregar pago|add payment/i }).click();
+
+    const saleResponsePromise = page.waitForResponse(
+      (r) => r.url().includes('/api/sales') && r.request().method() === 'POST',
+      { timeout: 20_000 }
+    );
+    await assertShiftStillActive(page);
+    await page.getByTestId('pm-finalize').click();
+    const saleResponse = await saleResponsePromise;
+
+    expect(saleResponse.status(), await saleResponse.text()).toBe(201);
+    await expect(page.getByTestId('invoice-dialog')).toBeVisible({ timeout: 5_000 });
+    await page.getByTestId('invoice-close').click();
+  });
 });
