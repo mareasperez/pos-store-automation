@@ -8,6 +8,11 @@ export interface CreditCustomer {
   name: string;
 }
 
+export interface CreatedCreditSale {
+  id: number;
+  total: number;
+}
+
 interface Customer {
   id: number;
   name: string;
@@ -160,8 +165,11 @@ export async function selectPosCustomer(page: Page, customerName: string): Promi
   await balanceResponsePromise;
 }
 
-/** Confirms a credit sale with no initial payment and returns the created sale total. */
-export async function makeCreditSale(page: Page, productName: string): Promise<number> {
+/** Confirms a credit sale with no initial payment and returns the created sale. */
+export async function makeCreditSaleWithDetails(
+  page: Page,
+  productName: string
+): Promise<CreatedCreditSale> {
   await addProductToCart(page, productName);
   await page.locator('[data-testid="pos-confirm-sale"]:visible').click();
   await page.getByTestId('pos-credit-sale').click();
@@ -178,11 +186,16 @@ export async function makeCreditSale(page: Page, productName: string): Promise<n
 
   const saleResponse = await saleResponsePromise;
   expect(saleResponse.status(), await saleResponse.text()).toBe(201);
-  const sale = (await saleResponse.json()) as { total: number };
+  const sale = (await saleResponse.json()) as CreatedCreditSale;
 
   await expect(page.getByTestId('invoice-dialog')).toBeVisible({ timeout: 5_000 });
   await page.getByTestId('invoice-close').click();
   await expect(page.getByTestId('invoice-dialog')).not.toBeVisible({ timeout: 5_000 });
 
-  return Number(sale.total);
+  return { id: sale.id, total: Number(sale.total) };
+}
+
+/** Confirms a credit sale with no initial payment and returns the created sale total. */
+export async function makeCreditSale(page: Page, productName: string): Promise<number> {
+  return (await makeCreditSaleWithDetails(page, productName)).total;
 }
