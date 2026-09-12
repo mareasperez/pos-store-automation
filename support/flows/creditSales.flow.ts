@@ -58,6 +58,11 @@ export async function findOrCreateCreditCustomer(page: Page): Promise<CreditCust
     return { id: leastLoaded.id, name: leastLoaded.name };
   }
 
+  return createCreditCustomer(page);
+}
+
+/** Creates a fresh credit-enabled customer with no prior receivables. */
+export async function createCreditCustomer(page: Page): Promise<CreditCustomer> {
   const fake = fakerDataService.buildCustomerFake(Date.now());
   await page.goto('/customers', { waitUntil: 'domcontentloaded' });
   await expect(page).toHaveURL(/\/customers(?:$|[?#])/i, { timeout: 20_000 });

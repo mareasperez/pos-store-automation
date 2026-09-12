@@ -7,12 +7,16 @@
 import { expect, test } from '@fixtures';
 import { requireCredentialsOrSkip } from '../../support/flows/auth.flow';
 import {
+  createCreditCustomer,
   findOrCreateCreditCustomer,
   makeCreditSaleWithDetails,
   openShiftIfPrompted,
   selectPosCustomer,
 } from '../../support/flows/creditSales.flow';
-import { getReceivableBalance } from '../../support/flows/receivables.flow';
+import {
+  getReceivableBalance,
+  registerCollectionPayment,
+} from '../../support/flows/receivables.flow';
 import {
   getActiveShiftWithExpectations,
   getExpectedAmount,
@@ -141,5 +145,72 @@ test.describe('@regression @pos @returns @shift-serial @receivables-serial', () 
         2
       );
     }
+  });
+
+  test('shows paid and current debt but blocks a paid credit return on final submit', async ({
+    page,
+  }) => {
+    requireCredentialsOrSkip('paid credit return UI guard');
+
+    const customer = await createCreditCustomer(page);
+    const productName = await getFirstSellableProduct(page);
+    test.skip(!productName, 'No sellable product with stock available in the test tenant.');
+
+    const warehouseId = await getFirstWarehouseId(page);
+    test.skip(!warehouseId, 'No warehouse available in the test tenant.');
+
+    await page.goto('/pos?lng=es', { waitUntil: 'domcontentloaded' });
+    await openShiftIfPrompted(page);
+    await selectPosCustomer(page, customer.name);
+    const createdSale = await makeCreditSaleWithDetails(page, productName!);
+
+    const paymentAmount = Math.round((createdSale.total / 2) * 100) / 100;
+    await registerCollectionPayment(page, customer.name, paymentAmount);
+    const currentDebt = await getReceivableBalance(page, customer.id);
+    expect(currentDebt).toBeCloseTo(createdSale.total - paymentAmount, 1);
+
+    const sale = await getReturnSaleDetail(page, createdSale.id);
+    await page.goto('/sales/returns?lng=es', { waitUntil: 'domcontentloaded' });
+    await page.getByTestId('customer-return-open-create').click();
+
+    await page.getByTestId('customer-return-customer-search').click();
+    await page.getByRole('listbox').waitFor({ state: 'visible' });
+    await page
+      .getByRole('option', { name: new RegExp(customer.name.substring(0, 15), 'i') })
+      .first()
+      .click();
+
+    await page.getByTestId('customer-return-sale-search').click();
+    await page.getByRole('listbox').waitFor({ state: 'visible' });
+    await page.getByRole('option', { name: new RegExp(`#${sale.id}\\b`) }).click();
+    await page
+      .getByTestId('customer-return-warehouse-select')
+      .selectOption({ value: String(warehouseId) });
+    await page.getByTestId('customer-return-continue').click();
+
+    await expect(page.getByTestId('customer-return-total-paid')).toContainText(
+      paymentAmount.toFixed(2)
+    );
+    await expect(page.getByTestId('customer-return-current-debt')).toContainText(
+      currentDebt.toFixed(2)
+    );
+
+    await page.getByTestId('customer-return-select-all').click();
+    let returnRequests = 0;
+    page.on('request', (request) => {
+      if (request.method() === 'POST' && request.url().includes('/api/returns')) {
+        returnRequests += 1;
+      }
+    });
+
+    await page.getByTestId('customer-return-submit').click();
+
+    await expect(
+      page.getByText(
+        'Las devoluciones de ventas a crédito con pagos parciales o completos todavía no están disponibles.'
+      )
+    ).toBeVisible();
+    await expect(page.getByTestId('customer-return-submit')).toBeVisible();
+    expect(returnRequests).toBe(0);
   });
 });
