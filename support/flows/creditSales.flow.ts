@@ -100,18 +100,45 @@ export async function createCreditCustomer(page: Page): Promise<CreditCustomer> 
   return { id: created.id, name: fake.name };
 }
 
-async function hasActiveShift(page: Page): Promise<boolean> {
-  const headers = await buildApiHeaders(page);
-  const res = await page.request.get(`${config.apiRoot}/shifts/active`, {
-    headers: { ...headers, 'Cache-Control': 'no-cache' },
-  });
-  return res.status() === 200;
-}
-
 export async function openShiftIfPrompted(page: Page): Promise<void> {
-  if (!(await hasActiveShift(page))) {
-    const openBtn = page.locator('[data-testid="pos-open-shift"]:visible');
-    await expect(openBtn).toBeAttached({ timeout: 20_000 });
+  // Diagnostic-only: surface why "pos-open-shift" might stay disabled (the button is gated on
+  // useActiveShift's isLoading, which only clears once /shifts/active settles). These logs are
+  // cheap and only useful when something hangs, so keep them for future debugging.
+  page.on('console', (msg) => {
+    if (msg.type() === 'error') {
+      console.log(`[browser console error] ${msg.text()}`);
+    }
+  });
+  page.on('requestfailed', (request) => {
+    console.log(
+      `[request failed] ${request.method()} ${request.url()} - ${request.failure()?.errorText}`
+    );
+  });
+  page.on('response', (response) => {
+    if (response.url().includes('/shifts/active') || response.status() >= 400) {
+      console.log(`[network] ${response.status()} ${response.request().method()} ${response.url()}`);
+    }
+  });
+
+  // Don't pre-decide the branch from a separate `/shifts/active` fetch: that request and the
+  // page's own shift query can resolve in either order, so the UI may render "confirm-sale"
+  // even when this check said "no active shift" (see e2e-one-cashier-per-worker memory). Let the
+  // UI itself pick the branch instead of racing two independent fetches against each other.
+  const openBtn = page.locator('[data-testid="pos-open-shift"]:visible');
+  const confirmBtn = page.locator('[data-testid="pos-confirm-sale"]:visible');
+  await expect(openBtn.or(confirmBtn)).toBeAttached({ timeout: 20_000 });
+
+  if (await openBtn.isVisible().catch(() => false)) {
+    if (!(await openBtn.isEnabled().catch(() => false))) {
+      const headers = await buildApiHeaders(page);
+      const directCheck = await page.request.get(`${config.apiRoot}/shifts/active`, {
+        headers: { ...headers, 'Cache-Control': 'no-cache' },
+      });
+      console.log(
+        `[diagnostic] pos-open-shift is disabled (loadingShift stuck true). ` +
+          `Direct GET ${config.apiRoot}/shifts/active -> ${directCheck.status()}`
+      );
+    }
     await openBtn.click();
 
     const cashInput = page.getByTestId('shift-initial-cash-input');
@@ -128,9 +155,7 @@ export async function openShiftIfPrompted(page: Page): Promise<void> {
     expect((await openResponse).status()).toBeLessThan(300);
   }
 
-  await expect(page.locator('[data-testid="pos-confirm-sale"]:visible')).toBeAttached({
-    timeout: 20_000,
-  });
+  await expect(confirmBtn).toBeAttached({ timeout: 20_000 });
 }
 
 async function addProductToCart(page: Page, productName: string): Promise<void> {

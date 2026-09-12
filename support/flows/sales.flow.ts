@@ -226,14 +226,15 @@ export async function findProductWithNonBasePresentation(
 }
 
 async function openShiftIfPrompted(page: Page): Promise<void> {
-  const headers = await buildApiHeaders(page);
-  const activeShiftResponse = await page.request.get(`${config.apiRoot}/shifts/active`, {
-    headers,
-  });
+  // Don't pre-decide the branch from a separate `/shifts/active` fetch: that request and the
+  // page's own shift query can resolve in either order, so the UI may render "confirm-sale"
+  // even when this check said "no active shift". Let the UI itself pick the branch instead of
+  // racing two independent fetches against each other.
+  const openButton = page.locator('[data-testid="pos-open-shift"]:visible');
+  const confirmButton = page.locator('[data-testid="pos-confirm-sale"]:visible');
+  await expect(openButton.or(confirmButton)).toBeAttached({ timeout: 20_000 });
 
-  if (activeShiftResponse.status() !== 200) {
-    const openButton = page.locator('[data-testid="pos-open-shift"]:visible');
-    await expect(openButton).toBeAttached({ timeout: 20_000 });
+  if (await openButton.isVisible().catch(() => false)) {
     await openButton.click();
 
     const cashInput = page.getByTestId('shift-initial-cash-input');
@@ -245,9 +246,7 @@ async function openShiftIfPrompted(page: Page): Promise<void> {
     await submitButton.click();
   }
 
-  await expect(page.locator('[data-testid="pos-confirm-sale"]:visible')).toBeAttached({
-    timeout: 20_000,
-  });
+  await expect(confirmButton).toBeAttached({ timeout: 20_000 });
 }
 
 async function addProductToCart(
