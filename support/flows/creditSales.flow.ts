@@ -101,24 +101,8 @@ export async function createCreditCustomer(page: Page): Promise<CreditCustomer> 
 }
 
 export async function openShiftIfPrompted(page: Page): Promise<void> {
-  // Diagnostic-only: surface why "pos-open-shift" might stay disabled (the button is gated on
-  // useActiveShift's isLoading, which only clears once /shifts/active settles). These logs are
-  // cheap and only useful when something hangs, so keep them for future debugging.
-  page.on('console', (msg) => {
-    if (msg.type() === 'error') {
-      console.log(`[browser console error] ${msg.text()}`);
-    }
-  });
-  page.on('requestfailed', (request) => {
-    console.log(
-      `[request failed] ${request.method()} ${request.url()} - ${request.failure()?.errorText}`
-    );
-  });
-  page.on('response', (response) => {
-    if (response.url().includes('/shifts/active') || response.status() >= 400) {
-      console.log(`[network] ${response.status()} ${response.request().method()} ${response.url()}`);
-    }
-  });
+  // Console/network diagnostics are attached globally by the `page` fixture (see fixtures.ts) —
+  // no need to duplicate those listeners here.
 
   // Don't pre-decide the branch from a separate `/shifts/active` fetch: that request and the
   // page's own shift query can resolve in either order, so the UI may render "confirm-sale"

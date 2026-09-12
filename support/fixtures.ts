@@ -24,6 +24,30 @@ function listAuthStateFiles(): string[] {
 export const test = base.extend<object, { workerStorageState: string | undefined }>({
   storageState: ({ workerStorageState }, use) => use(workerStorageState),
 
+  // Auto-attached to every test's page: makes intermittent 401s / hung requests / console errors
+  // visible in the run output instead of only manifesting as an opaque "Test timeout exceeded".
+  page: async ({ page }, use, testInfo) => {
+    page.on('console', (msg) => {
+      if (msg.type() === 'error') {
+        console.log(`[console error] ${testInfo.title}: ${msg.text()}`);
+      }
+    });
+    page.on('requestfailed', (request) => {
+      console.log(
+        `[request failed] ${testInfo.title}: ${request.method()} ${request.url()} - ` +
+          `${request.failure()?.errorText}`
+      );
+    });
+    page.on('response', (response) => {
+      if (response.status() >= 400) {
+        console.log(
+          `[http ${response.status()}] ${testInfo.title}: ${response.request().method()} ${response.url()}`
+        );
+      }
+    });
+    await use(page);
+  },
+
   workerStorageState: [
     async ({}, use, workerInfo) => {
       // Unauthenticated projects (@auth specs) must stay signed out.
