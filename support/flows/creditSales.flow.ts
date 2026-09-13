@@ -1,7 +1,7 @@
 import { expect, type Page } from '@playwright/test';
 import { config } from '@config';
 import { fakerDataService } from '../../services/fakerDataService';
-import { buildApiHeaders } from './sales.flow';
+import { buildApiHeaders } from '../../utils/apiHeaders';
 
 export interface CreditCustomer {
   id: number;
@@ -98,51 +98,6 @@ export async function createCreditCustomer(page: Page): Promise<CreditCustomer> 
   expect(createResponse.status(), await createResponse.text()).toBe(201);
   const created = (await createResponse.json()) as Customer;
   return { id: created.id, name: fake.name };
-}
-
-export async function openShiftIfPrompted(page: Page): Promise<void> {
-  // Console/network diagnostics are attached globally by the `page` fixture (see fixtures.ts) —
-  // no need to duplicate those listeners here.
-
-  // Don't pre-decide the branch from a separate `/shifts/active` fetch: that request and the
-  // page's own shift query can resolve in either order, so the UI may render "confirm-sale"
-  // even when this check said "no active shift" (see e2e-one-cashier-per-worker memory). Let the
-  // UI itself pick the branch instead of racing two independent fetches against each other.
-  const openBtn = page.locator('[data-testid="pos-open-shift"]:visible');
-  const confirmBtn = page.locator('[data-testid="pos-confirm-sale"]:visible');
-  await expect(openBtn.or(confirmBtn)).toBeAttached({ timeout: 20_000 });
-
-  if (await openBtn.isVisible().catch(() => false)) {
-    if (!(await openBtn.isEnabled().catch(() => false))) {
-      // openBtn renders disabled while useActiveShift() resolves (see "checking_shift" label).
-      // If that resolves to "shift already active", the app unmounts openBtn in favor of
-      // confirmBtn — clicking blindly would wait forever on a target that's about to vanish.
-      // Race both outcomes instead of committing to the open-shift branch prematurely.
-      await Promise.race([
-        openBtn.and(page.locator(':enabled')).waitFor({ state: 'visible', timeout: 15_000 }),
-        confirmBtn.waitFor({ state: 'visible', timeout: 15_000 }),
-      ]).catch(() => {});
-    }
-
-    if (await openBtn.isVisible().catch(() => false)) {
-      await openBtn.click();
-
-      const cashInput = page.getByTestId('shift-initial-cash-input');
-      await expect(cashInput).toBeVisible({ timeout: 8_000 });
-      await cashInput.fill('1');
-
-      const openResponse = page.waitForResponse(
-        (r) => r.request().method() === 'POST' && r.url().includes('/api/shifts/open'),
-        { timeout: 20_000 }
-      );
-      const submitBtn = page.getByTestId('shift-open-submit');
-      await expect(submitBtn).toBeEnabled({ timeout: 5_000 });
-      await submitBtn.click();
-      expect((await openResponse).status()).toBeLessThan(300);
-    }
-  }
-
-  await expect(confirmBtn).toBeAttached({ timeout: 20_000 });
 }
 
 async function addProductToCart(page: Page, productName: string): Promise<void> {

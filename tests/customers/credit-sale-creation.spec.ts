@@ -10,9 +10,9 @@ import { getFirstSellableProduct } from '../../support/flows/sales.flow';
 import {
   findOrCreateCreditCustomer,
   makeCreditSale,
-  openShiftIfPrompted,
   selectPosCustomer,
 } from '../../support/flows/creditSales.flow';
+import { openShiftIfPrompted } from '../../utils/shift';
 
 test.setTimeout(60_000);
 

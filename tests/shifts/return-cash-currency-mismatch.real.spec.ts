@@ -19,6 +19,7 @@
  * Run via `npm run test:serial:local` (or `test:serial:dev`).
  */
 import path from 'node:path';
+import { type Page } from '@playwright/test';
 import { expect, test } from '@fixtures';
 import { config } from '@config';
 import { dirnameFromUrl } from '../../utils/esm';
@@ -30,7 +31,6 @@ test.use({ storageState: path.join(dirname, '../../playwright/.auth/user-0.json'
 test.setTimeout(120_000);
 
 const INITIAL_CASH = 100;
-}
 
 type PaymentReconciliation = { paymentMethodId: number; expectedAmount: number };
 type ActiveShift = { id: number; paymentReconciliations: PaymentReconciliation[] };

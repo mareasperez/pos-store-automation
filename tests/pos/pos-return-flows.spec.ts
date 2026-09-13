@@ -23,6 +23,7 @@ import {
   getPresentationConversionFactor,
   getProductStock,
 } from '../../support/flows/sales.flow';
+import { openShiftIfPrompted } from '../../utils/shift';
 
 test.setTimeout(90_000);
 
@@ -171,28 +172,6 @@ async function addProductToCart(page: Page, productName: string): Promise<void> 
     }
   }
   await options.first().click();
-}
-
-async function openShiftIfPrompted(page: Page): Promise<void> {
-  const headers = await buildApiHeaders(page);
-  const activeRes = await page.request.get(`${config.apiRoot}/shifts/active`, {
-    headers: { ...headers, 'Cache-Control': 'no-cache' },
-  });
-  if (activeRes.status() === 200) return;
-
-  const openBtn = page.locator('[data-testid="pos-open-shift"]:visible');
-  await expect(openBtn).toBeAttached({ timeout: 20_000 });
-  await openBtn.click();
-  const cashInput = page.getByTestId('shift-initial-cash-input');
-  await expect(cashInput).toBeVisible({ timeout: 8_000 });
-  await cashInput.fill('1');
-
-  const openResponse = page.waitForResponse(
-    (r) => r.request().method() === 'POST' && r.url().includes('/api/shifts/open'),
-    { timeout: 20_000 }
-  );
-  await page.getByTestId('shift-open-submit').click();
-  expect((await openResponse).status()).toBeLessThan(300);
 }
 
 /** Sells one unit split half CASH / half CARD (both in NIO) and returns the created sale. */

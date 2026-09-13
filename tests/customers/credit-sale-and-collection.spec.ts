@@ -20,9 +20,9 @@ import { getReceivableBalance, registerCollectionPayment } from '../../support/f
 import {
   findOrCreateCreditCustomer,
   makeCreditSale,
-  openShiftIfPrompted,
   selectPosCustomer,
 } from '../../support/flows/creditSales.flow';
+import { openShiftIfPrompted } from '../../utils/shift';
 
 test.setTimeout(120_000);
 

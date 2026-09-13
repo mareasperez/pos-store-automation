@@ -10,9 +10,9 @@ import {
   createCreditCustomer,
   findOrCreateCreditCustomer,
   makeCreditSaleWithDetails,
-  openShiftIfPrompted,
   selectPosCustomer,
 } from '../../support/flows/creditSales.flow';
+import { openShiftIfPrompted } from '../../utils/shift';
 import {
   getReceivableBalance,
   registerCollectionPayment,
