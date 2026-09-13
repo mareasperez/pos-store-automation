@@ -235,15 +235,27 @@ async function openShiftIfPrompted(page: Page): Promise<void> {
   await expect(openButton.or(confirmButton)).toBeAttached({ timeout: 20_000 });
 
   if (await openButton.isVisible().catch(() => false)) {
-    await openButton.click();
+    if (!(await openButton.isEnabled().catch(() => false))) {
+      // openButton renders disabled while useActiveShift() resolves. If that resolves to
+      // "shift already active", the app unmounts openButton in favor of confirmButton —
+      // clicking blindly would wait forever on a target that's about to vanish.
+      await Promise.race([
+        openButton.and(page.locator(':enabled')).waitFor({ state: 'visible', timeout: 15_000 }),
+        confirmButton.waitFor({ state: 'visible', timeout: 15_000 }),
+      ]).catch(() => {});
+    }
 
-    const cashInput = page.getByTestId('shift-initial-cash-input');
-    await expect(cashInput).toBeVisible({ timeout: 8_000 });
-    await cashInput.fill('1');
+    if (await openButton.isVisible().catch(() => false)) {
+      await openButton.click();
 
-    const submitButton = page.getByTestId('shift-open-submit');
-    await expect(submitButton).toBeEnabled({ timeout: 5_000 });
-    await submitButton.click();
+      const cashInput = page.getByTestId('shift-initial-cash-input');
+      await expect(cashInput).toBeVisible({ timeout: 8_000 });
+      await cashInput.fill('1');
+
+      const submitButton = page.getByTestId('shift-open-submit');
+      await expect(submitButton).toBeEnabled({ timeout: 5_000 });
+      await submitButton.click();
+    }
   }
 
   await expect(confirmButton).toBeAttached({ timeout: 20_000 });

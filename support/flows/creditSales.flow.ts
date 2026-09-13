@@ -114,29 +114,32 @@ export async function openShiftIfPrompted(page: Page): Promise<void> {
 
   if (await openBtn.isVisible().catch(() => false)) {
     if (!(await openBtn.isEnabled().catch(() => false))) {
-      const headers = await buildApiHeaders(page);
-      const directCheck = await page.request.get(`${config.apiRoot}/shifts/active`, {
-        headers: { ...headers, 'Cache-Control': 'no-cache' },
-      });
-      console.log(
-        `[diagnostic] pos-open-shift is disabled (loadingShift stuck true). ` +
-          `Direct GET ${config.apiRoot}/shifts/active -> ${directCheck.status()}`
-      );
+      // openBtn renders disabled while useActiveShift() resolves (see "checking_shift" label).
+      // If that resolves to "shift already active", the app unmounts openBtn in favor of
+      // confirmBtn — clicking blindly would wait forever on a target that's about to vanish.
+      // Race both outcomes instead of committing to the open-shift branch prematurely.
+      await Promise.race([
+        openBtn.and(page.locator(':enabled')).waitFor({ state: 'visible', timeout: 15_000 }),
+        confirmBtn.waitFor({ state: 'visible', timeout: 15_000 }),
+      ]).catch(() => {});
     }
-    await openBtn.click();
 
-    const cashInput = page.getByTestId('shift-initial-cash-input');
-    await expect(cashInput).toBeVisible({ timeout: 8_000 });
-    await cashInput.fill('1');
+    if (await openBtn.isVisible().catch(() => false)) {
+      await openBtn.click();
 
-    const openResponse = page.waitForResponse(
-      (r) => r.request().method() === 'POST' && r.url().includes('/api/shifts/open'),
-      { timeout: 20_000 }
-    );
-    const submitBtn = page.getByTestId('shift-open-submit');
-    await expect(submitBtn).toBeEnabled({ timeout: 5_000 });
-    await submitBtn.click();
-    expect((await openResponse).status()).toBeLessThan(300);
+      const cashInput = page.getByTestId('shift-initial-cash-input');
+      await expect(cashInput).toBeVisible({ timeout: 8_000 });
+      await cashInput.fill('1');
+
+      const openResponse = page.waitForResponse(
+        (r) => r.request().method() === 'POST' && r.url().includes('/api/shifts/open'),
+        { timeout: 20_000 }
+      );
+      const submitBtn = page.getByTestId('shift-open-submit');
+      await expect(submitBtn).toBeEnabled({ timeout: 5_000 });
+      await submitBtn.click();
+      expect((await openResponse).status()).toBeLessThan(300);
+    }
   }
 
   await expect(confirmBtn).toBeAttached({ timeout: 20_000 });
