@@ -1,6 +1,9 @@
 import { expect, type Page } from '@playwright/test';
 
 import { config } from '@config';
+import { buildApiHeaders } from '../../utils/apiHeaders';
+
+export { buildApiHeaders };
 
 export interface CreatedSaleLineSummary {
   productId: number;
@@ -19,23 +22,6 @@ export interface SellableProductStock {
   skuId: number;
   name: string;
   onHandQty: number;
-}
-
-export async function buildApiHeaders(page: Page): Promise<Record<string, string>> {
-  const storageState = await page.context().storageState();
-  const token = storageState.cookies.find((cookie) => cookie.name === 'access_token')?.value;
-  const headers: Record<string, string> = { Accept: 'application/json' };
-
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
-    headers.Cookie = `access_token=${token}`;
-  }
-
-  if (config.tenantId) {
-    headers['X-Tenant-Id'] = config.tenantId;
-  }
-
-  return headers;
 }
 
 export async function getFirstSellableProduct(page: Page): Promise<string | null> {

@@ -19,30 +19,17 @@
  * Run via `npm run test:serial:local` (or `test:serial:dev`).
  */
 import path from 'node:path';
-import { type Page } from '@playwright/test';
 import { expect, test } from '@fixtures';
 import { config } from '@config';
 import { dirnameFromUrl } from '../../utils/esm';
 import { requireCredentialsOrSkip } from '../../support/flows/auth.flow';
+import { buildApiHeaders } from '../../utils/apiHeaders';
 
 const dirname = dirnameFromUrl(import.meta.url);
 test.use({ storageState: path.join(dirname, '../../playwright/.auth/user-0.json') });
 test.setTimeout(120_000);
 
 const INITIAL_CASH = 100;
-
-// ── helpers (adapted from shift-reconciliation.real.spec.ts) ────────────────
-
-async function buildApiHeaders(page: Page): Promise<Record<string, string>> {
-  const storageState = await page.context().storageState();
-  const token = storageState.cookies.find((c) => c.name === 'access_token')?.value;
-  const headers: Record<string, string> = { Accept: 'application/json' };
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
-    headers.Cookie = `access_token=${token}`;
-  }
-  if (config.tenantId) headers['X-Tenant-Id'] = config.tenantId;
-  return headers;
 }
 
 type PaymentReconciliation = { paymentMethodId: number; expectedAmount: number };

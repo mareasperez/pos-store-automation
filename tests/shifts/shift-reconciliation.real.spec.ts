@@ -10,10 +10,10 @@
  * Run: npm run test:serial:local (or test:serial:dev)
  */
 import path from 'node:path';
-import { type Page } from '@playwright/test';
 import { expect, test } from '@fixtures';
 import { config } from '@config';
 import { dirnameFromUrl } from '../../utils/esm';
+import { buildApiHeaders } from '../../utils/apiHeaders';
 
 const dirname = dirnameFromUrl(import.meta.url);
 test.use({ storageState: path.join(dirname, '../../playwright/.auth/user-0.json') });
@@ -21,20 +21,6 @@ test.setTimeout(180_000);
 
 const INITIAL_CASH = 100;
 const SALE_COUNT = 3;
-
-// ── helpers (adapted from pos-payment.spec.ts / pos-shifts.real.spec.ts) ────
-
-async function buildApiHeaders(page: Page): Promise<Record<string, string>> {
-  const storageState = await page.context().storageState();
-  const token = storageState.cookies.find((c) => c.name === 'access_token')?.value;
-  const headers: Record<string, string> = { Accept: 'application/json' };
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
-    headers.Cookie = `access_token=${token}`;
-  }
-  if (config.tenantId) headers['X-Tenant-Id'] = config.tenantId;
-  return headers;
-}
 
 type ActiveShift = {
   id: number;

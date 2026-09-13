@@ -4,6 +4,7 @@ import { config } from '@config';
 import { buildUniqueTestToken } from '../../../services/uniqueData';
 import { expectResponseOk } from '../../../support/flows/apiAssertions';
 import { requireCredentialsOrSkip } from '../../../support/flows/auth.flow';
+import { buildApiHeaders as buildApiAuthHeaders } from '../../../utils/apiHeaders';
 type ExistingSupplier = {
   id: number;
   name: string;
@@ -59,26 +60,6 @@ type PairResolution = {
   pair: CompatiblePurchasePair | null;
   reason: string;
 };
-
-async function buildApiAuthHeaders(page: Page): Promise<Record<string, string>> {
-  const storageState = await page.context().storageState();
-  const accessToken = storageState.cookies.find((cookie) => cookie.name === 'access_token')?.value;
-
-  const headers: Record<string, string> = {
-    Accept: 'application/json',
-  };
-
-  if (accessToken) {
-    headers.Authorization = `Bearer ${accessToken}`;
-    headers.Cookie = `access_token=${accessToken}`;
-  }
-
-  if (config.tenantId) {
-    headers['X-Tenant-Id'] = config.tenantId;
-  }
-
-  return headers;
-}
 
 function skipWithReason(condition: boolean, reason: string) {
   if (condition) {

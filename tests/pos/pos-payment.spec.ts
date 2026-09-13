@@ -12,20 +12,9 @@ import { type Page } from '@playwright/test';
 import { expect, test } from '@fixtures';
 import { config } from '@config';
 import { requireCredentialsOrSkip } from '../../support/flows/auth.flow';
+import { buildApiHeaders } from '../../utils/apiHeaders';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
-
-async function buildApiHeaders(page: Page): Promise<Record<string, string>> {
-  const storageState = await page.context().storageState();
-  const token = storageState.cookies.find((c) => c.name === 'access_token')?.value;
-  const headers: Record<string, string> = { Accept: 'application/json' };
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
-    headers.Cookie = `access_token=${token}`;
-  }
-  if (config.tenantId) headers['X-Tenant-Id'] = config.tenantId;
-  return headers;
-}
 
 /** Returns the name of the first active product with stock > 0, or null. */
 async function getFirstSellableProduct(page: Page): Promise<string | null> {
