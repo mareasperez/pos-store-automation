@@ -45,7 +45,34 @@ export const test = base.extend<object, { workerStorageState: string | undefined
         );
       }
     });
-    await use(page);
+
+    // Any non-auth test that ends up on /login lost its session mid-run (expired/invalid cookie,
+    // wrong tenant, etc). Fail fast with a clear reason instead of timing out 2 minutes later on
+    // some unrelated locator that will never appear because the app never left the login screen.
+    const isAuthTest = /[\\/]tests[\\/]auth[\\/]/.test(testInfo.file);
+    const loginRedirect = new Promise<never>((_, reject) => {
+      if (isAuthTest) return;
+      page.on('framenavigated', (frame) => {
+        if (frame !== page.mainFrame()) return;
+        let pathname: string;
+        try {
+          pathname = new URL(frame.url()).pathname;
+        } catch {
+          return;
+        }
+        if (pathname.startsWith('/login')) {
+          reject(
+            new Error(
+              `Unexpected redirect to ${frame.url()} — the session was rejected mid-test ` +
+                `(expired/invalid auth cookie, wrong tenant, etc). Re-run ` +
+                `"npm run test:auth:setup" to refresh the saved session.`
+            )
+          );
+        }
+      });
+    });
+
+    await Promise.race([use(page), loginRedirect]);
   },
 
   workerStorageState: [
