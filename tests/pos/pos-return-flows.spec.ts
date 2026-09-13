@@ -188,7 +188,10 @@ async function makeMixedPaymentSale(page: Page, productName: string): Promise<Cr
     timeout: 5_000,
   });
 
-  await page.getByRole('button', { name: /efectivo|cash/i }).first().click();
+  await page
+    .getByRole('button', { name: /efectivo|cash/i })
+    .first()
+    .click();
   const amountInput = page.locator('input[type="number"]').first();
   const totalText = await page.locator('[class*="total"]').last().textContent();
   const total = parseFloat(totalText?.replace(/[^\d.]/g, '') ?? '10');
@@ -196,7 +199,10 @@ async function makeMixedPaymentSale(page: Page, productName: string): Promise<Cr
   await amountInput.fill(half);
   await page.getByRole('button', { name: /agregar pago|add payment/i }).click();
 
-  await page.getByRole('button', { name: /tarjeta|card/i }).first().click();
+  await page
+    .getByRole('button', { name: /tarjeta|card/i })
+    .first()
+    .click();
   await page.getByRole('button', { name: /agregar pago|add payment/i }).click();
 
   const saleResponsePromise = page.waitForResponse(
@@ -335,10 +341,7 @@ test.describe('@regression @pos @returns @shift-serial @session-mc-20260909', ()
 
     const stockBefore = await getProductStock(page, product!.skuId);
 
-    const sale = (await createSimpleCashSaleViaPos(
-      page,
-      product!.name
-    )) as unknown as CreatedSale;
+    const sale = (await createSimpleCashSaleViaPos(page, product!.name)) as unknown as CreatedSale;
     const soldLine = sale.lines.find((line) => line.productId === product!.skuId);
     expect(soldLine, `Sale #${sale.id} has no line for product #${product!.skuId}`).toBeTruthy();
 

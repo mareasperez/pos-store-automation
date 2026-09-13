@@ -171,10 +171,7 @@ test.describe('@regression @pos @cash-receipts @currency @session-mc-20260909', 
     const usdMethod = methods.find(
       (m) => m.active && m.currency === 'USD' && !m.requiresShiftCount
     );
-    test.skip(
-      !usdMethod,
-      'No active non-cash-drawer USD payment method in the test tenant.'
-    );
+    test.skip(!usdMethod, 'No active non-cash-drawer USD payment method in the test tenant.');
 
     const createRes = await page.request.post(`${config.apiRoot}/cash-receipts`, {
       headers: { ...headers, 'Content-Type': 'application/json' },
@@ -202,10 +199,7 @@ test.describe('@regression @pos @cash-receipts @currency @session-mc-20260909', 
     const usdMethod = methods.find(
       (m) => m.active && m.currency === 'USD' && !m.requiresShiftCount
     );
-    test.skip(
-      !usdMethod,
-      'No active non-cash-drawer USD payment method in the test tenant.'
-    );
+    test.skip(!usdMethod, 'No active non-cash-drawer USD payment method in the test tenant.');
 
     // Declares the tenant base currency but pays with a USD payment method — must be rejected.
     const createRes = await page.request.post(`${config.apiRoot}/cash-receipts`, {

@@ -1,9 +1,6 @@
 import { expect, type Page } from '@playwright/test';
 import { config } from '@config';
-import {
-  buildApiHeaders,
-  getPresentationConversionFactor,
-} from './sales.flow';
+import { buildApiHeaders, getPresentationConversionFactor } from './sales.flow';
 
 export interface ReturnSaleLine {
   id: number;
@@ -47,10 +44,7 @@ export interface ActiveShift {
   paymentReconciliations: PaymentReconciliation[];
 }
 
-export async function getReturnSaleDetail(
-  page: Page,
-  saleId: number
-): Promise<ReturnSaleDetail> {
+export async function getReturnSaleDetail(page: Page, saleId: number): Promise<ReturnSaleDetail> {
   const headers = await buildApiHeaders(page);
   const response = await page.request.get(`${config.apiRoot}/sales/${saleId}`, { headers });
   expect(response.ok(), `GET /sales/${saleId} failed: ${response.status()}`).toBeTruthy();

@@ -16,7 +16,10 @@
 import { expect, test } from '@fixtures';
 import { requireCredentialsOrSkip } from '../../support/flows/auth.flow';
 import { getFirstSellableProduct } from '../../support/flows/sales.flow';
-import { getReceivableBalance, registerCollectionPayment } from '../../support/flows/receivables.flow';
+import {
+  getReceivableBalance,
+  registerCollectionPayment,
+} from '../../support/flows/receivables.flow';
 import {
   findOrCreateCreditCustomer,
   makeCreditSale,

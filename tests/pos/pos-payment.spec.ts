@@ -338,7 +338,10 @@ test.describe('@regression @pos @payment-manager @manual', () => {
     });
 
     // Pay half the total in base currency (NIO) cash first.
-    await page.getByRole('button', { name: /efectivo|cash/i }).first().click();
+    await page
+      .getByRole('button', { name: /efectivo|cash/i })
+      .first()
+      .click();
     const amountInput = page.locator('input[type="number"]').first();
     const totalText = await page.locator('[class*="total"]').last().textContent();
     const total = parseFloat(totalText?.replace(/[^\d.]/g, '') ?? '10');
@@ -351,7 +354,10 @@ test.describe('@regression @pos @payment-manager @manual', () => {
     const usdButton = page.getByRole('button', { name: 'USD' });
     test.skip(!(await usdButton.isEnabled()), 'No active USD exchange rate in the test tenant.');
     await usdButton.click();
-    await page.getByRole('button', { name: /efectivo|cash/i }).first().click();
+    await page
+      .getByRole('button', { name: /efectivo|cash/i })
+      .first()
+      .click();
     await page.getByRole('button', { name: /agregar pago|add payment/i }).click();
 
     const saleResponsePromise = page.waitForResponse(

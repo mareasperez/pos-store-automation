@@ -68,10 +68,7 @@ test.describe('@regression @pos @returns @shift-serial @receivables-serial', () 
 
     const shiftBeforeReturn = await getActiveShiftWithExpectations(page);
     expect(shiftBeforeReturn, 'No active shift found after creating the credit sale.').toBeTruthy();
-    const cashExpectedBeforeReturn = getExpectedAmount(
-      shiftBeforeReturn!,
-      cashPaymentMethodId!
-    );
+    const cashExpectedBeforeReturn = getExpectedAmount(shiftBeforeReturn!, cashPaymentMethodId!);
 
     await page.goto('/sales/returns?lng=es', { waitUntil: 'domcontentloaded' });
     await page.getByTestId('customer-return-open-create').click();
@@ -94,9 +91,7 @@ test.describe('@regression @pos @returns @shift-serial @receivables-serial', () 
     const refundMethodSelect = page.getByTestId('customer-return-refund-method-select');
     await expect(refundMethodSelect).toHaveValue('APPLY_TO_RECEIVABLE');
     await expect(refundMethodSelect.locator('option')).toHaveCount(1);
-    await expect(
-      page.getByTestId('customer-return-refund-payment-method-select')
-    ).toHaveCount(0);
+    await expect(page.getByTestId('customer-return-refund-payment-method-select')).toHaveCount(0);
 
     await page.getByTestId('customer-return-select-all').click();
 
