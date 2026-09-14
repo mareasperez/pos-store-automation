@@ -192,7 +192,8 @@ cd e2e
 npm run test:auth:setup
 ```
 
-Complete the login and Turnstile in the window that opens. The script then saves the session.
+If Turnstile prompts you, complete only the challenge in the window that opens. As soon as the
+`Ingresar` button becomes enabled, the script clicks it and saves the session automatically.
 
 For manual CDP control, use the longer flow below.
 
@@ -205,8 +206,8 @@ instance through CDP. Close regular Chrome windows first, then start an isolated
 	--user-data-dir="$env:TEMP\my-pos-store-e2e-chrome"
 ```
 
-In that Chrome window, the script fills the configured credentials. Complete Turnstile and click
-`Ingresar` manually.
+In that Chrome window, the script fills the configured credentials. Complete Turnstile if it is
+shown; the script clicks `Ingresar` automatically when the button becomes enabled.
 Then, from another terminal:
 
 ```powershell
@@ -216,8 +217,8 @@ npm run test:auth:setup
 npm run test:dev:headless
 ```
 
-In CDP mode the script does not fill credentials or click the login form. It only waits for the
-manual login to finish and saves the authenticated browser state. The Turnstile token itself is
+In CDP mode the script fills the configured credentials, waits for the login form to become
+actionable, submits it, and saves the authenticated browser state. The Turnstile token itself is
 not reused; the saved session cookies and local storage are what the E2E tests reuse.
 
 Authenticated tests use a saved browser session stored in `playwright/.auth/user.json`.

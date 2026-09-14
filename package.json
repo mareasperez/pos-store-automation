@@ -31,6 +31,7 @@
     "test:list:dev": "node ./scripts/run-playwright-env.mjs dev --list",
     "test:serial:dev": "node ./scripts/run-playwright-env.mjs dev --ui --no-deps --workers=1 --grep \"@shift-serial|@receivables-serial\"",
     "test:serial:local": "node ./scripts/run-playwright-env.mjs local --ui --no-deps --workers=1 --grep \"@shift-serial|@receivables-serial\"",
+    "test:scripts": "node --test scripts/*.test.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "format": "prettier --write ."

@@ -5,6 +5,7 @@ import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import dotenv from 'dotenv';
 import { chromium } from '@playwright/test';
+import { submitLoginWhenReady } from './auth-login.mjs';
 
 const [, , envArg] = process.argv;
 const environment = (envArg || process.env.E2E_ENV || 'dev').trim().toLowerCase();
@@ -201,20 +202,15 @@ async function captureSession(user, index) {
   await page.locator('input[name="password"]').fill(user.password);
 
   if (manualAuth) {
-    console.log(`${label}: credentials filled. Complete Turnstile and click Ingresar in Chrome.`);
+    console.log(
+      `${label}: credentials filled. Complete Turnstile if prompted; login submits automatically.`
+    );
   } else {
     console.log(
       `${label}: complete the Turnstile challenge if shown; submit happens automatically.`
     );
-    await page.waitForFunction(
-      () =>
-        !(document.querySelector('button[type="submit"]') instanceof HTMLButtonElement) ||
-        !document.querySelector('button[type="submit"]').disabled,
-      undefined,
-      { timeout: 120_000 }
-    );
-    await page.locator('button[type="submit"]').click();
   }
+  await submitLoginWhenReady(page);
 
   await page.waitForURL((url) => !/\/login(?:$|[?#])/i.test(url.pathname + url.search + url.hash), {
     timeout: 180_000,
