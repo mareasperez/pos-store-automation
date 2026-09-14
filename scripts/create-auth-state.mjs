@@ -5,7 +5,7 @@ import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import dotenv from 'dotenv';
 import { chromium } from '@playwright/test';
-import { submitLoginWhenReady } from './auth-login.mjs';
+import { closeOwnedAuthBrowser, submitLoginWhenReady } from './auth-login.mjs';
 
 const [, , envArg] = process.argv;
 const environment = (envArg || process.env.E2E_ENV || 'dev').trim().toLowerCase();
@@ -126,6 +126,7 @@ const testUsers = resolveTestUsers();
 const tenantId = optional(['TEST_TENANT_ID', 'E2E_TENANT_ID']);
 const authHeadless = optional(['E2E_AUTH_HEADLESS']).toLowerCase() === 'true';
 let cdpUrl = optional(['E2E_AUTH_CDP_URL']);
+let closeConnectedBrowser = false;
 if (environment === 'prod') {
   const approvedTenant = optional(['E2E_PROD_TEST_TENANT_ID']);
   if (optional(['E2E_ALLOW_PROD']) !== 'true' || !approvedTenant || tenantId !== approvedTenant) {
@@ -140,6 +141,7 @@ if (
   optional(['E2E_AUTH_NORMAL_CHROME']).toLowerCase() !== 'false'
 ) {
   cdpUrl = await launchNormalChrome();
+  closeConnectedBrowser = true;
   console.log('[auth-setup] Opened an isolated normal Chrome profile for the dev login.');
 }
 const manualAuth = Boolean(cdpUrl);
@@ -160,7 +162,6 @@ fs.mkdirSync(authDir, { recursive: true });
 let browser;
 let context;
 let ownsBrowser = false;
-let closeConnectedBrowser = false;
 
 if (cdpUrl) {
   browser = await chromium.connectOverCDP(cdpUrl);
@@ -275,8 +276,10 @@ try {
   );
   console.log(`[auth-setup] Saved Postman cookies to ${postmanCookieFile}`);
 } finally {
-  if (ownsBrowser) {
-    await context.close();
-    await browser.close();
-  }
+  await closeOwnedAuthBrowser({
+    browser,
+    context,
+    ownsBrowser,
+    ownsConnectedBrowser: closeConnectedBrowser,
+  });
 }

@@ -193,7 +193,8 @@ npm run test:auth:setup
 ```
 
 If Turnstile prompts you, complete only the challenge in the window that opens. As soon as the
-`Ingresar` button becomes enabled, the script clicks it and saves the session automatically.
+`Ingresar` button becomes enabled, the script clicks it, saves the session, and closes the isolated
+Chrome window automatically.
 
 For manual CDP control, use the longer flow below.
 
@@ -220,6 +221,8 @@ npm run test:dev:headless
 In CDP mode the script fills the configured credentials, waits for the login form to become
 actionable, submits it, and saves the authenticated browser state. The Turnstile token itself is
 not reused; the saved session cookies and local storage are what the E2E tests reuse.
+Chrome instances supplied through `E2E_AUTH_CDP_URL` remain open because the script does not own
+their lifecycle.
 
 Authenticated tests use a saved browser session stored in `playwright/.auth/user.json`.
 This file is generated once by logging in through the UI and persisted on disk.
