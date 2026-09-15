@@ -49,7 +49,8 @@ export const test = base.extend<object, { workerStorageState: string | undefined
     // Any non-auth test that ends up on /login lost its session mid-run (expired/invalid cookie,
     // wrong tenant, etc). Fail fast with a clear reason instead of timing out 2 minutes later on
     // some unrelated locator that will never appear because the app never left the login screen.
-    const isAuthTest = /[\\/]tests[\\/]auth[\\/]/.test(testInfo.file);
+    const isAuthTest =
+      /[\\/]tests[\\/]auth[\\/]/.test(testInfo.file) || /@auth\b/.test(testInfo.title);
     const loginRedirect = new Promise<never>((_, reject) => {
       if (isAuthTest) return;
       page.on('framenavigated', (frame) => {

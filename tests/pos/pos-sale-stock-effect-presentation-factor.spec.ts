@@ -15,8 +15,8 @@ import {
 
 test.setTimeout(60_000);
 
-test.describe('@regression @pos @inventory', () => {
-  test('@regression @pos @inventory a sale of a non-base presentation reduces stock by quantity x factor', async ({
+test.describe('@regression @pos @inventory @inventory-serial', () => {
+  test('@regression @pos @inventory @inventory-serial a sale of a non-base presentation reduces stock by quantity x factor', async ({
     page,
   }) => {
     requireCredentialsOrSkip('POS sale stock effect (non-base presentation) flow');
