@@ -142,6 +142,11 @@ if (!testUsers.length) {
 }
 
 fs.mkdirSync(authDir, { recursive: true });
+for (const file of fs.readdirSync(authDir)) {
+  if (/^user(?:-\d+)?\.json$/.test(file)) {
+    fs.rmSync(path.join(authDir, file), { force: true });
+  }
+}
 
 let browser;
 let context;
