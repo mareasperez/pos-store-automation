@@ -3,12 +3,12 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
-import dotenv from 'dotenv';
 import { chromium } from '@playwright/test';
 import { closeOwnedAuthBrowser, submitLoginWhenReady } from './auth-login.mjs';
+import { loadEnvironment, resolveEnvironment } from '../utils/environment.mjs';
 
 const [, , envArg] = process.argv;
-const environment = (envArg || process.env.E2E_ENV || 'dev').trim().toLowerCase();
+const environment = resolveEnvironment(envArg || process.env.E2E_ENV || 'dev');
 
 const currentFilePath = fileURLToPath(import.meta.url);
 const e2eRoot = path.resolve(path.dirname(currentFilePath), '..');
@@ -20,20 +20,10 @@ const postmanCookieFile = path.join(repoRoot, 'postman', '.auth-cookies.json');
 
 const authStateFileForIndex = (index) => path.join(authDir, `user-${index}.json`);
 
-function loadEnvFile(filePath) {
-  const result = dotenv.config({ path: filePath, override: true, quiet: true });
-  return result.parsed ?? {};
-}
-
-const rootEnv = loadEnvFile(path.join(repoRoot, '.env'));
-const e2eEnv = loadEnvFile(path.join(e2eRoot, '.env'));
-const envSpecific = {
-  ...loadEnvFile(path.join(e2eRoot, `${environment}.env`)),
-  ...loadEnvFile(path.join(e2eRoot, `.env.${environment}`)),
-};
+const resolvedEnvironment = loadEnvironment(environment);
 
 function envValue(name) {
-  return process.env[name] || envSpecific[name] || e2eEnv[name] || rootEnv[name];
+  return resolvedEnvironment[name];
 }
 
 function requireOne(names) {
@@ -50,10 +40,6 @@ function optional(names) {
     if (value) return value;
   }
   return '';
-}
-
-function withoutTrailingSlash(value) {
-  return value.replace(/\/+$/, '');
 }
 
 async function launchNormalChrome() {
@@ -95,9 +81,7 @@ async function launchNormalChrome() {
   throw new Error('[auth-setup] Chrome did not expose the local debugging endpoint.');
 }
 
-const baseUrl = withoutTrailingSlash(
-  requireOne(['BASE_URL', 'FRONTEND_BASE_URL', 'E2E_BASE_URL', 'DEV_FRONTEND_URL'])
-);
+const baseUrl = requireOne(['BASE_URL', 'FRONTEND_BASE_URL', 'E2E_BASE_URL', 'DEV_FRONTEND_URL']).replace(/\/+$/, '');
 
 /**
  * One cashier per Playwright worker. Shifts are scoped per user, so distinct users keep their own

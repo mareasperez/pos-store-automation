@@ -10,6 +10,7 @@
  * Run: npm run test:serial:local (or test:serial:dev)
  */
 import path from 'node:path';
+import { type Page } from '@playwright/test';
 import { expect, test } from '@fixtures';
 import { config } from '@config';
 import { dirnameFromUrl } from '../../utils/esm';

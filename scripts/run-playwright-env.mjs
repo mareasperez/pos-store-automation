@@ -1,8 +1,6 @@
 import { spawnSync } from 'node:child_process';
-import fs from 'node:fs';
-import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import dotenv from 'dotenv';
+import { loadEnvironment, resolveEnvironment } from '../utils/environment.mjs';
 
 const [, , environment, ...args] = process.argv;
 
@@ -11,17 +9,8 @@ if (!environment) {
   process.exit(1);
 }
 
-const e2eRoot = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
-const envFiles = [
-  path.join(e2eRoot, `${environment}.env`),
-  path.join(e2eRoot, `.env.${environment}`),
-  path.join(e2eRoot, '.env'),
-];
-const loadedEnvironment = envFiles.reduce((result, filePath) => {
-  if (!fs.existsSync(filePath)) return result;
-  return { ...result, ...dotenv.parse(fs.readFileSync(filePath)) };
-}, {});
-const runtimeEnv = { ...loadedEnvironment, ...process.env, E2E_ENV: environment };
+const resolvedEnvironment = resolveEnvironment(environment);
+const runtimeEnv = loadEnvironment(resolvedEnvironment);
 
 if (environment === 'prod' && runtimeEnv.E2E_ALLOW_PROD !== 'true') {
   console.error(
