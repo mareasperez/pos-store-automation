@@ -8,7 +8,6 @@
  *
  * These tests create real sale records in the test tenant.
  */
-import { type Page } from '@playwright/test';
 import { expect, test } from '@fixtures';
 import { config } from '@config';
 import { requireCredentialsOrSkip } from '../../support/flows/auth.flow';
