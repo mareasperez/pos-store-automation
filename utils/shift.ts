@@ -1,5 +1,8 @@
 import { expect, type Page } from '@playwright/test';
 
+import { config } from '@config';
+import { buildApiHeaders } from './apiHeaders';
+
 /**
  * Opens the shift from the POS page if the "Abrir Caja" button is visible.
  *
@@ -43,4 +46,19 @@ export async function openShiftIfPrompted(page: Page): Promise<void> {
   }
 
   await expect(confirmButton).toBeAttached({ timeout: 20_000 });
+}
+
+/** True when the tenant currently has an open shift. */
+export async function hasActiveShift(page: Page): Promise<boolean> {
+  const headers = await buildApiHeaders(page);
+  const response = await page.request.get(`${config.apiRoot}/shifts/active`, { headers });
+  return response.status() === 200;
+}
+
+/** Guards the sale POST against a parallel worker closing the tenant-wide shift. */
+export async function assertShiftStillActive(page: Page): Promise<void> {
+  expect(
+    await hasActiveShift(page),
+    'Shift was closed after the payment modal opened — a parallel spec closed the tenant shift.'
+  ).toBe(true);
 }

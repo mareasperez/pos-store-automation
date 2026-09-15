@@ -12,117 +12,17 @@ import { type Page } from '@playwright/test';
 import { expect, test } from '@fixtures';
 import { config } from '@config';
 import { requireCredentialsOrSkip } from '../../support/flows/auth.flow';
+import {
+  addProductToCart,
+  getFirstSellableProduct,
+} from '../../support/flows/sales.flow';
+import {
+  findActiveUsdCashMethod,
+  getUsdExchangeRate,
+  openPaymentModal,
+} from '../../support/flows/payment.flow';
 import { buildApiHeaders } from '../../utils/apiHeaders';
-import { openShiftIfPrompted } from '../../utils/shift';
-
-// ── helpers ──────────────────────────────────────────────────────────────────
-
-/** Returns the name of the first active product with stock > 0, or null. */
-async function getFirstSellableProduct(page: Page): Promise<string | null> {
-  const headers = await buildApiHeaders(page);
-
-  // stock-balance/all returns all products with available stock across warehouses
-  const stockRes = await page.request.get(`${config.apiRoot}/inventory/stock-balance/all`, {
-    headers,
-  });
-  if (!stockRes.ok()) return null;
-  const stockItems = (await stockRes.json()) as { skuId: number; onHandQty: number }[];
-
-  // Try candidates in order of descending stock to pick the most available one
-  const candidates = stockItems
-    .filter((s) => s.onHandQty > 0)
-    .sort((a, b) => b.onHandQty - a.onHandQty);
-
-  for (const candidate of candidates.slice(0, 5)) {
-    const productRes = await page.request.get(`${config.apiRoot}/products/${candidate.skuId}`, {
-      headers,
-    });
-    if (!productRes.ok()) continue;
-    const product = (await productRes.json()) as {
-      name?: string;
-      active?: boolean;
-      sellableType?: string;
-    };
-    // Only PRODUCT type sellables are sold in POS (not SERVICE or GENERIC_CHARGE)
-    if (product.active === false) continue;
-    if (product.sellableType && product.sellableType !== 'PRODUCT') continue;
-    if (product.name) return product.name;
-  }
-
-  return null;
-}
-
-/** True when the tenant currently has an open shift. */
-async function hasActiveShift(page: Page): Promise<boolean> {
-  const headers = await buildApiHeaders(page);
-  const res = await page.request.get(`${config.apiRoot}/shifts/active`, { headers });
-  return res.status() === 200;
-}
-
-/**
- * Last-moment guard before a sale POST. The shift is a tenant-wide singleton, so a parallel worker
- * can close it mid-test; this narrows the race window and turns the 400 into a readable failure.
- */
-async function assertShiftStillActive(page: Page): Promise<void> {
-  expect(
-    await hasActiveShift(page),
-    'Shift was closed after the payment modal opened — a parallel spec closed the tenant shift.'
-  ).toBe(true);
-}
-
-/** Adds the given product to the POS cart by searching in the product entry field. */
-async function addProductToCart(page: Page, productName: string): Promise<void> {
-  const searchInput = page.getByTestId('pos-product-search');
-  // Use enough characters to narrow results to this specific product
-  await searchInput.fill(productName.substring(0, 30));
-
-  await expect(page.getByRole('option').first()).toBeVisible({ timeout: 10_000 });
-  const options = page.getByRole('option');
-  const count = await options.count();
-
-  // Prefer the option that matches the product name and has stock
-  let clicked = false;
-  for (let i = 0; i < count; i++) {
-    const option = options.nth(i);
-    const text = (await option.textContent()) ?? '';
-    const lower = text.toLowerCase();
-    const hasStock = !lower.includes('sin stock') && !lower.includes('out of stock');
-    const matchesProduct = text.includes(productName.substring(0, 20));
-    if (hasStock && matchesProduct) {
-      await option.click();
-      clicked = true;
-      break;
-    }
-  }
-  // Fallback: any option with stock
-  if (!clicked) {
-    for (let i = 0; i < count; i++) {
-      const option = options.nth(i);
-      const text = (await option.textContent()) ?? '';
-      if (
-        !text.toLowerCase().includes('sin stock') &&
-        !text.toLowerCase().includes('out of stock')
-      ) {
-        await option.click();
-        clicked = true;
-        break;
-      }
-    }
-  }
-  if (!clicked) await options.first().click();
-
-  await expect(page.getByText(productName, { exact: false })).toBeVisible({ timeout: 10_000 });
-}
-
-/** Opens the payment modal via Confirm Sale → Pay Now. */
-async function openPaymentModal(page: Page): Promise<void> {
-  await openShiftIfPrompted(page);
-  await page.locator('[data-testid="pos-confirm-sale"]:visible').click();
-  await page.getByTestId('pos-pay-now').click();
-  await expect(page.locator('[role="dialog"]')).toBeVisible({ timeout: 10_000 });
-}
-
-// ── tests ─────────────────────────────────────────────────────────────────────
+import { assertShiftStillActive } from '../../utils/shift';
 
 test.describe('@regression @pos @payment-manager @manual', () => {
   let productName: string | null = null;
@@ -288,19 +188,6 @@ test.describe('@regression @pos @payment-manager @manual', () => {
   // currency payment was rejected by SaleService.resolvePricingAmountEquivalent with
   // "pricingAmountEquiv does not match the server-calculated payment equivalent".
 
-  async function findActiveUsdCashMethod(page: Page): Promise<string | null> {
-    const headers = await buildApiHeaders(page);
-    const res = await page.request.get(`${config.apiRoot}/payment-methods`, { headers });
-    if (!res.ok()) return null;
-    const methods = (await res.json()) as {
-      code: string;
-      type: string;
-      active: boolean;
-      currency: string;
-    }[];
-    return methods.find((m) => m.type === 'CASH' && m.active && m.currency === 'USD')?.code ?? null;
-  }
-
   test('simple-mode USD cash payment completes the sale @session-mc-20260909', async ({ page }) => {
     const usdMethodCode = await findActiveUsdCashMethod(page);
     test.skip(!usdMethodCode, 'No active USD CASH payment method in the test tenant.');
@@ -322,6 +209,51 @@ test.describe('@regression @pos @payment-manager @manual', () => {
 
     expect(saleResponse.status(), await saleResponse.text()).toBe(201);
     await expect(page.getByTestId('invoice-dialog')).toBeVisible({ timeout: 5_000 });
+    await page.getByTestId('invoice-close').click();
+  });
+
+  test('USD overpayment returns change in tenant base currency @regression', async ({ page }) => {
+    const usdMethodCode = await findActiveUsdCashMethod(page);
+    test.skip(!usdMethodCode, 'No active USD CASH payment method in the test tenant.');
+    const usdRate = await getUsdExchangeRate(page);
+    test.skip(!usdRate, 'No active USD exchange rate in the test tenant.');
+
+    await openPaymentModal(page);
+    const usdButton = page.getByRole('button', { name: 'USD' });
+    test.skip(!(await usdButton.isEnabled()), 'No active USD exchange rate in the test tenant.');
+    await usdButton.click();
+    await page.getByTestId('payment-method-select').selectOption(usdMethodCode!);
+
+    const totalText = await page.locator('[class*="total"]').last().textContent();
+    const saleTotal = Number(totalText?.replace(/[^\d.]/g, ''));
+    expect(Number.isFinite(saleTotal) && saleTotal > 0).toBe(true);
+
+    const tenderedUsd = Math.ceil(saleTotal / usdRate!) + 50;
+    const expectedChangeBase = tenderedUsd * usdRate! - saleTotal;
+    await page.locator('input[type="number"]').first().fill(tenderedUsd.toFixed(2));
+
+    const saleResponsePromise = page.waitForResponse(
+      (r) => r.url().includes('/api/sales') && r.request().method() === 'POST',
+      { timeout: 20_000 }
+    );
+    await assertShiftStillActive(page);
+    await page.getByTestId('pm-finalize').click();
+    const saleResponse = await saleResponsePromise;
+
+    expect(saleResponse.status(), await saleResponse.text()).toBe(201);
+    const sale = (await saleResponse.json()) as {
+      changeDue?: number;
+      payments?: { amount: number; tenderedAmount: number; paymentMethod: string }[];
+    };
+    expect(sale.changeDue).toBeCloseTo(expectedChangeBase, 2);
+    expect(sale.payments?.[0]).toMatchObject({
+      paymentMethod: usdMethodCode!,
+      tenderedAmount: tenderedUsd,
+    });
+
+    await expect(page.getByTestId('invoice-dialog')).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByTestId('invoice-dialog')).toContainText('USD');
+    await expect(page.getByTestId('invoice-dialog')).toContainText('C$');
     await page.getByTestId('invoice-close').click();
   });
 

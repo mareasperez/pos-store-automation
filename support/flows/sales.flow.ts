@@ -212,7 +212,7 @@ export async function findProductWithNonBasePresentation(
   return null;
 }
 
-async function addProductToCart(
+export async function addProductToCart(
   page: Page,
   productName: string,
   presentationName?: string
