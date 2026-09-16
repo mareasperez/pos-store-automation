@@ -105,3 +105,13 @@ export const test = base.extend<object, { workerStorageState: string | undefined
 });
 
 export { expect };
+
+type DescribeBody = () => void;
+
+export function parallelDescribe(title: string, body: DescribeBody): void {
+  test.describe(`@parallel ${title}`, body);
+}
+
+export function serialDescribe(title: string, body: DescribeBody): void {
+  test.describe(`@serial ${title}`, body);
+}

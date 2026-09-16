@@ -11,7 +11,7 @@
  */
 import path from 'node:path';
 import { type Page } from '@playwright/test';
-import { expect, test } from '@fixtures';
+import { expect, serialDescribe, test } from '@fixtures';
 import { config } from '@config';
 import { dirnameFromUrl } from '../../utils/esm';
 import { buildApiHeaders } from '../../utils/apiHeaders';
@@ -219,7 +219,7 @@ async function closeShiftFromPos(page: Page, cashPaymentMethodId: number): Promi
   expect((await closeResponse).status()).toBe(200);
 }
 
-test.describe('@real @manual @shifts @shift-serial @shift-reconciliation', () => {
+serialDescribe('@real @manual @shifts @shift-serial @shift-reconciliation', () => {
   test('@real @manual open -> sell -> close: sold cash matches the server-computed expected amount', async ({
     page,
   }) => {

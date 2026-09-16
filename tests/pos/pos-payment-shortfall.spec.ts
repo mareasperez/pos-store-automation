@@ -5,7 +5,7 @@
  * payload that is one cent below the sale total; the backend must reject it without creating an
  * invoice.
  */
-import { expect, test } from '@fixtures';
+import { expect, parallelDescribe, test } from '@fixtures';
 import { config } from '@config';
 import { requireCredentialsOrSkip } from '../../support/flows/auth.flow';
 import { openPaymentModal } from '../../support/flows/payment.flow';
@@ -15,7 +15,7 @@ import {
 } from '../../support/flows/sales.flow';
 import { assertShiftStillActive } from '../../utils/shift';
 
-test.describe('@regression @pos @payment-shortfall @manual', () => {
+parallelDescribe('@regression @pos @payment-shortfall @manual', () => {
   let productName: string | null = null;
 
   test.beforeAll(async ({ browser, workerStorageState }) => {

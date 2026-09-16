@@ -4,13 +4,13 @@
  * machine's IP for up to a minute (shared across every other login in the suite).
  * Run in isolation: npx playwright test tests/auth/login-rate-limit.real.spec.ts
  */
-import { expect, test } from '@fixtures';
+import { expect, parallelDescribe, test } from '@fixtures';
 import { config } from '@config';
 
 const LOGIN_URL = `${config.apiRoot}/auth/login`;
 const MAX_ATTEMPTS = 20;
 
-test.describe('@real @manual @auth @login-rate-limit', () => {
+parallelDescribe('@real @manual @auth @login-rate-limit', () => {
   test('@real @manual repeated login attempts eventually get rate-limited with 429', async ({
     request,
   }) => {

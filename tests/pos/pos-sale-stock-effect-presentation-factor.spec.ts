@@ -4,7 +4,7 @@
  * Skips itself when the test tenant has no product with such a presentation and enough stock —
  * this is tenant data, not something every environment is guaranteed to have.
  */
-import { expect, test } from '@fixtures';
+import { expect, serialDescribe, test } from '@fixtures';
 import { requireCredentialsOrSkip } from '../../support/flows/auth.flow';
 import {
   createSimpleCashSaleViaPos,
@@ -15,8 +15,8 @@ import {
 
 test.setTimeout(60_000);
 
-test.describe('@regression @pos @inventory @inventory-serial', () => {
-  test('@regression @pos @inventory @inventory-serial a sale of a non-base presentation reduces stock by quantity x factor', async ({
+serialDescribe('@regression @pos @inventory', () => {
+  test('@regression @pos @inventory @serial a sale of a non-base presentation reduces stock by quantity x factor', async ({
     page,
   }) => {
     requireCredentialsOrSkip('POS sale stock effect (non-base presentation) flow');

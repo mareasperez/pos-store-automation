@@ -3,7 +3,7 @@
  * NON-base presentation (e.g. a "Caja x12", conversionFactor > 1). Skips itself when the tenant
  * has no active supplier + product pair with such a presentation.
  */
-import { expect, test } from '@fixtures';
+import { expect, serialDescribe, test } from '@fixtures';
 import { requireCredentialsOrSkip } from '../../../support/flows/auth.flow';
 import {
   getPresentationConversionFactor,
@@ -16,8 +16,8 @@ import {
 
 test.setTimeout(60_000);
 
-test.describe('@regression @purchases @inventory @inventory-serial', () => {
-  test('@regression @purchases @inventory @inventory-serial a purchase of a non-base presentation increases stock by quantity x factor', async ({
+serialDescribe('@regression @purchases @inventory', () => {
+  test('@regression @purchases @inventory @serial a purchase of a non-base presentation increases stock by quantity x factor', async ({
     page,
   }) => {
     requireCredentialsOrSkip('purchase stock effect (non-base presentation) flow');

@@ -3,7 +3,7 @@
  * Tag: @real @manual — shares the per-IP rate limit bucket with login-rate-limit.real.spec.ts.
  * Run in isolation, ideally ~60s after any rate-limit run: npx playwright test tests/auth/login-captcha.real.spec.ts
  */
-import { expect, test } from '@fixtures';
+import { expect, parallelDescribe, test } from '@fixtures';
 import { config } from '@config';
 
 const LOGIN_URL = `${config.apiRoot}/auth/login`;
@@ -22,7 +22,7 @@ async function probeLogin(
   return { status: response.status(), body: await response.json().catch(() => null) };
 }
 
-test.describe('@real @manual @auth @login-captcha', () => {
+parallelDescribe('@real @manual @auth @login-captcha', () => {
   test('@real @manual a forged captcha token is rejected with 400 CAPTCHA_FAILED', async ({
     request,
   }) => {

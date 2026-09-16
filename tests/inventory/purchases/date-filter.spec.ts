@@ -8,7 +8,7 @@
  * so no explicit login is needed. The Playwright config also sets
  * `timezoneId: 'America/Managua'` (UTC-6) to simulate the real tenant environment.
  */
-import { expect, test } from '@fixtures';
+import { expect, parallelDescribe, test } from '@fixtures';
 import { requireCredentialsOrSkip } from '../../../support/flows/auth.flow';
 import { buildApiHeaders } from '../../../utils/apiHeaders';
 import { config } from '@config';
@@ -47,7 +47,7 @@ async function findMostRecentPurchaseDate(
 
 // ── tests ───────────────────────────────────────────────────────────────────
 
-test.describe('Purchase history — date filter', () => {
+parallelDescribe('Purchase history — date filter', () => {
   test.beforeEach(() => {
     requireCredentialsOrSkip('purchase history date-filter');
   });

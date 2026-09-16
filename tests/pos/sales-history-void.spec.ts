@@ -1,4 +1,4 @@
-import { expect, test } from '@fixtures';
+import { expect, parallelDescribe, test } from '@fixtures';
 
 import { config } from '@config';
 import { requireCredentialsOrSkip } from '../../support/flows/auth.flow';
@@ -8,7 +8,7 @@ import {
   getFirstSellableProduct,
 } from '../../support/flows/sales.flow';
 
-test.describe('@regression @pos @sales-history @void @manual', () => {
+parallelDescribe('@regression @pos @sales-history @void @manual', () => {
   let productName: string | null = null;
 
   test.beforeAll(async ({ browser, workerStorageState }) => {

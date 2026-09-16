@@ -64,12 +64,16 @@ export async function getFirstSellableProductWithStock(
       active?: boolean;
       name?: string;
       sellableType?: string;
+      type?: string;
     };
 
     if (product.active === false) {
       continue;
     }
     if (product.sellableType && product.sellableType !== 'PRODUCT') {
+      continue;
+    }
+    if (product.type && product.type !== 'STANDARD') {
       continue;
     }
     if (product.name) {

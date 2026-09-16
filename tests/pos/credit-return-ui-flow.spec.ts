@@ -4,7 +4,7 @@
  * The test is serial because it asserts exact deltas in both customer receivables and the active
  * shift. A credit return must reduce debt and restore stock without changing cash expectations.
  */
-import { expect, test } from '@fixtures';
+import { expect, serialDescribe, test } from '@fixtures';
 import { requireCredentialsOrSkip } from '../../support/flows/auth.flow';
 import {
   createCreditCustomer,
@@ -30,7 +30,7 @@ import { getFirstSellableProduct, getProductStock } from '../../support/flows/sa
 
 test.setTimeout(120_000);
 
-test.describe('@regression @pos @returns @shift-serial @receivables-serial', () => {
+serialDescribe('@regression @pos @returns @shift-serial @receivables-serial', () => {
   test('applies a credit sale return only to the receivable without changing cash', async ({
     page,
   }) => {

@@ -3,11 +3,11 @@
  * and the "Ver"/"Registrar pago" placeholders (wired to a shared "not implemented" toast).
  * Non-destructive — nothing is created or mutated, so it runs in the default parallel suite.
  */
-import { expect, test } from '@fixtures';
+import { expect, parallelDescribe, test } from '@fixtures';
 import { requireCredentialsOrSkip } from '../../support/flows/auth.flow';
 import { findExistingDebtor } from '../../support/flows/receivables.flow';
 
-test.describe('@regression @customers @customer-debt', () => {
+parallelDescribe('@regression @customers @customer-debt', () => {
   test('@regression @customers @customer-debt lists a debtor and opens the detail dialog', async ({
     page,
   }) => {

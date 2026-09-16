@@ -13,7 +13,7 @@
  * `npm run test:serial:local` (or `test:serial:dev`), same as return-cash-currency-mismatch.
  */
 import { type Page } from '@playwright/test';
-import { expect, test } from '@fixtures';
+import { expect, serialDescribe, test } from '@fixtures';
 import { config } from '@config';
 import { requireCredentialsOrSkip } from '../../support/flows/auth.flow';
 import {
@@ -256,7 +256,7 @@ async function sellMultipleUnitsCashNio(
   return sale;
 }
 
-test.describe('@regression @pos @returns @shift-serial @session-mc-20260909', () => {
+serialDescribe('@regression @pos @returns @shift-serial @session-mc-20260909', () => {
   test("partial return: returning 1 of 2 sold units refunds proportionally and restores only that unit's stock", async ({
     page,
   }) => {

@@ -2,7 +2,7 @@
  * POS shift smoke and open-shift tests.
  * These tests exercise shift state from the /pos screen, not from /shifts management.
  */
-import { expect, test } from '@fixtures';
+import { expect, parallelDescribe, test } from '@fixtures';
 import { config } from '@config';
 
 const frontendOrigin = new URL(config.baseUrl).origin;
@@ -27,7 +27,7 @@ const buildOpenShift = () => ({
   ],
 });
 
-test.describe('@manual @pos shifts', () => {
+parallelDescribe('@manual @pos shifts', () => {
   test('UI calls /api/shifts/active from POS screen', async ({ page }) => {
     const shiftResponsePromise = page.waitForResponse(
       (r) => r.request().method() === 'GET' && r.url().includes('/api/shifts/active')

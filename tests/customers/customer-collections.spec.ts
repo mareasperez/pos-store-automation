@@ -6,7 +6,7 @@
  * customer's balance, so it's safe to run in the default parallel suite — as long as it isn't
  * run alongside credit-sale-and-collection.spec.ts against the same tenant at the same time.
  */
-import { expect, test } from '@fixtures';
+import { expect, parallelDescribe, test } from '@fixtures';
 import { requireCredentialsOrSkip } from '../../support/flows/auth.flow';
 import {
   findExistingDebtor,
@@ -16,7 +16,7 @@ import {
 
 test.setTimeout(60_000);
 
-test.describe('@regression @customers @customer-collections', () => {
+parallelDescribe('@regression @customers @customer-collections', () => {
   test('@regression @customers @customer-collections registering a payment reduces the customer balance', async ({
     page,
   }) => {

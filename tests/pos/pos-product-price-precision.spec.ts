@@ -4,7 +4,7 @@
  * Each test creates the product through the catalog UI, sells one unit through the POS UI, and
  * verifies that the API preserves the exact two-decimal product price and sale total.
  */
-import { expect, test } from '@fixtures';
+import { expect, parallelDescribe, test } from '@fixtures';
 import { fakerDataService } from '../../services/fakerDataService';
 import {
   createProductWithInitialStock,
@@ -20,7 +20,7 @@ const priceCases = [
   { label: '88.87', price: '88.87' },
 ];
 
-test.describe('@regression @pos @product-price-precision @manual', () => {
+parallelDescribe('@regression @pos @product-price-precision @manual', () => {
   for (const priceCase of priceCases) {
     test(`sells a product priced at ${priceCase.label} without losing cents`, async ({ page }) => {
       requireCredentialsOrSkip();

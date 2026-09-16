@@ -4,7 +4,7 @@
  * no active supplier + product pair whose product only has a single (base) presentation, since
  * picking an ambiguous multi-presentation product would make the "factor 1" assertion meaningless.
  */
-import { expect, test } from '@fixtures';
+import { expect, serialDescribe, test } from '@fixtures';
 import { requireCredentialsOrSkip } from '../../../support/flows/auth.flow';
 import {
   getPresentationConversionFactor,
@@ -17,8 +17,8 @@ import {
 
 test.setTimeout(60_000);
 
-test.describe('@regression @purchases @inventory @inventory-serial', () => {
-  test('@regression @purchases @inventory @inventory-serial a purchase increases stock in base units', async ({
+serialDescribe('@regression @purchases @inventory', () => {
+  test('@regression @purchases @inventory @serial a purchase increases stock in base units', async ({
     page,
   }) => {
     requireCredentialsOrSkip('purchase stock effect flow');

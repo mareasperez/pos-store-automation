@@ -20,7 +20,7 @@
  */
 import path from 'node:path';
 import { type Page } from '@playwright/test';
-import { expect, test } from '@fixtures';
+import { expect, serialDescribe, test } from '@fixtures';
 import { config } from '@config';
 import { dirnameFromUrl } from '../../utils/esm';
 import { requireCredentialsOrSkip } from '../../support/flows/auth.flow';
@@ -207,7 +207,7 @@ function expectedAmountFor(shift: ActiveShift, paymentMethodId: number): number 
 
 // ── test ─────────────────────────────────────────────────────────────────────
 
-test.describe('@real @manual @shift-serial @returns-currency @session-mc-20260909', () => {
+serialDescribe('@real @manual @shift-serial @returns-currency @session-mc-20260909', () => {
   test('@real @manual returning a USD-only sale must not move the base-currency CASH drawer', async ({
     page,
   }) => {

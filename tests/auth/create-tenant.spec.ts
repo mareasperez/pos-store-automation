@@ -4,7 +4,7 @@
  *
  * Roadmap: once tenant cleanup is implemented, add flows that hit the real API.
  */
-import { expect, test } from '@fixtures';
+import { expect, parallelDescribe, test } from '@fixtures';
 import { requireCredentialsOrSkip } from '../../support/flows/auth.flow';
 
 const TENANTS_URL = '/platform/tenants';
@@ -46,7 +46,7 @@ async function fillStep0(page: import('@playwright/test').Page) {
 
 // ── tests ─────────────────────────────────────────────────────────────────
 
-test.describe('Tenant creation stepper (mocked API)', () => {
+parallelDescribe('Tenant creation stepper (mocked API)', () => {
   test.beforeEach(async () => {
     requireCredentialsOrSkip('tenant creation stepper flows');
   });

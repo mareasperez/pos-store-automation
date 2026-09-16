@@ -7,7 +7,7 @@
  * open shift behind so POS sale specs sharing this worker still find a till.
  */
 import { type Page } from '@playwright/test';
-import { expect, test } from '@fixtures';
+import { expect, serialDescribe, test } from '@fixtures';
 import { config } from '@config';
 import { requireCredentialsOrSkip } from '../../support/flows/auth.flow';
 import { buildApiHeaders } from '../../support/flows/sales.flow';
@@ -88,7 +88,7 @@ async function closeShiftFromPos(page: Page): Promise<void> {
   await expect(page.getByTestId('pos-open-shift').first()).toBeVisible({ timeout: 15_000 });
 }
 
-test.describe('@real @manual @pos @shift-serial', () => {
+serialDescribe('@real @manual @pos @shift-serial', () => {
   test('@real @manual opens and closes a real shift from the POS screen', async ({ page }) => {
     requireCredentialsOrSkip('real pos shift cycle');
 

@@ -2,10 +2,30 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { loadEnvironment, resolveEnvironment } from '../utils/environment.mjs';
 
-const [, , environment, ...args] = process.argv;
+const rawArgs = process.argv.slice(2);
+const environmentFlagIndex = rawArgs.indexOf('--env');
+const inlineEnvironment = rawArgs.find((argument) => argument.startsWith('--env='));
+
+let environment;
+let args;
+if (environmentFlagIndex >= 0) {
+  environment = rawArgs[environmentFlagIndex + 1];
+  args = [
+    ...rawArgs.slice(0, environmentFlagIndex),
+    ...rawArgs.slice(environmentFlagIndex + 2),
+  ];
+} else if (inlineEnvironment) {
+  environment = inlineEnvironment.slice('--env='.length);
+  args = rawArgs.filter((argument) => argument !== inlineEnvironment);
+} else if (rawArgs[0]?.startsWith('--')) {
+  environment = process.env.E2E_ENV || 'local';
+  args = rawArgs;
+} else {
+  [environment, ...args] = rawArgs;
+}
 
 if (!environment) {
-  console.error('Usage: node ./scripts/run-playwright-env.mjs <env> [playwright args...]');
+  console.error('Usage: node ./scripts/run-playwright-env.mjs [--env <env>] [playwright args...]');
   process.exit(1);
 }
 

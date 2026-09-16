@@ -8,7 +8,7 @@
  *
  * These tests create real sale records in the test tenant.
  */
-import { expect, test } from '@fixtures';
+import { expect, parallelDescribe, test } from '@fixtures';
 import { config } from '@config';
 import { requireCredentialsOrSkip } from '../../support/flows/auth.flow';
 import {
@@ -23,7 +23,7 @@ import {
 import { buildApiHeaders } from '../../utils/apiHeaders';
 import { assertShiftStillActive } from '../../utils/shift';
 
-test.describe('@regression @pos @payment-manager @manual', () => {
+parallelDescribe('@regression @pos @payment-manager @manual', () => {
   let productName: string | null = null;
 
   test.beforeAll(async ({ browser, workerStorageState }) => {

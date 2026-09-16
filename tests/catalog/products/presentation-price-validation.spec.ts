@@ -1,11 +1,11 @@
-import { expect, test } from '@fixtures';
+import { expect, parallelDescribe, test } from '@fixtures';
 import { fakerDataService } from '../../../services/fakerDataService';
 import {
   createProductWithInitialStock,
   requireCredentialsOrSkip,
 } from '../../../support/flows/products.flow';
 
-test.describe('@regression @products @manual presentation price=0 is rejected', () => {
+parallelDescribe('@regression @products @manual presentation price=0 is rejected', () => {
   test('Save button in editor modal is disabled when price is 0', async ({ page }) => {
     requireCredentialsOrSkip();
 

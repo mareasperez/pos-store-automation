@@ -7,7 +7,7 @@
  * Runs under the `chromium-authenticated` project (stored auth state injected).
  */
 import { type Page } from '@playwright/test';
-import { expect, test } from '@fixtures';
+import { expect, parallelDescribe, test } from '@fixtures';
 import { requireCredentialsOrSkip } from '../../../support/flows/auth.flow';
 
 const PURCHASES_URL = /\/api\/inventory\/purchase-receipts/;
@@ -32,7 +32,7 @@ async function gotoAndAwaitInitialLoad(page: Page) {
 
 // ── tests ────────────────────────────────────────────────────────────────────
 
-test.describe('Purchase history — search', () => {
+parallelDescribe('Purchase history — search', () => {
   test.beforeEach(() => {
     requireCredentialsOrSkip('purchase history search and pagination');
   });
@@ -62,7 +62,7 @@ test.describe('Purchase history — search', () => {
   // above is sufficient to verify the search param contract.
 });
 
-test.describe('Purchase history — supplier filter', () => {
+parallelDescribe('Purchase history — supplier filter', () => {
   test.beforeEach(() => {
     requireCredentialsOrSkip('purchase history search and pagination');
   });
@@ -102,7 +102,7 @@ test.describe('Purchase history — supplier filter', () => {
   // so no new network request is issued. The positive-path test above is sufficient.
 });
 
-test.describe('Purchase history — pagination', () => {
+parallelDescribe('Purchase history — pagination', () => {
   test.beforeEach(() => {
     requireCredentialsOrSkip('purchase history search and pagination');
   });

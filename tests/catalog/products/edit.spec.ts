@@ -1,5 +1,5 @@
 import { type Page } from '@playwright/test';
-import { expect, test } from '@fixtures';
+import { expect, parallelDescribe, test } from '@fixtures';
 import { fakerDataService } from '../../../services/fakerDataService';
 import {
   addPresentationInEditorModal,
@@ -21,7 +21,7 @@ async function createProduct(page: Page): Promise<CreatedProductResponse> {
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
-test.describe('@regression @products @manual product edit flow', () => {
+parallelDescribe('@regression @products @manual product edit flow', () => {
   test('can navigate to edit page from product list', async ({ page }) => {
     requireCredentialsOrSkip();
 

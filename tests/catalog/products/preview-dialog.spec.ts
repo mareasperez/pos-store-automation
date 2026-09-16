@@ -1,4 +1,4 @@
-import { expect, test } from '@fixtures';
+import { expect, parallelDescribe, test } from '@fixtures';
 import {
   gotoProductList,
   openFirstProductPreview,
@@ -10,7 +10,7 @@ import {
  * Requires at least 1 product in the tenant.
  * Uses the authenticated project (default, no @auth tag).
  */
-test.describe('@regression @products @manual product preview dialog', () => {
+parallelDescribe('@regression @products @manual product preview dialog', () => {
   test.beforeEach(async ({ page }) => {
     await gotoProductList(page);
     await waitProductsLoaded(page);

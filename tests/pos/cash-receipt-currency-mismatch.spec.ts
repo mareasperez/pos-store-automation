@@ -10,7 +10,7 @@
  * doesn't depend on an open shift and can run in the default parallel suite.
  */
 import { type Page } from '@playwright/test';
-import { expect, test } from '@fixtures';
+import { expect, parallelDescribe, test } from '@fixtures';
 import { config } from '@config';
 import { requireCredentialsOrSkip } from '../../support/flows/auth.flow';
 import { buildApiHeaders } from '../../utils/apiHeaders';
@@ -59,7 +59,7 @@ async function getTenantExchangeRates(page: Page, headers: Record<string, string
   };
 }
 
-test.describe('@regression @pos @cash-receipts @currency @session-mc-20260909', () => {
+parallelDescribe('@regression @pos @cash-receipts @currency @session-mc-20260909', () => {
   test('@regression creating a cash receipt fully in USD must preserve USD, not the tenant base currency', async ({
     page,
   }) => {

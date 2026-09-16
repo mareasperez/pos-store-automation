@@ -4,7 +4,7 @@
  * collection payment. Because nothing exact is asserted about the customer's balance, this is
  * safe to run in the default parallel suite even if it shares a customer with other specs.
  */
-import { expect, test } from '@fixtures';
+import { expect, parallelDescribe, test } from '@fixtures';
 import { requireCredentialsOrSkip } from '../../support/flows/auth.flow';
 import { getFirstSellableProduct } from '../../support/flows/sales.flow';
 import {
@@ -16,7 +16,7 @@ import { openShiftIfPrompted } from '../../utils/shift';
 
 test.setTimeout(60_000);
 
-test.describe('@regression @customers @credit-sale', () => {
+parallelDescribe('@regression @customers @credit-sale', () => {
   test('@regression @customers @credit-sale a credit sale is created successfully', async ({
     page,
   }) => {

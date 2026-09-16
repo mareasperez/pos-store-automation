@@ -10,7 +10,7 @@
  * concurrently with the parallel pool that also uses cashier 1 for worker 0.
  */
 import path from 'node:path';
-import { expect, test } from '@fixtures';
+import { expect, serialDescribe, test } from '@fixtures';
 import { config } from '@config';
 import { requireCredentialsOrSkip } from '../../support/flows/auth.flow';
 import { buildApiHeaders } from '../../support/flows/sales.flow';
@@ -20,7 +20,7 @@ const dirname = dirnameFromUrl(import.meta.url);
 test.use({ storageState: path.join(dirname, '../../playwright/.auth/user-0.json') });
 test.setTimeout(120_000);
 
-test.describe('@real @manual @shifts @shift-serial', () => {
+serialDescribe('@real @manual @shifts @shift-serial', () => {
   test('@real @manual closes a real shift from the /shifts management page', async ({ page }) => {
     requireCredentialsOrSkip('real shift close');
 

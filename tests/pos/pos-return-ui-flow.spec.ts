@@ -23,7 +23,7 @@
  * the same cashier. Run via `npm run test:serial:local` (or `test:serial:dev`).
  */
 import { type Page } from '@playwright/test';
-import { expect, test } from '@fixtures';
+import { expect, serialDescribe, test } from '@fixtures';
 import { config } from '@config';
 import { requireCredentialsOrSkip } from '../../support/flows/auth.flow';
 import {
@@ -126,7 +126,7 @@ async function computeExpectedBaseUnitReturn(
   return totals;
 }
 
-test.describe('@regression @pos @returns @shift-serial @session-mc-20260910', () => {
+serialDescribe('@regression @pos @returns @shift-serial @session-mc-20260910', () => {
   test('registers a return through the UI and verifies refund, shift cash and stock effects', async ({
     page,
   }) => {

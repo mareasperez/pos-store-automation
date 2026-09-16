@@ -7,8 +7,14 @@ import { chromium } from '@playwright/test';
 import { closeOwnedAuthBrowser, submitLoginWhenReady } from './auth-login.mjs';
 import { loadEnvironment, resolveEnvironment } from '../utils/environment.mjs';
 
-const [, , envArg] = process.argv;
-const environment = resolveEnvironment(envArg || process.env.E2E_ENV || 'dev');
+const rawArgs = process.argv.slice(2);
+const environmentFlagIndex = rawArgs.indexOf('--env');
+const inlineEnvironment = rawArgs.find((argument) => argument.startsWith('--env='));
+const envArg =
+  environmentFlagIndex >= 0
+    ? rawArgs[environmentFlagIndex + 1]
+    : inlineEnvironment?.slice('--env='.length) || rawArgs[0];
+const environment = resolveEnvironment(envArg || process.env.E2E_ENV || 'local');
 
 const currentFilePath = fileURLToPath(import.meta.url);
 const e2eRoot = path.resolve(path.dirname(currentFilePath), '..');

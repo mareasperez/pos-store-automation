@@ -32,10 +32,8 @@ export default defineConfig({
   },
   projects: [
     {
-      // Serial-only tags (@shift-serial, @receivables-serial) are excluded from the
-      // default suite via --grep-invert on the full-run npm scripts (not here) — project-level
-      // grepInvert would AND-combine with the dedicated test:serial:* scripts' --grep and
-      // produce "no tests found".
+      // Execution groups are selected explicitly by the npm scripts with @parallel or @serial;
+      // project-level grep would combine with those filters and could produce "no tests found".
       name: 'chromium-authenticated',
       grepInvert: /@auth/,
       use: {

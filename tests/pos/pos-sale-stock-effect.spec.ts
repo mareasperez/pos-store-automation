@@ -4,7 +4,7 @@
  * sale/payment/history side. Picks the product with the most on-hand stock to reduce the chance
  * of colliding with another parallel worker selling the same SKU during the test run.
  */
-import { expect, test } from '@fixtures';
+import { expect, serialDescribe, test } from '@fixtures';
 import { requireCredentialsOrSkip } from '../../support/flows/auth.flow';
 import {
   createSimpleCashSaleViaPos,
@@ -15,8 +15,8 @@ import {
 
 test.setTimeout(60_000);
 
-test.describe('@regression @pos @inventory @inventory-serial', () => {
-  test('@regression @pos @inventory @inventory-serial a cash sale reduces the product stock in base units', async ({
+serialDescribe('@regression @pos @inventory', () => {
+  test('@regression @pos @inventory @serial a cash sale reduces the product stock in base units', async ({
     page,
   }) => {
     requireCredentialsOrSkip('POS sale stock effect flow');

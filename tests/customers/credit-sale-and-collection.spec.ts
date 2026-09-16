@@ -13,7 +13,7 @@
  *
  * Run: npm run test:serial:local (or test:serial:dev)
  */
-import { expect, test } from '@fixtures';
+import { expect, serialDescribe, test } from '@fixtures';
 import { requireCredentialsOrSkip } from '../../support/flows/auth.flow';
 import { getFirstSellableProduct } from '../../support/flows/sales.flow';
 import {
@@ -29,8 +29,8 @@ import { openShiftIfPrompted } from '../../utils/shift';
 
 test.setTimeout(120_000);
 
-test.describe('@real @manual @receivables-serial', () => {
-  test('@real @manual @receivables-serial credit sale then a partial collection reduces the customer balance', async ({
+serialDescribe('@real @manual @receivables-serial', () => {
+  test('@serial @real @manual @receivables-serial credit sale then a partial collection reduces the customer balance', async ({
     page,
   }) => {
     requireCredentialsOrSkip('credit sale + collection flow');

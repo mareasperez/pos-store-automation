@@ -1,4 +1,4 @@
-import { expect, test } from '@fixtures';
+import { expect, parallelDescribe, test } from '@fixtures';
 import { gotoProductList, waitProductsLoaded } from '../../../support/pages/products-list.page';
 
 /**
@@ -6,7 +6,7 @@ import { gotoProductList, waitProductsLoaded } from '../../../support/pages/prod
  * Requires at least 11 products in the tenant for page-navigation assertions.
  * Uses the authenticated project (default, no @auth tag).
  */
-test.describe('@regression @products @manual product list pagination', () => {
+parallelDescribe('@regression @products @manual product list pagination', () => {
   test.beforeEach(async ({ page }) => {
     await gotoProductList(page);
   });
