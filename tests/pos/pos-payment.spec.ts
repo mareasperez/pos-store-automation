@@ -18,6 +18,7 @@ import {
 import {
   findActiveUsdCashMethod,
   getUsdExchangeRate,
+  selectBaseCurrency,
   openPaymentModal,
 } from '../../support/flows/payment.flow';
 import { buildApiHeaders } from '../../utils/apiHeaders';
@@ -138,6 +139,7 @@ parallelDescribe('@regression @pos @payment-manager @manual', () => {
 
   test('advanced-mode split payment across two methods completes the sale', async ({ page }) => {
     await openPaymentModal(page);
+    await selectBaseCurrency(page);
 
     // Switch to advanced mode
     await page.getByTestId('pm-mode-advanced').click();

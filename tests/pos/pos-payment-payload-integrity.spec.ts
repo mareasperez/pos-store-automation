@@ -8,7 +8,11 @@
 import { expect, parallelDescribe, test } from '@fixtures';
 import { config } from '@config';
 import { requireCredentialsOrSkip } from '../../support/flows/auth.flow';
-import { openPaymentModal } from '../../support/flows/payment.flow';
+import {
+  getSecondaryCurrency,
+  openPaymentModal,
+  selectBaseCurrency,
+} from '../../support/flows/payment.flow';
 import {
   addProductToCart,
   getFirstSellableProduct,
@@ -40,6 +44,8 @@ parallelDescribe('@regression @pos @payment-integrity @manual', () => {
 
   test('ignores a manipulated client payment equivalent', async ({ page }) => {
     await openPaymentModal(page);
+    await selectBaseCurrency(page);
+    const secondaryCurrency = await getSecondaryCurrency(page);
 
     const totalText = await page.getByTestId('pm-total-base').textContent();
     const saleTotal = Number(totalText?.replace(/[^\d.]/g, ''));
@@ -88,7 +94,7 @@ parallelDescribe('@regression @pos @payment-integrity @manual', () => {
     await expect(page.getByTestId('invoice-dialog')).toBeVisible({ timeout: 5_000 });
     await expect(page.getByTestId('invoice-payment-0-equivalent')).toHaveAttribute(
       'data-currency',
-      'NIO'
+      secondaryCurrency
     );
     await page.getByTestId('invoice-close').click();
   });

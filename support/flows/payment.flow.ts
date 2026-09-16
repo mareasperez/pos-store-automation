@@ -12,6 +12,21 @@ export async function openPaymentModal(page: Page): Promise<void> {
   await expect(page.locator('[role="dialog"]')).toBeVisible({ timeout: 10_000 });
 }
 
+export async function selectBaseCurrency(page: Page): Promise<string> {
+  const currencyButtons = page.getByTestId(/^pm-currency-/);
+  const baseCurrency = (await currencyButtons.first().textContent())?.trim();
+  expect(baseCurrency).toBeTruthy();
+  await currencyButtons.first().click();
+  return baseCurrency!;
+}
+
+export async function getSecondaryCurrency(page: Page): Promise<string> {
+  const currencyButtons = page.getByTestId(/^pm-currency-/);
+  const secondaryCurrency = (await currencyButtons.nth(1).textContent())?.trim();
+  expect(secondaryCurrency).toBeTruthy();
+  return secondaryCurrency!;
+}
+
 export async function findActiveUsdCashMethod(page: Page): Promise<string | null> {
   const headers = await buildApiHeaders(page);
   const response = await page.request.get(`${config.apiRoot}/payment-methods`, { headers });

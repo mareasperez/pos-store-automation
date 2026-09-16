@@ -5,11 +5,8 @@
   "type": "module",
   "description": "Manual-first Playwright E2E suite for my_pos_store",
   "scripts": {
-    "test": "node ./scripts/run-playwright-env.mjs --ui --no-deps --grep \"@parallel\"",
-    "test:headless": "node ./scripts/run-playwright-env.mjs --grep \"@parallel\"",
-    "test:serial": "node ./scripts/run-playwright-env.mjs --ui --no-deps --workers=1 --grep \"@serial\"",
-    "test:smoke": "node ./scripts/run-playwright-env.mjs --headed --workers=1 --grep \"@smoke\"",
-    "test:critical": "node ./scripts/run-playwright-env.mjs --headed --workers=1 --grep \"@critical\"",
+    "test": "node ./scripts/run-playwright-env.mjs --grep \"@parallel\"",
+    "test:serial": "node ./scripts/run-playwright-env.mjs --workers=1 --grep \"@serial\"",
     "test:manual": "node ./scripts/run-playwright-env.mjs",
     "test:list": "node ./scripts/run-playwright-env.mjs --list",
     "test:auth:setup": "node ./scripts/create-auth-state.mjs",
