@@ -4,7 +4,7 @@
  * The UI creates a valid base-currency payment, while the route mutation injects an exchange rate
  * that would inflate a smaller amount. The real backend must reject the forged payload.
  */
-import { expect, parallelDescribe, test } from '@fixtures';
+import { expect, expectHttpError, parallelDescribe, test } from '@fixtures';
 import { config } from '@config';
 import { requireCredentialsOrSkip } from '../../support/flows/auth.flow';
 import { openPaymentModal } from '../../support/flows/payment.flow';
@@ -35,6 +35,7 @@ parallelDescribe('@regression @pos @payment-integrity @manual', () => {
   });
 
   test('rejects an exchange rate injected into a base-currency payment', async ({ page }) => {
+    expectHttpError(400, '/api/sales');
     await openPaymentModal(page);
     const totalText = await page.getByTestId('pm-total-base').textContent();
     const saleTotal = Number(totalText?.replace(/[^\d.]/g, ''));

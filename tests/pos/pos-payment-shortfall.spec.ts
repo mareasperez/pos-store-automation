@@ -5,7 +5,7 @@
  * payload that is one cent below the sale total; the backend must reject it without creating an
  * invoice.
  */
-import { expect, parallelDescribe, test } from '@fixtures';
+import { expect, expectHttpError, parallelDescribe, test } from '@fixtures';
 import { config } from '@config';
 import { requireCredentialsOrSkip } from '../../support/flows/auth.flow';
 import { openPaymentModal } from '../../support/flows/payment.flow';
@@ -39,6 +39,7 @@ parallelDescribe('@regression @pos @payment-shortfall @manual', () => {
   });
 
   test('backend rejects an applied payment shortfall', async ({ page }) => {
+    expectHttpError(400, '/api/sales');
     await openPaymentModal(page);
 
     const totalText = await page.getByTestId('pm-total-base').textContent();

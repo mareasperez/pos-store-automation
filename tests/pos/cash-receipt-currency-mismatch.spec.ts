@@ -10,7 +10,7 @@
  * doesn't depend on an open shift and can run in the default parallel suite.
  */
 import { type Page } from '@playwright/test';
-import { expect, parallelDescribe, test } from '@fixtures';
+import { expect, expectHttpError, parallelDescribe, test } from '@fixtures';
 import { config } from '@config';
 import { requireCredentialsOrSkip } from '../../support/flows/auth.flow';
 import { buildApiHeaders } from '../../utils/apiHeaders';
@@ -191,6 +191,7 @@ parallelDescribe('@regression @pos @cash-receipts @currency @session-mc-20260909
   test('@regression cash receipt with a payment method currency mismatch must be rejected', async ({
     page,
   }) => {
+    expectHttpError(400, '/api/cash-receipts');
     requireCredentialsOrSkip('cash receipt currency mismatch');
 
     const headers = await buildApiHeaders(page);

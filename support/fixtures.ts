@@ -1,10 +1,38 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { test as base, expect } from '@playwright/test';
+import { test as base, expect, type TestInfo } from '@playwright/test';
 import { dirnameFromUrl } from '../utils/esm';
 
 const dirname = dirnameFromUrl(import.meta.url);
 const authDir = path.join(dirname, '..', 'playwright', '.auth');
+const EXPECTED_HTTP_ERROR = 'expected-http-error';
+
+export function expectHttpError(status: number, urlPart?: string): void {
+  test.info().annotations.push({
+    type: EXPECTED_HTTP_ERROR,
+    description: JSON.stringify({ status, urlPart }),
+  });
+}
+
+function isExpectedHttpError(testInfo: TestInfo, status: number, url: string): boolean {
+  return testInfo.annotations.some((annotation) => {
+    if (annotation.type !== EXPECTED_HTTP_ERROR || !annotation.description) return false;
+
+    try {
+      const expected = JSON.parse(annotation.description) as {
+        status?: number;
+        urlPart?: string;
+      };
+      return expected.status === status && (!expected.urlPart || url.includes(expected.urlPart));
+    } catch {
+      return false;
+    }
+  });
+}
+
+function hasExpectedHttpError(testInfo: TestInfo): boolean {
+  return testInfo.annotations.some((annotation) => annotation.type === EXPECTED_HTTP_ERROR);
+}
 
 /** Session files produced by `npm run test:auth:setup`, one per test cashier. */
 function listAuthStateFiles(): string[] {
@@ -29,7 +57,10 @@ export const test = base.extend<object, { workerStorageState: string | undefined
   page: async ({ page }, use, testInfo) => {
     page.on('console', (msg) => {
       if (msg.type() === 'error') {
-        console.log(`[console error] ${testInfo.title}: ${msg.text()}`);
+        const prefix = hasExpectedHttpError(testInfo)
+          ? '[expected console error]'
+          : '[console error]';
+        console.log(`${prefix} ${testInfo.title}: ${msg.text()}`);
       }
     });
     page.on('requestfailed', (request) => {
@@ -40,8 +71,13 @@ export const test = base.extend<object, { workerStorageState: string | undefined
     });
     page.on('response', (response) => {
       if (response.status() >= 400) {
+        const message =
+          `[http ${response.status()}] ${testInfo.title}: ` +
+          `${response.request().method()} ${response.url()}`;
         console.log(
-          `[http ${response.status()}] ${testInfo.title}: ${response.request().method()} ${response.url()}`
+          isExpectedHttpError(testInfo, response.status(), response.url())
+            ? message.replace('[http ', '[expected http ')
+            : message
         );
       }
     });
@@ -109,9 +145,13 @@ export { expect };
 type DescribeBody = () => void;
 
 export function parallelDescribe(title: string, body: DescribeBody): void {
+  // The helper forwards the caller's describe callback intentionally.
+  // eslint-disable-next-line playwright/valid-describe-callback
   test.describe(`@parallel ${title}`, body);
 }
 
 export function serialDescribe(title: string, body: DescribeBody): void {
+  // The helper forwards the caller's describe callback intentionally.
+  // eslint-disable-next-line playwright/valid-describe-callback
   test.describe(`@serial ${title}`, body);
 }
