@@ -16,7 +16,9 @@ export default defineConfig({
   retries: 0,
   workers: 3,
   outputDir: 'test-results',
-  reporter: [['list'], ['html', { open: 'never' }]],
+  // 'json' persists a durable, greppable summary of the last run (which tests failed and why)
+  // independent of the HTML report, so it survives even if the next run overwrites playwright-report/.
+  reporter: [['list'], ['html', { open: 'never' }], ['json', { outputFile: 'test-results.json' }]],
   use: {
     baseURL: config.baseUrl,
     trace: 'retain-on-failure',

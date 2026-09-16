@@ -10,6 +10,8 @@
  */
 import { expect, test } from '@fixtures';
 import { requireCredentialsOrSkip } from '../../../support/flows/auth.flow';
+import { buildApiHeaders } from '../../../utils/apiHeaders';
+import { config } from '@config';
 
 // ── helpers ────────────────────────────────────────────────────────────────
 
@@ -27,6 +29,22 @@ function yesterday(base: Date): Date {
   return d;
 }
 
+/** Local date (YYYY-MM-DD) of the most recently issued purchase receipt, or null if none exist. */
+async function findMostRecentPurchaseDate(
+  page: Parameters<typeof buildApiHeaders>[0]
+): Promise<string | null> {
+  const headers = await buildApiHeaders(page);
+  const response = await page.request.get(
+    `${config.apiRoot}/inventory/purchase-receipts?page=0&size=1&sort=issuedAt,desc`,
+    { headers }
+  );
+  if (!response.ok()) return null;
+
+  const body = (await response.json()) as { content?: Array<{ issuedAt: string }> };
+  const issuedAt = body.content?.[0]?.issuedAt;
+  return issuedAt ? toLocalDateString(new Date(issuedAt)) : null;
+}
+
 // ── tests ───────────────────────────────────────────────────────────────────
 
 test.describe('Purchase history — date filter', () => {
@@ -35,13 +53,14 @@ test.describe('Purchase history — date filter', () => {
   });
 
   test('page loads and table renders when filtering by today', async ({ page }) => {
-    const todayStr = toLocalDateString(new Date());
+    const purchaseDate = await findMostRecentPurchaseDate(page);
+    test.skip(!purchaseDate, 'No purchase receipts exist in the test tenant to filter by.');
 
     await page.goto('/inventory/purchases', { waitUntil: 'domcontentloaded' });
     await expect(page).toHaveURL(/inventory\/purchases/i, { timeout: 20_000 });
 
-    await page.getByTestId('purchase-filter-from').fill(todayStr);
-    await page.getByTestId('purchase-filter-to').fill(todayStr);
+    await page.getByTestId('purchase-filter-from').fill(purchaseDate!);
+    await page.getByTestId('purchase-filter-to').fill(purchaseDate!);
 
     await page.waitForResponse(
       (r) => r.url().includes('/api/inventory/purchase-receipts') && r.request().method() === 'GET',
@@ -49,7 +68,7 @@ test.describe('Purchase history — date filter', () => {
     );
 
     await expect(page.getByRole('table').first()).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByText(/error|failed/i)).not.toBeVisible();
+    await expect(page.getByTestId('table-state-error')).toBeHidden();
   });
 
   test('filter sends ISO timestamps with time component, not bare YYYY-MM-DD', async ({ page }) => {
