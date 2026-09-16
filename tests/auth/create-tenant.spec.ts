@@ -151,9 +151,25 @@ parallelDescribe('Tenant creation stepper (mocked API)', () => {
         body: JSON.stringify(MOCK_TENANT_RESPONSE),
       });
     });
+    await page.route('**/api/tenants', async (route) => {
+      if (route.request().method() === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify([]),
+        });
+        return;
+      }
+
+      await route.continue();
+    });
     // Ensure V1 is NOT called
-    await page.route('**/api/tenants', (route) => {
-      route.fulfill({ status: 500, body: 'V1 should not be called for existing users' });
+    await page.route('**/api/tenants', async (route) => {
+      if (route.request().method() !== 'POST') {
+        await route.continue();
+        return;
+      }
+      await route.fulfill({ status: 500, body: 'V1 should not be called for existing users' });
     });
 
     await openCreateModal(page);
