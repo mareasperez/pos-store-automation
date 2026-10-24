@@ -55,11 +55,18 @@ export async function findExistingDebtor(page: Page): Promise<CustomerDebtSummar
   );
 }
 
-/** Registers a payment against the customer's oldest debt (FIFO, the default allocation mode). */
-export async function registerCollectionPayment(
+export interface CreatedCustomerCollection {
+  id: number;
+  receiptNumber: string;
+  customerId: number;
+  customerName?: string | null;
+  collectedByName?: string | null;
+}
+
+/** Opens the "Nueva cobranza" dialog on /customer-collections and selects the given customer. */
+export async function openNewCollectionForCustomer(
   page: Page,
-  customerName: string,
-  amount: number
+  customerName: string
 ): Promise<void> {
   await page.goto('/customer-collections', { waitUntil: 'domcontentloaded' });
   await expect(page).toHaveURL(/\/customer-collections(?:$|[?#])/i, { timeout: 20_000 });
@@ -68,6 +75,15 @@ export async function registerCollectionPayment(
 
   await page.getByTestId('collection-customer-select').click();
   await page.getByRole('option', { name: new RegExp(customerName, 'i') }).click();
+}
+
+/** Registers a payment against the customer's oldest debt (FIFO, the default allocation mode). */
+export async function registerCollectionPayment(
+  page: Page,
+  customerName: string,
+  amount: number
+): Promise<CreatedCustomerCollection> {
+  await openNewCollectionForCustomer(page, customerName);
 
   await page.getByLabel(/^monto$/i).fill(String(amount));
 
@@ -82,4 +98,13 @@ export async function registerCollectionPayment(
   await page.getByRole('button', { name: /crear cobranza/i }).click();
   const collectionResponse = await collectionResponsePromise;
   expect(collectionResponse.status(), await collectionResponse.text()).toBe(201);
+  return (await collectionResponse.json()) as CreatedCustomerCollection;
+}
+
+/** Lists existing customer collections (newest data straight from the API). */
+export async function listCustomerCollections(page: Page): Promise<CreatedCustomerCollection[]> {
+  const headers = await buildApiHeaders(page);
+  const res = await page.request.get(`${config.apiRoot}/customer-collections`, { headers });
+  expect(res.ok(), `GET /customer-collections failed: ${res.status()}`).toBeTruthy();
+  return (await res.json()) as CreatedCustomerCollection[];
 }
