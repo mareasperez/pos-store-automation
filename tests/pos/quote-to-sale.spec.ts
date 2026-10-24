@@ -84,6 +84,8 @@ serialDescribe('@regression @pos @quotes', () => {
     expect(quote.status).toBe('OPEN');
     expect(quote.customerId).toBe(customer!.id);
     expect(quote.warehouseId).toBe(product!.warehouseId);
+    expect(quote.createdByName, 'the quote records who created it').toBeTruthy();
+    await expect(page.getByTestId('quote-detail-attended-by')).toHaveText(quote.createdByName!);
     const quotedProduct = quote.lines.find(
       (line) => line.productId === product!.skuId && line.sellableType === 'PRODUCT'
     );

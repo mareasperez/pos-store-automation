@@ -33,6 +33,7 @@ export interface QuoteSummary {
   expired: boolean;
   total: number;
   saleId: number | null;
+  createdByName: string | null;
   lines: QuoteLineSummary[];
 }
 
