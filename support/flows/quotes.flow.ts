@@ -164,7 +164,7 @@ export async function getQuote(page: Page, id: number): Promise<QuoteSummary> {
 }
 
 /** Base presentation of a product, used to create quotes directly through the API. */
-async function getBasePresentationId(page: Page, productId: number): Promise<number> {
+export async function getBasePresentationId(page: Page, productId: number): Promise<number> {
   const headers = await buildApiHeaders(page);
   const response = await page.request.get(`${config.apiRoot}/product-presentations`, {
     headers,
