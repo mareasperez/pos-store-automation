@@ -32,7 +32,8 @@ export async function createProductWithInitialStock(
   productSku: string,
   initialStock: string,
   price = '150',
-  cost = '100'
+  cost = '100',
+  taxPercent?: string
 ): Promise<CreatedProductResponse> {
   await page.goto('/catalog/products/new', { waitUntil: 'domcontentloaded' });
   await expect(page).toHaveURL(/\/catalog\/products\/new(?:$|[?#])/i, { timeout: 20_000 });
@@ -46,7 +47,7 @@ export async function createProductWithInitialStock(
   await expect(stockInput).toBeVisible({ timeout: 20_000 });
   await stockInput.fill(initialStock);
 
-  await setBasePresentationPrice(page, price, cost);
+  await setBasePresentationPrice(page, price, cost, taxPercent);
 
   const createResponsePromise = page.waitForResponse(
     (response) => response.request().method() === 'POST' && response.url().includes('/api/products')
@@ -60,11 +61,15 @@ export async function createProductWithInitialStock(
   return (await createResponse.json()) as CreatedProductResponse;
 }
 
-/** Opens the base presentation editor, fills price and cost, and saves. */
+/**
+ * Opens the base presentation editor, fills cost and the manual (tax-inclusive) price, optionally
+ * the tax rate, and saves.
+ */
 export async function setBasePresentationPrice(
   page: Page,
   price: string,
-  cost: string
+  cost: string,
+  taxPercent?: string
 ): Promise<void> {
   // Wait for presentation types to load before interacting with the table
   const addBtn = page.getByRole('button', { name: /add presentation|agregar presentaci[oó]n/i });
@@ -81,6 +86,12 @@ export async function setBasePresentationPrice(
 
   const priceInput = modal.getByLabel(/^precio$|^price$/i);
   await priceInput.fill(price);
+
+  if (taxPercent !== undefined) {
+    await modal.getByLabel(/^imp\. %$|^tax rate$/i).fill(taxPercent);
+    // Prices include tax: the summary shows the tax already contained in the price.
+    await expect(modal.getByTestId('presentation-pricing-summary')).toContainText(/IVA|tax/i);
+  }
 
   const saveButton = modal.getByRole('button', { name: /^save$|^guardar$/i });
   await expect(saveButton).toBeEnabled({ timeout: 3_000 });

@@ -22,6 +22,8 @@ export interface QuoteLineSummary {
   quantity: number;
   unitPrice: number;
   subtotal: number;
+  taxRate: number;
+  taxAmount: number;
 }
 
 export interface QuoteSummary {
@@ -31,6 +33,9 @@ export interface QuoteSummary {
   warehouseId: number;
   status: 'OPEN' | 'SOLD' | 'CANCELLED';
   expired: boolean;
+  /** Prices include tax: subtotal (net) + tax = total. */
+  subtotal: number;
+  tax: number;
   total: number;
   saleId: number | null;
   createdByName: string | null;
@@ -100,6 +105,34 @@ export async function findActiveCustomer(page: Page): Promise<{ id: number; name
   }>;
   const customer = customers.find((c) => c.status !== 'INACTIVE' && c.name && c.name.length >= 3);
   return customer ? { id: customer.id, name: customer.name! } : null;
+}
+
+/** The active warehouse holding stock of a product (e.g. the initial stock of a new product). */
+export async function findStockWarehouse(
+  page: Page,
+  skuId: number
+): Promise<{ warehouseId: number; warehouseName: string } | null> {
+  const headers = await buildApiHeaders(page);
+  const [stockResponse, warehousesResponse] = await Promise.all([
+    page.request.get(`${config.apiRoot}/inventory/stock-balance/all`, { headers }),
+    page.request.get(`${config.apiRoot}/inventory/warehouses`, { headers }),
+  ]);
+  if (!stockResponse.ok() || !warehousesResponse.ok()) return null;
+  const warehouses = (await warehousesResponse.json()) as Array<{
+    id: number;
+    name: string;
+    active?: boolean;
+  }>;
+  const rows = (await stockResponse.json()) as Array<{
+    skuId: number;
+    warehouseId: number;
+    onHandQty: number;
+  }>;
+  for (const row of rows.filter((r) => r.skuId === skuId && r.onHandQty > 0)) {
+    const warehouse = warehouses.find((w) => w.id === row.warehouseId && w.active !== false);
+    if (warehouse) return { warehouseId: warehouse.id, warehouseName: warehouse.name };
+  }
+  return null;
 }
 
 /** On-hand stock of one product in one warehouse, in base units. */
