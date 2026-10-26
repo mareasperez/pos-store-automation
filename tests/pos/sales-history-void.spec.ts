@@ -47,8 +47,9 @@ parallelDescribe('@regression @pos @sales-history @void @manual', () => {
     const searchInput = page.getByTestId('sales-history-search');
     await searchInput.fill(saleIdentifier);
 
-    const saleRow = page.locator('tbody tr').first();
-    await expect(saleRow).toContainText('COMPLETED', { timeout: 15_000 });
+    // The badge text is translated; data-status carries the raw sale status.
+    const saleStatus = page.getByTestId(`sale-row-${createdSale.id}`).locator('[data-status]');
+    await expect(saleStatus).toHaveAttribute('data-status', 'COMPLETED', { timeout: 15_000 });
 
     let releaseVoidResponse: () => void = () => {};
     const releaseGate = new Promise<void>((resolve) => {
@@ -79,13 +80,20 @@ parallelDescribe('@regression @pos @sales-history @void @manual', () => {
     await page.getByTestId('void-sale-confirm').click();
 
     await voidRequestStarted;
-    await expect(saleRow).toContainText('CANCELLED');
-    await expect(page.getByTestId(`sale-actions-${createdSale.id}`)).toHaveCount(0);
+    // Optimistic update: the row shows CANCELLED while the void request is still in flight.
+    await expect(saleStatus).toHaveAttribute('data-status', 'CANCELLED');
 
     releaseVoidResponse();
 
     const voidResponse = await voidResponsePromise;
     expect(voidResponse.status()).toBe(200);
+    await expect(page.getByTestId('void-sale-dialog')).toBeHidden();
+
+    // A cancelled sale keeps the reprint action; only the void action goes away.
+    await page.getByTestId(`sale-actions-${createdSale.id}`).click();
+    await expect(page.getByTestId(`sale-reprint-${createdSale.id}`)).toBeVisible();
+    await expect(page.getByTestId(`sale-void-${createdSale.id}`)).toHaveCount(0);
+    await page.keyboard.press('Escape');
 
     const saleResponse = await page.request.get(`${config.apiRoot}/sales/${createdSale.id}`, {
       headers,

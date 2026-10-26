@@ -11,10 +11,7 @@
 import { expect, parallelDescribe, test } from '@fixtures';
 import { config } from '@config';
 import { requireCredentialsOrSkip } from '../../support/flows/auth.flow';
-import {
-  addProductToCart,
-  getFirstSellableProduct,
-} from '../../support/flows/sales.flow';
+import { addProductToCart, getFirstSellableProduct } from '../../support/flows/sales.flow';
 import {
   findActiveUsdCashMethod,
   getUsdExchangeRate,
@@ -265,14 +262,9 @@ parallelDescribe('@regression @pos @payment-manager @manual', () => {
       'data-currency',
       'USD'
     );
-    await expect(page.getByTestId('invoice-change-base')).toHaveAttribute(
-      'data-currency',
-      'NIO'
-    );
-    await expect(page.getByTestId('invoice-change-secondary')).toHaveAttribute(
-      'data-currency',
-      'USD'
-    );
+    await expect(page.getByTestId('invoice-change-base')).toHaveAttribute('data-currency', 'NIO');
+    // The invoice shows change only in the tenant base currency; the secondary-currency line was removed.
+    await expect(page.getByTestId('invoice-change-secondary')).toHaveCount(0);
     await page.getByTestId('invoice-close').click();
   });
 

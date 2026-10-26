@@ -29,20 +29,34 @@ function yesterday(base: Date): Date {
   return d;
 }
 
-/** Local date (YYYY-MM-DD) of the most recently issued purchase receipt, or null if none exist. */
-async function findMostRecentPurchaseDate(
+/**
+ * The most recently created purchase receipt: its local creation date (YYYY-MM-DD) and the
+ * reference the history table shows. The history filters by `createdAt`, not `issuedAt`.
+ */
+async function findMostRecentPurchase(
   page: Parameters<typeof buildApiHeaders>[0]
-): Promise<string | null> {
+): Promise<{ date: string; reference: string } | null> {
   const headers = await buildApiHeaders(page);
   const response = await page.request.get(
-    `${config.apiRoot}/inventory/purchase-receipts?page=0&size=1&sort=issuedAt,desc`,
+    `${config.apiRoot}/inventory/purchase-receipts?page=0&size=1&sort=createdAt,desc`,
     { headers }
   );
   if (!response.ok()) return null;
 
-  const body = (await response.json()) as { content?: Array<{ issuedAt: string }> };
-  const issuedAt = body.content?.[0]?.issuedAt;
-  return issuedAt ? toLocalDateString(new Date(issuedAt)) : null;
+  const body = (await response.json()) as {
+    content?: Array<{
+      id: number;
+      createdAt: string;
+      purchaseOrderRef?: string | null;
+      invoiceRef?: string | null;
+    }>;
+  };
+  const receipt = body.content?.[0];
+  if (!receipt) return null;
+  return {
+    date: toLocalDateString(new Date(receipt.createdAt)),
+    reference: receipt.purchaseOrderRef || receipt.invoiceRef || String(receipt.id),
+  };
 }
 
 // ── tests ───────────────────────────────────────────────────────────────────
@@ -52,22 +66,31 @@ parallelDescribe('Purchase history — date filter', () => {
     requireCredentialsOrSkip('purchase history date-filter');
   });
 
-  test('page loads and table renders when filtering by today', async ({ page }) => {
-    const purchaseDate = await findMostRecentPurchaseDate(page);
-    test.skip(!purchaseDate, 'No purchase receipts exist in the test tenant to filter by.');
+  test('filtering by the local day a purchase was created lists that purchase', async ({
+    page,
+  }) => {
+    const purchase = await findMostRecentPurchase(page);
+    test.skip(!purchase, 'No purchase receipts exist in the test tenant to filter by.');
 
     await page.goto('/inventory/purchases', { waitUntil: 'domcontentloaded' });
     await expect(page).toHaveURL(/inventory\/purchases/i, { timeout: 20_000 });
 
-    await page.getByTestId('purchase-filter-from').fill(purchaseDate!);
-    await page.getByTestId('purchase-filter-to').fill(purchaseDate!);
-
-    await page.waitForResponse(
-      (r) => r.url().includes('/api/inventory/purchase-receipts') && r.request().method() === 'GET',
+    const filteredResponse = page.waitForResponse(
+      (r) => {
+        if (!r.url().includes('/api/inventory/purchase-receipts') || r.request().method() !== 'GET')
+          return false;
+        const params = new URL(r.url()).searchParams;
+        return params.has('from') && params.has('to');
+      },
       { timeout: 15_000 }
     );
+    await page.getByTestId('purchase-filter-from').fill(purchase!.date);
+    await page.getByTestId('purchase-filter-to').fill(purchase!.date);
+    await filteredResponse;
 
-    await expect(page.getByRole('table').first()).toBeVisible({ timeout: 10_000 });
+    const table = page.getByRole('table').first();
+    await expect(table).toBeVisible({ timeout: 10_000 });
+    await expect(table).toContainText(purchase!.reference);
     await expect(page.getByTestId('table-state-error')).toBeHidden();
   });
 
