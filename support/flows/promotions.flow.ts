@@ -1,4 +1,4 @@
-import { expect, type Page } from '@playwright/test';
+import { expect, type APIResponse, type Page } from '@playwright/test';
 
 import { config } from '@config';
 import { buildApiHeaders } from '../../utils/apiHeaders';
@@ -25,6 +25,9 @@ export async function createPromotionViaApi(
     triggerQuantity: number;
     rewardQuantity: number;
     discountPercentage: number;
+    /** Defaults to the trigger product and presentation. */
+    rewardProductId?: number;
+    rewardPresentationId?: number;
   }
 ): Promise<CreatedPromotion> {
   const headers = await buildApiHeaders(page);
@@ -35,8 +38,8 @@ export async function createPromotionViaApi(
       triggerProductId: input.productId,
       triggerPresentationId: input.presentationId,
       triggerQuantity: input.triggerQuantity,
-      rewardProductId: input.productId,
-      rewardPresentationId: input.presentationId,
+      rewardProductId: input.rewardProductId ?? input.productId,
+      rewardPresentationId: input.rewardPresentationId ?? input.presentationId,
       rewardQuantity: input.rewardQuantity,
       discountPercentage: input.discountPercentage,
       active: true,
@@ -61,4 +64,10 @@ export async function deactivatePromotionViaApi(
   expect(response.ok(), `PUT /promotions/${promotion.id} failed: ${await response.text()}`).toBe(
     true
   );
+}
+
+/** Deletes a promotion; the API answers 409 when sales or quotes already use it. */
+export async function deletePromotionViaApi(page: Page, promotionId: number): Promise<APIResponse> {
+  const headers = await buildApiHeaders(page);
+  return page.request.delete(`${config.apiRoot}/promotions/${promotionId}`, { headers });
 }
