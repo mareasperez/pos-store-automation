@@ -12,9 +12,9 @@ export interface CreatedPromotion {
 }
 
 /**
- * Creates an active, auto-added promotion on one product presentation: buying `triggerQuantity`
- * grants `rewardQuantity` of the same presentation at `discountPercentage` off. Promotions apply
- * tenant-wide, so tests must use a product they created and deactivate the promotion afterwards.
+ * Creates an active promotion on one product presentation: every `triggerQuantity` scanned units
+ * give the next `rewardQuantity` scanned units `discountPercentage` off. Promotions never add units.
+ * They apply tenant-wide, so tests must use a product they created and deactivate the promotion.
  */
 export async function createPromotionViaApi(
   page: Page,
@@ -40,7 +40,6 @@ export async function createPromotionViaApi(
       rewardQuantity: input.rewardQuantity,
       discountPercentage: input.discountPercentage,
       active: true,
-      autoAddReward: true,
       startDate: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
       endDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
     },
