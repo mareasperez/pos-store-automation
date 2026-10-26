@@ -251,7 +251,8 @@ serialDescribe('@regression @pos @promotions', () => {
       '30'
     );
     const promotion = await createPromotionViaApi(page, {
-      name: `E2E skip ${suffix}`,
+      // Must not contain the product name: the promo row and toast show it next to the cart line.
+      name: `E2E skip promo ${suffix}`,
       productId: product.id,
       presentationId: await getBasePresentationId(page, product.id),
       triggerQuantity: 1,
