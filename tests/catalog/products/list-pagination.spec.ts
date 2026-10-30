@@ -21,7 +21,7 @@ parallelDescribe('@regression @products @manual product list pagination', () => 
   test('default rows-per-page selector shows 10', async ({ page }) => {
     await waitProductsLoaded(page);
 
-    const trigger = page.getByRole('combobox');
+    const trigger = page.getByTestId('pagination-page-size');
     await expect(trigger).toBeVisible();
     await expect(trigger).toHaveText('10');
   });
@@ -29,7 +29,7 @@ parallelDescribe('@regression @products @manual product list pagination', () => 
   test('rows-per-page selector has options 10, 25, 50, 100', async ({ page }) => {
     await waitProductsLoaded(page);
 
-    await page.getByRole('combobox').click();
+    await page.getByTestId('pagination-page-size').click();
 
     for (const option of ['10', '25', '50', '100']) {
       await expect(page.getByRole('option', { name: option, exact: true })).toBeVisible();
@@ -50,9 +50,10 @@ parallelDescribe('@regression @products @manual product list pagination', () => 
       );
     }
 
-    // Change page size to 25
-    await page.getByRole('combobox').click();
+    // usePagination supplies the catalog's page sizes, overriding TablePagination defaults.
+    await page.getByTestId('pagination-page-size').click();
     await page.getByRole('option', { name: '25', exact: true }).click();
+    await expect(page.getByTestId('pagination-page-size')).toHaveText('25');
 
     // Should be back on page 1, or have no page links when all results fit on one page.
     const page1Link = page.getByRole('link', { name: '1', exact: true });

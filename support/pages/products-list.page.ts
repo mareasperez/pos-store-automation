@@ -6,7 +6,9 @@ export async function gotoProductList(page: Page): Promise<void> {
 }
 
 export async function waitProductsLoaded(page: Page): Promise<void> {
-  await expect(page.getByText(/cargando productos/i)).not.toBeVisible({ timeout: 20_000 });
+  const table = page.getByTestId('products-table');
+  await expect(table).toBeVisible({ timeout: 20_000 });
+  await expect(table).toHaveAttribute('aria-busy', 'false', { timeout: 20_000 });
 }
 
 export async function openFirstProductPreview(page: Page): Promise<void> {

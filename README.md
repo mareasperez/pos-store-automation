@@ -126,6 +126,29 @@ See the root `docs/known-gaps/combo-e2e-lifecycle.md` for evidence.
 
 ## Authentication — Saved Session
 
+### Focused local product regression
+
+With the existing local UI/API and valid saved localhost sessions already running:
+
+```powershell
+cd e2e
+node scripts\run-playwright-env.mjs --env local tests/catalog/products/list-pagination.spec.ts tests/catalog/products/edit.spec.ts --project=chromium-authenticated --workers=3 --fully-parallel --retries=0 --max-failures=1
+```
+
+Verify that the environment loader resolves `BASE_URL=http://localhost:5173` and
+`API_URL=http://localhost:8081/api` before running; env files override shell values.
+Do not refresh sessions or restart services as part of this check. Stop if authentication expires
+or a captcha blocks the flow. Product edit tests create unique products, initial stock and
+presentations; these records remain for inspection, with no automatic cleanup.
+
+The shared list helper waits for the mounted `products-table` and `aria-busy="false"`, including
+the existing empty/error display, rather than treating an absent loading message as readiness.
+Pagination targets only `pagination-page-size`; the catalog hook supplies **10, 25, 50, 100**,
+overriding the shared component's **10, 20, 50, 100** defaults.
+Creation waits positively for `product-form` and its editable name field before checking the
+disabled `product-code` input. These use the existing 20-second readiness budget; they do not
+remove lazy-module latency or increase global timeouts.
+
 ### Run Against Localhost
 
 The checked-in E2E defaults target the deployed `dev` environment. To run locally, override the

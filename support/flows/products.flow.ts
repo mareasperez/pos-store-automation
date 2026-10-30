@@ -21,7 +21,10 @@ export function requireCredentialsOrSkip(): void {
 }
 
 export async function assertGeneratedProductCodeOnCreate(page: Page): Promise<void> {
-  const productCodeInput = page.getByLabel(/c[oó]digo|code/i).first();
+  const form = page.getByTestId('product-form');
+  await expect(form).toBeVisible({ timeout: 20_000 });
+  await expect(form.locator('input[name="name"]')).toBeEditable({ timeout: 20_000 });
+  const productCodeInput = form.getByTestId('product-code');
   await expect(productCodeInput).toBeDisabled({ timeout: 20_000 });
   await expect(productCodeInput).toHaveValue(/generado al guardar|generated on save/i);
 }
