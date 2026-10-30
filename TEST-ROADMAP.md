@@ -23,6 +23,29 @@ Priority legend:
 
 These are the highest-value gaps: every one of them moves money or stock backwards.
 
+### Fixed-Price Combo Lifecycle — Local C7
+
+`tests/pos/combo-lifecycle.real.spec.ts` uses real local UI/API and unique owned fixtures.
+Latest verification (2026-10-30): **all six scenarios passed**, one worker, zero retries/skips.
+The final six-scenario run passed five with one 180-second lifecycle timeout; a single focused
+lifecycle rerun passed in 3.3 minutes with its budget corrected to 300 seconds.
+
+- [x] Create a combo through the catalog UI and sell it as one commercial line.
+- [x] Assert raw physical demand `combo quantity × recipe quantity × presentation factor`;
+      SERVICE components never consume physical stock.
+- [x] Return whole combo units in two operations; assert refunds, shift cash, stock restoration
+      and rejection of an excess/duplicate return without additional stock restoration.
+- [x] Void a test-owned resale and sell restored stock again.
+- [x] Reject changed quote recipes without sale/stock writes; explicitly edit/reprice the quote
+      through the UI and convert using the current recipe.
+- [x] Reject inactive and out-of-season saved combos through real checkout without sale/stock writes.
+- [x] Prevent two distinct combo lines plus an overlapping standalone nonbase presentation
+      from consuming more than their shared physical stock.
+- [x] Reject changed allocations on the original quote without stock, sale or cash writes;
+      explicitly edit/reprice through the UI, convert at the new price and assert persisted
+      quote/sale linkage, exact base stock and shift cash.
+      The earlier old-price conversion expectation was incorrect under the agreed edit contract.
+
 ### Sales — Void / Cancel
 
 - [ ] Void a cash sale and assert the sale shows as voided in sales history.

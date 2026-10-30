@@ -88,6 +88,42 @@ Keep smoke tests under 30 seconds and avoid data-heavy setup in smoke.
 Pending scenarios are tracked in [TEST-ROADMAP.md](TEST-ROADMAP.md). Check items off there
 in the same PR that adds the corresponding spec.
 
+## Local Combo Lifecycle (C7)
+
+Run only against the already-running, explicitly authorized local UI/API with a valid saved
+localhost session, matching `TEST_TENANT_ID` in `local.env`, and an existing open cashier shift:
+
+```powershell
+cd e2e
+$env:E2E_ENV = 'local'
+$env:BASE_URL = 'http://localhost:5173'
+$env:API_URL = 'http://localhost:8081/api'
+node scripts\run-playwright-env.mjs --env local combo-lifecycle.real.spec.ts --project=chromium-authenticated --workers=1
+```
+
+The loader applies `local.env` after default files; ensure its target values match the command.
+The spec independently refuses nonlocal targets, a mismatched tenant or nonlocal runtime API,
+and blocks external browser requests. It never opens/closes shifts, logs in, or restarts services.
+Logging into an unrelated browser does not refresh `playwright/.auth/user-*.json`.
+
+The six real, unmocked scenarios create uniquely prefixed `C7-*` products, service components,
+presentations, customers and UI-created combos. They exercise POS sale, multiple whole-combo
+returns, duplicate-return rejection, void/resale, quote creation/edit/conversion, eligibility
+rejection and aggregate shared-component demand. Raw warehouse base-unit stock and actual
+refund/shift-cash results are asserted. Test-owned records intentionally remain for inspection;
+each rerun creates new names and prints identifiers. Do not run broad cleanup against the tenant.
+
+Observed on 2026-10-30: **all six scenarios passed, none skipped, retries disabled**.
+The final six-scenario run passed five and hit the lifecycle's 180-second overall budget;
+one focused lifecycle rerun passed in 3.3 minutes after giving that longer scenario a bounded
+300-second budget. The other five retain their 180-second budget. No full-suite rerun was needed.
+A changed allocation
+correctly blocks the original quote without stock, sale or cash writes. Explicit UI edit previews
+and saves the new price, then conversion succeeds with exact persisted inventory and money.
+The earlier five-pass/one-failure run had an incorrect test expectation, not an API defect:
+changing price and allocations requires editing under the agreed quote contract.
+See the root `docs/known-gaps/combo-e2e-lifecycle.md` for evidence.
+
 ## Authentication — Saved Session
 
 ### Run Against Localhost
