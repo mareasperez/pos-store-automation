@@ -126,6 +126,70 @@ See the root `docs/known-gaps/combo-e2e-lifecycle.md` for evidence.
 
 ## Authentication — Saved Session
 
+### Expenses — real serial regressions
+
+Run the real UI/API checks through the existing package runner, configured target,
+tenant, and saved login state:
+
+```powershell
+npm run test:serial -- --project=chromium-authenticated --grep="@serial.*@expenses"
+```
+
+The shared authenticated fixture uses an existing saved worker login; this test does
+not perform login setup. Both scenarios require expense/report permissions, an
+existing active category and payment method, a configured tenant business time zone,
+and no concurrent tenant activity.
+The counted scenario additionally requires the actor's already-open shift and an
+active counted payment method with a reconciliation entry. It never opens or closes
+a shift. Each scenario creates a unique expense and only voids that test-owned record.
+
+| Scenario    | Real assertions / prerequisites                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Non-counted | Existing active expense category/non-counted method; `expenses:view/create/void` and `reports:view`. UI-created unique expense; editable prior business date; disabled automatic payment time; tenant header and `exp-*` reference; date/category/method/status filters; row and dropdown detail; draft cancellation and outside-click behavior; required void reason, cancellation, state and retained audit. No linked OUT in the actor's existing shift, or no active shift created. |
+| Counted     | Same expense permissions plus `shifts:view_all` for associated-shift detail/void reads; the actor's existing OPEN shift with an active counted method/reconciliation entry. UI creation posts exactly one linked OUT, decreases that method's expectation once, and audited void retains that OUT while restoring expectations without an IN.                                                                                                                                           |
+
+Both scenarios also read the real report API around their UI mutations. The
+historical `expenseDate` report must gain exactly one row/count and **1.25 in its
+own currency**, including the counted case with a linked OUT. The tenant business
+time zone comes from existing tenant settings/runtime defaults, never a guessed
+report zone. Automatic `paidAt` is checked against today's tenant date; today's
+expense report excludes the historical expense. Void restates the original
+period's active totals; `includeHistory=true` retains one VOIDED row and its
+positive original amount without adding it to totals or posting a negative expense.
+
+Existing `/reports/sales-summary`, `/reports/payment-methods` and
+`/reports/sales-by-settlement` responses must remain unchanged after both create
+and void. Their fixed **UTC Instant** window starts 48 hours before the snapshot
+and ends five minutes after it, covering actual posting even when the tenant's
+business date differs from UTC. This follows the existing sales API contract,
+not the expense business-date filter. An empty sales window is a valid baseline:
+expense creation and void must not introduce sales or payments. No sale is created
+or reversed. The counted case also compares actual `salesPayments`
+ledger IDs/amounts from the associated shift before/after both mutations.
+UI response waits accept the configured API origin or the configured frontend's
+same-origin proxy, with a bounded timeout that leaves time for owned-record cleanup.
+Creation/audit timestamp comparisons normalize Java Instant nanoseconds to
+PostgreSQL's microsecond storage precision instead of requiring identical JSON text.
+Sales-summary/payment-method responses use existing backend caching; the
+settlement and shift-ledger reads supply uncached corroboration, not direct
+PostgreSQL row-level proof.
+
+No expense-report UI or report-specific E2E helper exists in the current checkout;
+the cases reuse their isolated real API reader and current backend/frontend report
+contracts. Report UI, CSV history/export and broader inventory/credit/operational
+report regressions are not covered. ADR 0006 explicitly defines these amount,
+date and void expectations; no new reporting business policy was inferred.
+
+Use an isolated test tenant/cashier/shift with no concurrent sales, collections,
+expenses, voids or payment-method configuration changes during comparisons.
+Only records created by the
+current test are voided, including failure cleanup, using the domain void endpoint;
+expense/audit/OUT records remain for inspection. A failed/ambiguous creation is
+never retried. If the associated shift closes or the session expires, cleanup fails
+explicitly and the printed owned ID remains for authorized follow-up; never DELETE
+data or open a replacement shift. These cases do not prove closed-shift rejection,
+cross-tenant isolation, PostgreSQL atomicity/overlap, rollout or full W09 acceptance.
+
 ### Focused local product regression
 
 With the existing local UI/API and valid saved localhost sessions already running:

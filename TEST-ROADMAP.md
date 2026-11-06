@@ -124,6 +124,30 @@ lifecycle rerun passed in 3.3 minutes with its budget corrected to 300 seconds.
 - [ ] Settlement document (payable) generation.
 - [ ] Supplier payment details dialog shows reference, date, and total debt.
 
+### Expenses — real serial regressions
+
+Run with the existing configured target, tenant, saved worker login, and package
+runner: `npm run test:serial -- --project=chromium-authenticated --grep="@serial.*@expenses"`.
+The 2026-11-05 run reached both cases but stopped before expense creation because
+the configured tenant had no paid sale in the recent 48-hour report window. Keep
+these items unchecked until the real scenarios pass; discovery is not live proof.
+
+- [ ] UI-create a unique non-counted expense; verify editable business date,
+      automatic disabled payment time, tenant-qualified request and `exp-*` reference.
+- [ ] Exercise date/category/payment/status filters, row/dropdown detail, draft
+      cancellation, outside-click behavior and mandatory audited void.
+- [ ] On an explicitly selected pre-existing eligible open shift only, UI-create
+      a counted expense, assert one linked OUT and audited void/effective exclusion.
+- [ ] Real expense report shows the owned expense exactly once in its original
+      business-date period, without double-counting the counted OUT; void restates
+      active totals while history retains its positive original amount/status.
+- [ ] Today's automatic-payment period excludes the historical business-date expense;
+      existing sales summary, posted payment-method and settlement reports remain
+      unchanged after create/void, corroborated by counted shift sales-payment IDs.
+      Requires an existing paid sale, `reports:view` and no concurrent tenant activity.
+- [ ] Complete separately authorized PostgreSQL, closed-shift, permission/isolation
+      and rollout regression evidence; these specs do not replace it.
+
 ### Catalog
 
 - [ ] Delete / deactivate a product and assert it disappears from POS search.
