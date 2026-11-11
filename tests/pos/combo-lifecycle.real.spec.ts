@@ -25,7 +25,7 @@ test.beforeEach(async ({ page }) => {
   await localPreflight(page);
 });
 
-test('@serial @combos @local creates, sells, returns whole combos twice, rejects duplicates, voids and resells', async ({
+test('@serial @combos @local creates, sells, verifies remaining returns, voids and resells', async ({
   page,
 }) => {
   test.setTimeout(300_000);
@@ -49,16 +49,16 @@ test('@serial @combos @local creates, sells, returns whole combos twice, rejects
   const first = (await returnUi(page, fixture, sale, 1))!;
   expect(Number(first.totalRefunded)).toBe(90);
   await assertStock(page, fixture, 42);
-  const second = (await returnUi(page, fixture, sale, 2))!;
+  const second = (await returnUi(page, fixture, sale, 2, 200, {
+    sold: 3,
+    returned: 1,
+    remaining: 2,
+    excess: 3,
+  }))!;
   expect(Number(second.totalRefunded)).toBe(180);
   expect(first.id).not.toBe(second.id);
   await assertStock(page, fixture, 54);
   expect(await expectedCash(page, fixture)).toBeCloseTo(cashBefore + 90, 2);
-  expectHttpError(400, '/returns');
-  await returnUi(page, fixture, sale, 1, 400);
-  await assertStock(page, fixture, 54);
-  expect(await expectedCash(page, fixture)).toBeCloseTo(cashBefore + 90, 2);
-
   await openPos(page, fixture);
   await addExactItem(page, combo.product.name);
   const resale = (await checkout(page, 90))!;

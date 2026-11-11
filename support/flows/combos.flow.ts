@@ -357,21 +357,47 @@ export async function returnUi(
   fixture: Fixture,
   sale: CommercialDocument,
   quantity: number,
-  expectedStatus = 200
+  expectedStatus = 200,
+  availability?: { sold: number; returned: number; remaining: number; excess: number }
 ): Promise<{ id: number; totalRefunded: number } | null> {
   await page.goto('/sales/returns?lng=es', { waitUntil: 'domcontentloaded' });
   await page.getByTestId('customer-return-open-create').click();
   await page.getByTestId('customer-return-customer-search').click();
   await page.getByRole('option').filter({ hasText: fixture.customer.name }).click();
   await page.getByTestId('customer-return-sale-search').click();
+  const remainingResponse = availability
+    ? responseFor(page, 'GET', `/returns/sales/${sale.id}/remaining-quantities`)
+    : null;
   await page.getByRole('option', { name: new RegExp(`#${sale.id}\\b`) }).click();
+  if (remainingResponse && availability) {
+    const result = await remainingResponse;
+    expect(result.status(), await result.text()).toBe(200);
+    expect(await result.json()).toEqual([
+      {
+        saleLineId: sale.lines[0].id,
+        soldQuantity: availability.sold,
+        returnedQuantity: availability.returned,
+        remainingQuantity: availability.remaining,
+      },
+    ]);
+  }
   await page
     .getByTestId('customer-return-warehouse-select')
     .selectOption(String(fixture.warehouse.id));
   await page.getByTestId('customer-return-continue').click();
-  await page
-    .getByTestId(`customer-return-qty-${sale.lines[0].productId}:${sale.lines[0].presentationId}`)
-    .fill(String(quantity));
+  const input = page.getByTestId(
+    `customer-return-qty-${sale.lines[0].productId}:${sale.lines[0].presentationId}`
+  );
+  if (availability) {
+    const cells = input.locator('xpath=ancestor::tr').getByRole('cell');
+    await expect(cells.nth(2)).toHaveText(String(availability.sold));
+    await expect(cells.nth(3)).toHaveText(String(availability.returned));
+    await expect(cells.nth(4)).toHaveText(String(availability.remaining));
+    await input.fill(String(availability.excess));
+    await expect(page.getByTestId('customer-return-submit')).toBeDisabled();
+    await expect(input).toHaveAttribute('aria-invalid', 'true');
+  }
+  await input.fill(String(quantity));
   await page
     .getByTestId('customer-return-refund-payment-method-select')
     .selectOption(String(fixture.cashId));

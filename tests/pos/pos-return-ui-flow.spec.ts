@@ -46,6 +46,12 @@ type SaleDetail = {
   status: string;
   lines: SaleLine[];
 };
+type ReturnableSaleLineQuantity = {
+  saleLineId: number;
+  soldQuantity: number;
+  returnedQuantity: number;
+  remainingQuantity: number;
+};
 type PaymentReconciliation = { paymentMethodId: number; expectedAmount: number };
 type ActiveShift = { paymentReconciliations: PaymentReconciliation[] };
 type ReturnDTO = {
@@ -176,7 +182,27 @@ serialDescribe('@regression @pos @returns @shift-serial @session-mc-20260910', (
 
     await page.getByTestId('customer-return-sale-search').click();
     await page.getByRole('listbox').waitFor({ state: 'visible' });
+    const remainingQuantitiesResponsePromise = page.waitForResponse(
+      (response) =>
+        response.url().includes(`/api/returns/sales/${sale.id}/remaining-quantities`) &&
+        response.request().method() === 'GET',
+      { timeout: 20_000 }
+    );
     await page.getByRole('option', { name: new RegExp(`#${sale.id}\\b`) }).click();
+    const remainingQuantitiesResponse = await remainingQuantitiesResponsePromise;
+    expect(remainingQuantitiesResponse.status(), await remainingQuantitiesResponse.text()).toBe(
+      200
+    );
+    const remainingQuantities =
+      (await remainingQuantitiesResponse.json()) as ReturnableSaleLineQuantity[];
+    expect(remainingQuantities).toEqual(
+      sale.lines.map((line) => ({
+        saleLineId: line.id,
+        soldQuantity: line.quantity,
+        returnedQuantity: 0,
+        remainingQuantity: line.quantity,
+      }))
+    );
 
     await page
       .getByTestId('customer-return-warehouse-select')
@@ -185,7 +211,16 @@ serialDescribe('@regression @pos @returns @shift-serial @session-mc-20260910', (
     await expect(page.getByTestId('customer-return-continue')).toBeEnabled({ timeout: 5_000 });
     await page.getByTestId('customer-return-continue').click();
 
-    await page.getByTestId('customer-return-select-all').click();
+    const inputIndexesByLineKey = new Map<string, number>();
+    for (const line of sale.lines) {
+      const lineKey = `${line.productId}:${line.presentationId}`;
+      const index = inputIndexesByLineKey.get(lineKey) ?? 0;
+      await page
+        .getByTestId(`customer-return-qty-${lineKey}`)
+        .nth(index)
+        .fill(String(line.quantity));
+      inputIndexesByLineKey.set(lineKey, index + 1);
+    }
 
     const refundPaymentSelect = page.getByTestId('customer-return-refund-payment-method-select');
     if (await refundPaymentSelect.isVisible()) {
@@ -208,7 +243,7 @@ serialDescribe('@regression @pos @returns @shift-serial @session-mc-20260910', (
     expect(
       Math.abs(Number(returnDto.totalRefunded) - sale.total),
       `totalRefunded (${returnDto.totalRefunded}) should equal the full sale total (${sale.total}) ` +
-        'since every line was returned via "select all".'
+        'since every line was returned at its remaining quantity.'
     ).toBeLessThan(0.01);
 
     // Modal closes on success and the wizard resets.

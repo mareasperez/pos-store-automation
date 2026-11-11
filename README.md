@@ -88,6 +88,34 @@ Keep smoke tests under 30 seconds and avoid data-heavy setup in smoke.
 Pending scenarios are tracked in [TEST-ROADMAP.md](TEST-ROADMAP.md). Check items off there
 in the same PR that adds the corresponding spec.
 
+## Local inventory quantity rejection
+
+The real-server `tests/inventory/entries/quantity-rejection.real.spec.ts` is authored but
+**pending runtime execution**. With the local UI and API already running, a saved local
+session for `TEST_TENANT_ID`, and no concurrent catalog edits, run:
+
+```powershell
+cd e2e
+$env:E2E_ENV = 'local'
+$env:BASE_URL = 'http://localhost:5173'
+$env:API_URL = 'http://localhost:8081/api'
+node scripts\run-playwright-env.mjs --env local tests/inventory/entries/quantity-rejection.real.spec.ts --project=chromium-authenticated --workers=1
+```
+
+The environment loader can override shell variables with local env files; ensure both URLs
+and tenant match. The test refuses other targets and mismatched saved tenants, and blocks
+nonlocal browser requests. It needs an active warehouse, a `UNIT` presentation type, and
+permissions to view/create products, view warehouses and create inventory entries, plus
+catalog/presentation and stock read access. It creates a uniquely named `QRE-*` product and
+presentation and leaves them for inspection; it does not change existing catalog records.
+It adds the same factor-2 presentation twice, then changes only that test-owned presentation
+to whole-only via the real API. The second row's half quantity would convert to one whole base
+unit before the policy change. The test expects the real 400 response and the inline error on
+the second row, then corrects the draft without posting it. No inventory entry is intentionally
+created; if the API incorrectly accepts the request, an entry and stock movement for the
+test-owned product may be created before the test fails. No browser or API execution has yet
+been verified.
+
 ## Local Combo Lifecycle (C7)
 
 Run only against the already-running, explicitly authorized local UI/API with a valid saved
