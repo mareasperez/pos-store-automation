@@ -21,11 +21,13 @@ export interface PurchasablePair {
   productName: string;
 }
 
-export interface NonBasePurchasePresentationCandidate extends PurchasablePair {
+export interface PurchasePresentationCandidate extends PurchasablePair {
   presentationId: number;
   presentationName: string;
   conversionFactor: number;
 }
+
+export type NonBasePurchasePresentationCandidate = PurchasePresentationCandidate;
 
 interface ExistingSupplier {
   id: number;
@@ -199,7 +201,10 @@ async function selectSupplier(page: Page, supplierName: string): Promise<void> {
 }
 
 async function fillLineUnitCost(page: Page, productName: string, unitCost: string): Promise<void> {
-  const lineRow = page.locator('tbody tr', { hasText: productName }).first();
+  const lineRow = page
+    .getByRole('dialog', { name: /^(purchase|compra)$/i })
+    .locator('tbody tr', { hasText: productName })
+    .first();
   await expect(lineRow).toBeVisible({ timeout: 20_000 });
 
   const table = lineRow.locator('xpath=ancestor::table[1]');
@@ -247,7 +252,8 @@ async function addLineWithPresentation(
   page: Page,
   productName: string,
   presentationName: string,
-  unitCost: string
+  unitCost: string,
+  quantity?: string
 ): Promise<void> {
   const productSearchInput = page.locator('input[name="productSearch"]').first();
   await expect(productSearchInput).toBeVisible({ timeout: 20_000 });
@@ -267,6 +273,19 @@ async function addLineWithPresentation(
     .first();
   await expect(option).toBeVisible({ timeout: 10_000 });
   await option.click();
+  await expect(modalSearchInput).toBeHidden();
+  await expect(productSearchInput).toBeFocused();
+
+  if (quantity !== undefined) {
+    const lineRow = page
+      .getByRole('dialog', { name: /^(purchase|compra)$/i })
+      .locator('tbody tr', { hasText: productName })
+      .first();
+    const quantityInput = lineRow.locator('input[type="text"]').first();
+    await expect(quantityInput).toBeVisible({ timeout: 20_000 });
+    await quantityInput.fill(quantity);
+    await expect(quantityInput).toHaveValue(quantity);
+  }
 
   await fillLineUnitCost(page, productName, unitCost);
 }
@@ -292,11 +311,21 @@ async function confirmAndGetReceipt(page: Page): Promise<CreatedPurchaseSummary>
   return (await createResponse.json()) as CreatedPurchaseSummary;
 }
 
-async function openNewPurchaseForm(page: Page, supplierName: string): Promise<string> {
+async function openNewPurchaseForm(
+  page: Page,
+  supplierName: string,
+  warehouseName?: string
+): Promise<string> {
   await page.goto('/inventory/purchases', { waitUntil: 'domcontentloaded' });
   await expect(page).toHaveURL(/\/inventory\/purchases(?:$|[?#])/i, { timeout: 20_000 });
   await page.getByRole('button', { name: /nueva compra|new purchase/i }).click();
   await expect(page.getByText(/^purchase$|^compra$/i).first()).toBeVisible({ timeout: 20_000 });
+  if (warehouseName) {
+    const warehouse = page.getByRole('combobox', { name: /^(almac[eé]n|warehouse)$/i });
+    await warehouse.click();
+    await page.getByRole('option', { name: warehouseName, exact: true }).click();
+    await expect(warehouse).toBeFocused();
+  }
   await selectSupplier(page, supplierName);
 
   const invoiceRef = `INV-E2E-STOCK-${Date.now().toString(36).toUpperCase()}`;
@@ -315,13 +344,21 @@ export async function createPurchaseViaInlineSearch(
   return await confirmAndGetReceipt(page);
 }
 
-/** Creates a purchase explicitly for the given non-base presentation. */
+/** Creates a purchase explicitly for the given presentation. */
 export async function createPurchaseWithPresentation(
   page: Page,
-  candidate: NonBasePurchasePresentationCandidate,
-  unitCost = '10.00'
+  candidate: PurchasePresentationCandidate,
+  unitCost = '10.00',
+  quantity?: string,
+  warehouseName?: string
 ): Promise<CreatedPurchaseSummary> {
-  await openNewPurchaseForm(page, candidate.supplierName);
-  await addLineWithPresentation(page, candidate.productName, candidate.presentationName, unitCost);
+  await openNewPurchaseForm(page, candidate.supplierName, warehouseName);
+  await addLineWithPresentation(
+    page,
+    candidate.productName,
+    candidate.presentationName,
+    unitCost,
+    quantity
+  );
   return await confirmAndGetReceipt(page);
 }

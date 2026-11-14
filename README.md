@@ -88,6 +88,67 @@ Keep smoke tests under 30 seconds and avoid data-heavy setup in smoke.
 Pending scenarios are tracked in [TEST-ROADMAP.md](TEST-ROADMAP.md). Check items off there
 in the same PR that adds the corresponding spec.
 
+## Fractional and manual-discount acceptance — 2026-11-14
+
+The final frozen-source serial batch passed **18/18 in 18.3 minutes**.
+The independent parallel rerun passed **3/3 in 64.9 seconds**, with three
+existing users and **40.712 seconds of three-way browser overlap**.
+Both runs had zero retries, skips, flaky results or global errors.
+
+| Final check                    | Observed result                                   | Evidence                                                         |
+| ------------------------------ | ------------------------------------------------- | ---------------------------------------------------------------- |
+| Detailed serial workflows      | 18/18, one worker, nine files                     | `test-results/fractional-final-serial/results.json`              |
+| Parallel daily use             | 3/3, workers 0/1/2, actors 5/6/7                  | `test-results/fractional-final-parallel/results.json`            |
+| Readiness UI regressions       | 54/54 across supplier-return and quote form tests | Focused frontend Vitest run                                      |
+| Connected API/Hibernate checks | 4/4, forced offline embedded integration run      | Supplier-return HTTP cases and import ambiguity characterization |
+
+Parallel browser cases independently save/resume/edit a fractional draft,
+create/find/edit/reopen a quote, and edit a manual discount before paying and
+reopening sale history/receipt. The writer also passed 3/3 in 66.2 seconds;
+its browser overlap was independently verified as 30.724 seconds. These are
+real concurrent workflows, not merely tests carrying a parallel tag.
+
+The serial set includes **one API-only inventory case**; the other 17 use
+browser workflows, with API guards/readback where needed. All runs use
+test-owned records and existing saved local sessions. They do not establish
+last-unit stock contention, cross-tenant denial or restricted-role denial:
+all three authorized sessions belong to the same tenant and have the needed
+permissions. No new sessions or roles were created.
+
+The historical import characterization proved the ambiguous lookup failed
+without posting. The subsequent factor-matching fix has isolated backend
+coverage as described below; these earlier browser runs do not verify it.
+The earlier interrupted-import reload initiator remains unconfirmed and did
+not recur in the frozen final serial run. Paid-CREDIT return UI paths,
+settlement/non-cash audit gaps, broader historical-factor/parity cases and
+refund-tax allocation G4 remain outside this bounded acceptance. Passing
+this batch is not blanket release approval.
+
+Reproduce the same selected scopes from `e2e`, after checking the local
+environment and saved-session prerequisites:
+
+```powershell
+$serialSpecs = @(
+  'manual-sale-discount.real.spec.ts'
+  'fractional-commercial.real.spec.ts'
+  'fractional-entry.real.spec.ts'
+  'fractional-inventory.api.real.spec.ts'
+  'fractional-purchase-supplier-return.real.spec.ts'
+  'fractional-combo-promotion.real.spec.ts'
+  'fractional-catalog-eligibility.real.spec.ts'
+  'fractional-inventory-import.real.spec.ts'
+  'fractional-discount-report.real.spec.ts'
+)
+$env:PLAYWRIGHT_JSON_OUTPUT_FILE = 'test-results\fractional-final-serial\results.json'
+node scripts\run-playwright-env.mjs --env local @serialSpecs --project=chromium-authenticated --workers=1 --retries=0 --grep '@serial' --reporter=list,json --output=test-results\fractional-final-serial
+
+$env:PLAYWRIGHT_JSON_OUTPUT_FILE = 'test-results\fractional-final-parallel\results.json'
+node scripts\run-playwright-env.mjs --env local fractional-daily-use.real.spec.ts --project=chromium-authenticated --workers=3 --retries=0 --grep '@parallel' --reporter=list,json --output=test-results\fractional-final-parallel
+```
+
+Preserve previous reports before rerunning into the same output directories.
+Detailed domain proof and earlier failures are retained below.
+
 ## Local fractional inventory checks
 
 Two new local-only tests cover inventory independently of sales:
@@ -134,6 +195,113 @@ evidence below separately covers sales, quotes and customer returns/voids;
 purchase, import, supplier return, fractional combos, promotions and reports
 remain outside these checks.
 
+## Local fractional purchase and supplier-return checks
+
+`tests/inventory/fractional-purchase-supplier-return.real.spec.ts` adds two
+owned-data serial browser cases. The final focused run observed **2 passed
+in 2.2 minutes**, with one worker and no retries:
+
+- **Purchase → sale — PASS.** Product 1139/presentation 1476 used factor 12:
+  UI receipt 338 posted `0.5` and increased stock from `10` to `16`; UI sale
+  709 posted `0.25` and reduced it to `13`.
+- **Supplier return — PASS.** Product 1140/presentation 1478, supplier 300
+  and receipt 339 were owned by the test. UI return 4 persisted `0.25`,
+  its receipt/supplier/warehouse references and `POSTED` status; stock fell
+  from `16` to `13`. A separate whole-only base purchase increased it to
+  `14`; API-only five-place and whole-only fractional rejection probes
+  then verified unchanged stock and return records.
+
+The original run failed before any return POST because the UI exposed quantity
+editing before fractional metadata arrived. The page now gates editing and
+submission on catalog readiness and displays catalog errors explicitly; four
+new loading/error regressions and the full 28-test component suite passed.
+Subsequent automation failures were investigated separately: wait for select
+close-focus restoration, and scope purchase rows to the active purchase dialog
+rather than a matching background history row. No quantity rule was relaxed.
+No cumulative max-returnable assertion is made; the accepted inventory
+document contract does not add that rule. Original failure artifacts remain
+under `test-results/fractional-stock-docs-local`; final passing artifacts are
+under `test-results/fractional-stock-docs-dialog-fixed`.
+
+```powershell
+node scripts\run-playwright-env.mjs --env local fractional-purchase-supplier-return.real.spec.ts --project=chromium-authenticated --workers=1 --retries=0 --reporter=list --output=test-results\fractional-stock-docs-dialog-fixed
+```
+
+## Local fractional catalog, XLSX import and reporting
+
+The three focused serial cases passed in an independent parent run:
+**3/3 in 1.5 minutes**, one worker, no retries.
+
+| Case                | Parent evidence                                                                               |
+| ------------------- | --------------------------------------------------------------------------------------------- |
+| Catalog eligibility | Product 1172/presentation 1522 persisted through the editor and reload.                       |
+| XLSX import         | Product 1174/presentation 1525 verified CREATE/UPDATE and partial failures.                   |
+| Report table/CSV    | Sale 727, number `sal-672`, line 818 retained fractional quantity and manual-discount fields. |
+
+The final import case additionally passed **1/1 in 43.5 seconds** with owned
+product 1177/presentation 1530. CREATE and UPDATE each accepted one row and
+rejected three: missing SKU, five-decimal quantity and whole-only base quantity
+`0.5`. Eligibility-specific feedback is asserted. Exact stock remained
+`10 → 10.5 → 10.25`; invalid rows did not contribute stock.
+
+One interrupted earlier CREATE did commit; its retained fixture is not reused
+for a blind retry. Failure artifacts remain available. The final normal-path
+case used distinct base/non-base presentation types and does not verify exact-factor
+matching; that backend fix has only isolated-test evidence so far. The E2E XLSX
+dependency is direct and test-only; the installation audit was offline, not fresh
+vulnerability evidence.
+
+```powershell
+node scripts\run-playwright-env.mjs --env local fractional-catalog-eligibility.real.spec.ts fractional-inventory-import.real.spec.ts fractional-discount-report.real.spec.ts --project=chromium-authenticated --workers=1 --retries=0 --grep '@serial' --reporter=list --max-failures=1 --output=test-results\fractional-ops-parent-final
+```
+
+### Import presentation matching — isolated backend fix
+
+The earlier import investigation reproduced a real ambiguity: catalog presentations
+may share a product and presentation type with different conversion factors,
+but the single-result lookup matched only product/type and ignored the workbook's
+conversion-factor column, producing HTTP 500.
+
+The original fixture used base/non-base `Libra` presentations at factors
+1 and 2, which normal UI creation excludes. However, repeated non-base types
+with different factors are permitted, so the distinct-type normal-path fixture
+did not resolve or prove this behavior.
+
+The approved backend fix now matches SKU, normalized presentation type, and
+exact positive conversion factor. The former failure characterization was
+replaced with isolated Hibernate/H2 tests that verify factor-specific selection
+in CREATE and UPDATE, numeric scale equivalence, clear rejection of missing,
+invalid, unmatched, and ambiguous factors, tenant isolation, partial success,
+and exact stock effects.
+
+This is isolated backend evidence only. No local server or live E2E run was
+performed after the change, and the earlier browser result covers only the
+distinct-type path; live E2E acceptance remains pending.
+
+## Local fractional combos and promotions
+
+`tests/pos/fractional-combo-promotion.real.spec.ts` contains two owned-data
+serial browser cases. The writer observed **2/2 passed in 4.2 minutes**;
+an independent parent rerun observed **2/2 passed in 4.0 minutes**, with
+one worker and no retries.
+
+- Combo creation retains a fractional recipe while the combo count remains
+  whole. Browser actions cover sale, quote conversion, customer return and
+  separate void. Fractional combo-count and duplicate/returned-sale void
+  rejection checks are explicitly API-only.
+- Promotion checkout exercises complete qualifying quantities and excludes
+  free gifts from manual-discount allocation. The owned promotion is
+  deactivated in cleanup; no existing promotion is changed.
+
+Parent-owned records: products 1154–1156, sales 720–721, quote 70 and return
+151 for the combo; products 1157–1158, promotion 49 and sales 722–724 for
+promotion pricing. This does not cover historical factor changes, whole-only
+presentation parity or every lifecycle edge case.
+
+```powershell
+node scripts\run-playwright-env.mjs --env local fractional-combo-promotion.real.spec.ts --project=chromium-authenticated --workers=1 --retries=0 --reporter=list --max-failures=1 --output=test-results\fractional-combo-promo-parent-final
+```
+
 ## Local fractional commercial lifecycle — C1–C5
 
 `tests/pos/fractional-commercial.real.spec.ts` adds seven real-server tests:
@@ -148,7 +316,7 @@ The typed helper is `support/flows/fractional.flow.ts`.
 | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | C1 — precision, capacity and draft | **PASS.** Product 1098/customer 166/sale 685: stock `0.6`, initial quantity `1` and edited `0.7` block checkout; `0.50001` is rejected by the editor. Owned draft reload retains `0.5` and `10.00`; posted quantity `0.5` leaves exact stock `0.1`. API ordinary `0.0001 × 20` line rejects with 400 before sale/payment/stock effects.                                                                                                                                                                                                                                                                                           |
 | C2 — exact payments                | **PASS, three datasets.** Sales 686/687: two/four lines of `0.972 × 85.50` save `83.11` per line and totals `166.22`/`332.44`, not aggregate-rounded amounts. Tender `200`/`400` gives exact change `33.78`/`67.56`; each stock becomes `9.028`. Sale 688 additionally proves half-cent boundaries: `0.5 × 0.01/0.03` saves `0.01/0.02`, total `0.03`, tender `1`, change `0.97`, stock `9.5`. Captured POST and saved GET/payment/shift ledgers agree; no automatic sale cash movement.                                                                                                                                          |
-| C3 — quote lifecycle               | **PASS for the catalog-ready path; readiness anomaly remains open.** Quote 67 created at `0.9725`, edited to `0.972`, then converted to sale 689. Catalog price `85.50 → 99` and eligibility disable leave history readable at frozen `83.11`; disabled conversion is visibly blocked with no sale/payment/stock effect. Re-enabling permits normal conversion, no manual discount, exact linkage and stock `9.028`.                                                                                                                                                                                                              |
+| C3 — quote lifecycle               | **PASS.** Quote 67 created at `0.9725`, edited to `0.972`, then converted to sale 689. Catalog price `85.50 → 99` and eligibility disable leave history readable at frozen `83.11`; disabled conversion is visibly blocked with no sale/payment/stock effect. Re-enabling permits normal conversion, no manual discount, exact linkage and stock `9.028`. The later readiness fix passed two new loading regressions and all 26 form tests; parent real C3 passed again, quote 71 to sale 728, in 1.4 minutes.                                                                                                                    |
 | C4 — discounted partial returns    | **PASS, final linkage-strengthened run 1/1.** Sale 693/returns 141–144: `0.75 × 8 = 6` and `0.5 × 10 = 5`, discount `1`, shares `0.55/0.45`, net `5.45/4.55`, total `10`. Return first line in `0.0001/0.2499/0.25/0.25`: refunds `0/1.82/1.81/1.82`, totaling `5.45`. Sale-time factor `2` restores stock `8.5 → 8.5002 → 9 → 9.5 → 10` after owned factor becomes `3` and eligibility is disabled. Positive refunds have exact linked CASH OUT entries; zero refund has none; original POSTED receipt is unchanged. Server remaining/excess and returned-sale void guards pass; other line remains unreturned, cash net `4.55`. |
 | C5 — separate discounted void      | **PASS.** Sale 691/product 1110/customer 172: `0.5 × 23 = 11.50`, discount `0.50`, final charge `11.00`; included tax `1.43`, tax-exclusive header subtotal `9.57`. UI void sets CANCELLED, stock returns `9.5 → 10`, payment ceases contributing to expected cash and financial receipt 646 is VOIDED with one linked OUTBOUND reversal 647 for `11`. Duplicate void returns 400 with unchanged ledgers/stock.                                                                                                                                                                                                                   |
 
@@ -186,7 +354,8 @@ Observed **1 passed in 3.5 minutes**, sale 692/returns 137–140. After the
 contract distinction was reviewed, C4 was strengthened further to assert each
 positive OUT's exact return ID, sale reference, NIO currency and payment method,
 and preservation of the original POSTED sale receipt. Its final focused run is
-recorded below; no combined 7/7 result is claimed.
+recorded below. Those focused runs were not a combined 7/7 result; all seven
+commercial cases subsequently passed in the final 18-case batch above.
 
 ```powershell
 node scripts\run-playwright-env.mjs --env local fractional-commercial.real.spec.ts --project=chromium-authenticated --workers=1 --retries=0 --reporter=list --grep C4 --output=test-results\fractional-commercial-local-c4-linked-ready
@@ -225,15 +394,21 @@ customers 167–169; C3 product 1107/customer 170; C4 products 1108–1109/custo
 final C4 used products 1115–1116/customer 175. Earlier attempts retain products 1083–1097/customers 157–165, sales
 678–684, quotes 65–66 and returns 130–134. Do not broad-clean the tenant.
 
-- **Quote readiness anomaly:** initial C3 created quote 65 at `0.9725 × 85.50`,
+- **Quote readiness anomaly — fixed:** initial C3 created quote 65 at `0.9725 × 85.50`,
   opened Edit and immediately filled `0.972` before catalog readiness. The PUT
   still sent `0.9725`, saving `83.15`, not `83.11`. The source's quantity handler
   does not update the numeric line until current catalog eligibility exists.
   Final coverage waits for initial Save enabled, checks displayed `83.11` and
-  submitted `0.972` before saving. Whether the early interaction is a test
-  readiness violation or an application editor race remains unresolved; it
-  is not claimed fixed or harmless. Evidence:
-  `test-results/fractional-commercial-local-c3-first`.
+  submitted `0.972` before saving. Source investigation confirmed an
+  application editor race: the enabled input stores draft text while missing
+  eligibility prevents updating the numeric line; catalog arrival clears
+  the error without applying that draft to the saved payload. Quantity editing
+  and Save now wait for catalog readiness. Two new delayed-catalog cases
+  observed RED before the change; the full form suite passed 26/26, including
+  an independent parent run. Parent real C3 passed 1/1 in 1.4 minutes, quote
+  71 to sale 728. Original failure evidence remains at
+  `test-results/fractional-commercial-local-c3-first`; final browser evidence
+  is at `test-results/fractional-quote-readiness-parent-final`.
 - **Settlement audit is separate:** the accepted fractional connected proof
   expects CASH refunds through linked OUT movements, not the derived receivable
   ledger trace (`RECEIVABLE_CREDIT_NOTE`, origin `RETURN`, requiring a receivable).
@@ -370,9 +545,9 @@ passed the dialog/draft case in **44.5 seconds** and the combined fractional +
 SERVICE checkout in **42.7 seconds**, creating sale **677** after the authorized
 SERVICE fix. That checkout observed quantity `0.5`, stock `10 → 9.5`, shares
 `6.67/3.33`, total `140` and gross/negative-discount receipt lines. The customer
-input must lose `data-disabled` before typing. These are separate observed
-runs, not a claimed repeat or combined run in this commercial batch; the
-manual-discount spec is unchanged here.
+input must lose `data-disabled` before typing. These historical focused runs
+were separate; both cases subsequently passed in the final 18-case batch above.
+The manual-discount spec is unchanged here.
 
 The directly affected shift specs now use the visible Actions trigger for
 readiness and a shared helper to open the menu before Close Shift. Their existing

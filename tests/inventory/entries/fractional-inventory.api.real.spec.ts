@@ -14,7 +14,7 @@ type InventoryDocument = {
   lines: { productId: number; presentationId: number; quantity: number }[];
 };
 
-test('@local @inventory @api-contract fractional entry and departure preserve exact base stock and reject sealed fractions', async ({
+test('@serial @local @inventory @api-contract fractional entry and departure preserve exact base stock and reject sealed fractions', async ({
   page,
 }) => {
   expect(config.environment).toBe('local');

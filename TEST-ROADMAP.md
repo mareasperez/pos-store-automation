@@ -38,9 +38,23 @@ These are the highest-value gaps: every one of them moves money or stock backwar
 - [x] Uppercase barcode search selects the owned inventory presentation:
       `fractional-entry.real.spec.ts` passed 1/1 on 2026-11-13 using the exact
       uppercase fixture barcode; product 1082, presentation 1390, posted entry 14.
-- [ ] Fractional purchase, supplier return, import and other
-      W23 domains remain separate outstanding coverage; the API-only test is
-      not browser E2E proof for those flows.
+- [x] Browser purchase of an owned eligible `0.5 × factor 12` presentation
+      increased stock `10 → 16`, followed by an owned fractional sale `0.25`
+      reducing it to `13` (final receipt 338, sale 709).
+- [x] Supplier-return browser submission persisted eligible quantity `0.25`
+      against receipt 339, return 4, with stock `16 → 13`. API-only
+      precision/whole-only eligibility probes rejected invalid returns without
+      effects. Final combined file: 2 passed, 2.2 minutes, no retries. See
+      [local purchase and supplier-return evidence](README.md#local-fractional-purchase-and-supplier-return-checks).
+- [x] Catalog eligibility, XLSX CREATE/UPDATE partial failures and report/CSV
+      normal paths passed independently as a three-case serial batch in
+      1.5 minutes. The final import case also rejected whole-only fractions,
+      five-place quantities and missing SKUs with exact unchanged rejection
+      effects. See [operations evidence](README.md#local-fractional-catalog-xlsx-import-and-reporting).
+- [x] Backend import presentation matching now uses SKU, presentation type, and exact
+      positive conversion factor. Isolated Hibernate/H2 tests cover CREATE/UPDATE,
+      numeric scale equivalence, tenant scope, row failures and stock effects. Live
+      E2E acceptance remains pending; earlier normal-path results do not prove the fix.
 
 ### Selective fractional commercial lifecycle — local C1–C5
 
@@ -69,17 +83,33 @@ are recorded in [README.md](README.md#local-fractional-commercial-lifecycle--c1c
 - [x] C5: separate discounted fractional UI void, included-tax header
       reconciliation, one-time stock/payment/financial reversal and duplicate
       rejection (sale 691; financial receipt 646/reversal 647).
-- [ ] Resolve the quote early-edit readiness anomaly: immediate `0.972`
-      editing sent the old `0.9725` for quote 65. Catalog-ready coverage passes;
-      test-readiness versus application-race classification remains open.
+- [x] Resolve the quote early-edit readiness anomaly: catalog loading now
+      disables quantity editing and Save. Two new cases observed RED; the full
+      form suite passed 26/26, including parent verification. Parent real C3
+      passed 1/1 in 1.4 minutes (quote 71/sale 728); frozen pricing is unchanged.
 - [ ] The separate high-urgency settlement/non-cash audit gap remains partially
       closed. CASH OUT proof is not a new common settlement record or
       derived receivable ledger trace (`RECEIVABLE_CREDIT_NOTE`, origin `RETURN`),
       nor proof of a separate business note requirement. Retained settlement
       documentation versus current runtime remains unresolved; no architecture
       restoration is implied. Credit paths were not tested here.
-- [ ] Fractional combo, promotion, purchase/import/supplier-return and reporting
-      integration remain later work. This slice does not close W23 or G4.
+- [x] Bounded combo/promotion serial browser cases: creation, sale, quote
+      conversion, return, separate void and complete-quantity promotion pricing.
+      Writer 2/2; independent parent 2/2 in 4.0 minutes without retries. Historical
+      factor changes and whole-only presentation parity are not claimed. See
+      [combo and promotion evidence](README.md#local-fractional-combos-and-promotions).
+- [x] Final frozen-source serial acceptance: **18/18 in 18.3 minutes**,
+      one worker, zero retries/skips/flaky/global errors.
+- [x] Actual parallel daily-use acceptance: independent rerun **3/3 in
+      64.9 seconds**, three existing users, **40.712 seconds of three-way
+      browser overlap**; draft save/resume/edit, quote create/find/edit/reopen
+      and discounted sale/history/receipt. Zero retries/skips/flaky/global errors.
+      Writer also passed 3/3. Final focused UI regressions passed 54/54 and
+      connected embedded API/Hibernate checks passed 4/4. See
+      [final acceptance evidence and commands](README.md#fractional-and-manual-discount-acceptance--2026-11-14).
+      Same-tenant owned-data concurrency does not prove last-unit contention
+      or restricted-role/cross-tenant denial. Those earlier normal paths do not
+      verify the subsequent import matching fix or close broader lifecycle gaps or G4.
 
 ### Fixed-Price Combo Lifecycle — Local C7
 

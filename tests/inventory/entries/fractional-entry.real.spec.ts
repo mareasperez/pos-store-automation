@@ -3,7 +3,7 @@ import { expect, test } from '@fixtures';
 import { config } from '@config';
 import { buildApiHeaders } from '../../../utils/apiHeaders';
 
-test('@local @inventory fractional entry is submitted and posted without rounding or double conversion', async ({
+test('@serial @local @inventory fractional entry is submitted and posted without rounding or double conversion', async ({
   page,
 }) => {
   expect(config.environment).toBe('local');
