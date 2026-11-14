@@ -38,9 +38,48 @@ These are the highest-value gaps: every one of them moves money or stock backwar
 - [x] Uppercase barcode search selects the owned inventory presentation:
       `fractional-entry.real.spec.ts` passed 1/1 on 2026-11-13 using the exact
       uppercase fixture barcode; product 1082, presentation 1390, posted entry 14.
-- [ ] Fractional purchase, supplier return, import, downstream sale and other
+- [ ] Fractional purchase, supplier return, import and other
       W23 domains remain separate outstanding coverage; the API-only test is
       not browser E2E proof for those flows.
+
+### Selective fractional commercial lifecycle — local C1–C5
+
+`tests/pos/fractional-commercial.real.spec.ts` uses real browser mutations and
+persisted API/stock/payment assertions with uniquely owned `FC-*` fixtures.
+The combined run observed **6 passed/1 failed**, not 7/7; C4's unsupported
+CASH derived-ledger assertion was corrected and its focused case passed
+**1/1** before review. Final strengthened linkage proof passed **1/1 in 4.1
+minutes**, sale 693/returns 141–144. Exact commands/IDs
+are recorded in [README.md](README.md#local-fractional-commercial-lifecycle--c1c5).
+
+- [x] C1: exact `0.5`, owned draft/reload, stock `0.6 → 0.1`, UI shortage and
+      five-decimal rejection; API ordinary zero-rounded paid-line rejection
+      with no sale/payment/stock effects (sale 685).
+- [x] C2: two/four `0.972 × 85.50` lines, totals `166.22/332.44`,
+      exact tender/change and stock; additional half-cent boundary dataset
+      (sales 686–688).
+- [x] C3: catalog-ready real quote create/edit/read/convert, frozen pricing,
+      visible disable block/no side effects, re-enable and linkage
+      (quote 67/sale 689).
+- [x] C4: discounted fractional cumulative returns and zero-refund increment,
+      sale-time factor/eligibility after owned catalog change, exact stock,
+      remaining/excess and returned-sale void guards (final sale 693/returns
+      141–144). Exact linked CASH OUT entries, zero-refund no-movement and
+      original POSTED receipt preservation passed; see README for chronology.
+- [x] C5: separate discounted fractional UI void, included-tax header
+      reconciliation, one-time stock/payment/financial reversal and duplicate
+      rejection (sale 691; financial receipt 646/reversal 647).
+- [ ] Resolve the quote early-edit readiness anomaly: immediate `0.972`
+      editing sent the old `0.9725` for quote 65. Catalog-ready coverage passes;
+      test-readiness versus application-race classification remains open.
+- [ ] The separate high-urgency settlement/non-cash audit gap remains partially
+      closed. CASH OUT proof is not a new common settlement record or
+      derived receivable ledger trace (`RECEIVABLE_CREDIT_NOTE`, origin `RETURN`),
+      nor proof of a separate business note requirement. Retained settlement
+      documentation versus current runtime remains unresolved; no architecture
+      restoration is implied. Credit paths were not tested here.
+- [ ] Fractional combo, promotion, purchase/import/supplier-return and reporting
+      integration remain later work. This slice does not close W23 or G4.
 
 ### Fixed-Price Combo Lifecycle — Local C7
 
@@ -117,12 +156,15 @@ lifecycle rerun passed in 3.3 minutes with its budget corrected to 300 seconds.
       add/edit/discard/clear/zero, saved-draft reload/resume and disclosure,
       fractional checkout with unequal-line exact-cent allocation, stock decrement
       and customer receipt.
-      Runtime blocked at customer selection before cart/discount actions;
-      prerequisites and retained test-owned records are documented
+      Earlier customer-selection failures are retained; subsequent separate
+      parent-observed runs passed dialog/draft in 44.5 seconds and fractional +
+      SERVICE checkout in 42.7 seconds (sale 677). Prerequisites and records are documented
       in [README.md](README.md#local-pos-manual-sale-discount). This does not cover
       line discounts or other fractional-quantity domains.
-- [ ] Execute the manual-discount scenarios on an explicitly authorized isolated
-      local tenant; permission-denied and frozen-quote regressions remain pending.
+- [x] Execute both manual-discount scenarios on an explicitly authorized isolated
+      local tenant (separate parent-observed runs, not repeated in this batch).
+- [ ] Permission-denied and quote-origin nonzero-discount rejection browser
+      regressions remain pending.
 
 ### Shifts
 

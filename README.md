@@ -129,9 +129,132 @@ and `FQI-0314665a` product 1077/presentations 1378–1380/entries 9–10/departu
 final auth-guard run: `FQE-c00b36bc` product 1078/presentation 1382/entry 11
 and `FQI-24e2b97b` product 1079/presentations 1384–1386/entries 12–13/departure 6.
 
-These are not full W23 acceptance: purchase, import, supplier return, sales,
-quotes, returns, combo, promotion and report integration remain separately
-unproven.
+These inventory checks are not full W23 acceptance. The bounded commercial
+evidence below separately covers sales, quotes and customer returns/voids;
+purchase, import, supplier return, fractional combos, promotions and reports
+remain outside these checks.
+
+## Local fractional commercial lifecycle — C1–C5
+
+`tests/pos/fractional-commercial.real.spec.ts` adds seven real-server tests:
+C1, three C2 datasets, C3, C4 and C5. Primary actions use the browser; API reads
+verify persisted state. Ordinary zero-rounded sale rejection, excess return
+and duplicate/returned-sale void rejection are explicitly API-only negative guards.
+The typed helper is `support/flows/fractional.flow.ts`.
+
+### Observed case evidence — 2026-11-13
+
+| Case                               | Observed result and owned records                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| C1 — precision, capacity and draft | **PASS.** Product 1098/customer 166/sale 685: stock `0.6`, initial quantity `1` and edited `0.7` block checkout; `0.50001` is rejected by the editor. Owned draft reload retains `0.5` and `10.00`; posted quantity `0.5` leaves exact stock `0.1`. API ordinary `0.0001 × 20` line rejects with 400 before sale/payment/stock effects.                                                                                                                                                                                                                                                                                           |
+| C2 — exact payments                | **PASS, three datasets.** Sales 686/687: two/four lines of `0.972 × 85.50` save `83.11` per line and totals `166.22`/`332.44`, not aggregate-rounded amounts. Tender `200`/`400` gives exact change `33.78`/`67.56`; each stock becomes `9.028`. Sale 688 additionally proves half-cent boundaries: `0.5 × 0.01/0.03` saves `0.01/0.02`, total `0.03`, tender `1`, change `0.97`, stock `9.5`. Captured POST and saved GET/payment/shift ledgers agree; no automatic sale cash movement.                                                                                                                                          |
+| C3 — quote lifecycle               | **PASS for the catalog-ready path; readiness anomaly remains open.** Quote 67 created at `0.9725`, edited to `0.972`, then converted to sale 689. Catalog price `85.50 → 99` and eligibility disable leave history readable at frozen `83.11`; disabled conversion is visibly blocked with no sale/payment/stock effect. Re-enabling permits normal conversion, no manual discount, exact linkage and stock `9.028`.                                                                                                                                                                                                              |
+| C4 — discounted partial returns    | **PASS, final linkage-strengthened run 1/1.** Sale 693/returns 141–144: `0.75 × 8 = 6` and `0.5 × 10 = 5`, discount `1`, shares `0.55/0.45`, net `5.45/4.55`, total `10`. Return first line in `0.0001/0.2499/0.25/0.25`: refunds `0/1.82/1.81/1.82`, totaling `5.45`. Sale-time factor `2` restores stock `8.5 → 8.5002 → 9 → 9.5 → 10` after owned factor becomes `3` and eligibility is disabled. Positive refunds have exact linked CASH OUT entries; zero refund has none; original POSTED receipt is unchanged. Server remaining/excess and returned-sale void guards pass; other line remains unreturned, cash net `4.55`. |
+| C5 — separate discounted void      | **PASS.** Sale 691/product 1110/customer 172: `0.5 × 23 = 11.50`, discount `0.50`, final charge `11.00`; included tax `1.43`, tax-exclusive header subtotal `9.57`. UI void sets CANCELLED, stock returns `9.5 → 10`, payment ceases contributing to expected cash and financial receipt 646 is VOIDED with one linked OUTBOUND reversal 647 for `11`. Duplicate void returns 400 with unchanged ledgers/stock.                                                                                                                                                                                                                   |
+
+This is bounded commercial evidence, not whole-feature W23 acceptance or release
+approval. G4 refund-tax allocation remains deferred; these refund assertions
+concern net charged amounts only.
+
+### Commands and chronology
+
+From `e2e`, with the existing authorized stack and saved numbered session:
+
+```powershell
+node scripts\run-playwright-env.mjs --env local fractional-commercial.real.spec.ts --project=chromium-authenticated --workers=1 --retries=0 --reporter=list --output=test-results\fractional-commercial-local-final
+```
+
+Observed **6 passed, 1 failed in 10.1 minutes**: C1, all three C2 variants,
+C3 and C5 passed. C4 failed on an unsupported test assumption that a positive
+CASH refund must also create a derived receivable ledger trace
+(`FinancialMovement` type `RECEIVABLE_CREDIT_NOTE`, origin `RETURN`).
+Preserve this failure, screenshot, video and trace under the output directory.
+The exact failing expectation was newly added financial amounts `[1.82]`;
+actual `[]`. Sale 690's financial receipt 645 remained POSTED `10`;
+return 135 was POSTED `0`, return 136 POSTED `1.82`, both with null
+`financialMovementId`. Return 136 had linked NIO OUT cash movement 176 for
+`1.82`, payment method 11.
+
+The corrected CASH-contract case was then run, before the subsequent review
+pause, with:
+
+```powershell
+node scripts\run-playwright-env.mjs --env local fractional-commercial.real.spec.ts --project=chromium-authenticated --workers=1 --retries=0 --reporter=list --grep C4 --output=test-results\fractional-commercial-local-c4-final
+```
+
+Observed **1 passed in 3.5 minutes**, sale 692/returns 137–140. After the
+contract distinction was reviewed, C4 was strengthened further to assert each
+positive OUT's exact return ID, sale reference, NIO currency and payment method,
+and preservation of the original POSTED sale receipt. Its final focused run is
+recorded below; no combined 7/7 result is claimed.
+
+```powershell
+node scripts\run-playwright-env.mjs --env local fractional-commercial.real.spec.ts --project=chromium-authenticated --workers=1 --retries=0 --reporter=list --grep C4 --output=test-results\fractional-commercial-local-c4-linked-ready
+```
+
+Observed **1 passed in 4.1 minutes**, sale 693/returns 141–144, products
+1115–1116/customer 175 (`FC-6458fc73`). The preceding strengthened attempt
+stopped before checkout on POS customer readiness: products 1113–1114/customer
+174 only, no sale/return. Its trace showed a 16.1-second products request and
+the customer request still pending beyond the original 10-second assertion.
+Only that readiness budget was raised to 45 seconds; financial assertions
+were not weakened. Preserve its artifacts at
+`test-results/fractional-commercial-local-c4-linked`.
+The final passing run's artifacts use the output directory above.
+
+Static gates: `npm run typecheck`, scoped ESLint and Prettier checks pass.
+These are not application RED/GREEN evidence: early failures also included
+test-harness mistakes (a nonexistent presentation factor label/return ID-read
+route and treating quote-origin POST as direct-sale lines). No application fix
+was made in this batch.
+
+### Safety, retained fixtures and unresolved gaps
+
+The preflight checks effective local URLs, runtime loopback alias, saved
+`test-tenant-2` identity, discount permission, empty saved cart/drafts, NIO and
+an existing OPEN shift before writes. Browser requests outside the authorized
+localhost UI/API origins, including login/refresh, are denied. Fixtures are
+unique `FC-*`; only their own presentation policies change. No user cart,
+draft, product or shift lifecycle is modified; no login, service operation,
+dependency change or global flag rollout is performed. Records remain for
+inspection; failed creation requests are not blindly retried.
+
+Combined-run ownership: C1 product 1098/customer 166; C2 products 1099–1106/
+customers 167–169; C3 product 1107/customer 170; C4 products 1108–1109/customer
+171; C5 product 1110/customer 172. Corrected C4 used products 1111–1112/customer 173;
+final C4 used products 1115–1116/customer 175. Earlier attempts retain products 1083–1097/customers 157–165, sales
+678–684, quotes 65–66 and returns 130–134. Do not broad-clean the tenant.
+
+- **Quote readiness anomaly:** initial C3 created quote 65 at `0.9725 × 85.50`,
+  opened Edit and immediately filled `0.972` before catalog readiness. The PUT
+  still sent `0.9725`, saving `83.15`, not `83.11`. The source's quantity handler
+  does not update the numeric line until current catalog eligibility exists.
+  Final coverage waits for initial Save enabled, checks displayed `83.11` and
+  submitted `0.972` before saving. Whether the early interaction is a test
+  readiness violation or an application editor race remains unresolved; it
+  is not claimed fixed or harmless. Evidence:
+  `test-results/fractional-commercial-local-c3-first`.
+- **Settlement audit is separate:** the accepted fractional connected proof
+  expects CASH refunds through linked OUT movements, not the derived receivable
+  ledger trace (`RECEIVABLE_CREDIT_NOTE`, origin `RETURN`, requiring a receivable).
+  That enum label does not establish a separate business note requirement.
+  The extra expectation was a test assumption, not evidence that the accepted
+  CASH contract was rolled back. This does **not** close the partially closed, high-urgency
+  [refund settlement gap](../docs/known-gaps/return-refund-currency.md).
+  [Settlement documentation](../docs/multicurrency-refund-settlement.md) claims
+  a common `return_settlements` audit record not present in the inspected
+  Java/migration implementation. Given the parent-verified historical lifecycle
+  revert, those retained documents are not authority to restore that architecture.
+  Documentation-versus-runtime uncertainty and non-cash ledger/processor/transfer
+  evidence remain unresolved. No settlement record or business note requirement
+  is invented, restored or waived here.
+  Credit returns were **not executed in this batch**: the existing UI exposes
+  `APPLY_TO_RECEIVABLE` for an OPEN receivable with no applied payment.
+  Credit-sale returns after any applied payment are explicitly unsupported in
+  that UI. This source-verified boundary is not additional browser/API proof.
+- **Later batch:** fractional combo/promotion/purchase/import/supplier-return
+  and report scenarios remain outside this commercial slice, as do remote,
+  concurrency, broader permission/tenant and deployment acceptance.
 
 ## Local inventory quantity rejection
 
@@ -165,7 +288,7 @@ test-owned product may be created before the test fails. The rejection itself re
 ## Local POS manual sale discount
 
 `tests/pos/manual-sale-discount.real.spec.ts` contains two real-server scenarios,
-**authored; local execution currently blocked before the discount workflow**:
+**both locally passed in separate parent-observed runs on 2026-11-13**:
 
 - Required/negative/over-total/sub-cent amount blocking; add and edit with Enter;
   backdrop preservation, Cancel/Escape discard; manual saved-sales disclosure;
@@ -216,12 +339,12 @@ failure; creation is never retried. The other scenario creates no sale and its
 draft stays only in its disposable browser context. The combined scenario covers
 fractional POS quantities plus manual discount, not other fractional domains.
 
-Observed local execution on 2026-11-13 (one worker, zero retries): both scenarios
+Earlier local execution on 2026-11-13 (one worker, zero retries): both scenarios
 failed before adding cart lines, waiting for the unique customer's option.
 Click-only, typed search and explicit ArrowDown attempts did not expose that
 option. The trace confirms `GET /api/customers` returned 200 and included the
-test customer; the UI returned to `Publico General`. This is a precise unresolved
-POS customer-selection blocker, not evidence that discount allocation failed.
+test customer; the UI returned to `Publico General`. These were pre-readiness
+customer-selection failures, not evidence that discount allocation failed.
 Saved localhost authentication, matching tenant, empty saved cart/drafts,
 runtime-local API and the existing OPEN shift were verified. No login/setup,
 service operations or user-shift lifecycle mutations were performed.
@@ -234,7 +357,7 @@ Six unique fixture sets remain for inspection (never broad-clean the tenant):
 `MD-0c6acb0b` (1063/1064, 152) and
 `MD-02f3f78e` (1065/1066, 153).
 Products 1057 and 1061 each received 10 test-owned initial stock units.
-No sale/payment or discounted draft was reached. Failure screenshots, videos,
+Those six attempts reached no sale/payment or discounted draft. Failure screenshots, videos,
 traces and HTML reports are retained under
 `test-results/manual-discount-local*` and
 `playwright-report/manual-discount-local*`; blocked external font requests are
@@ -242,10 +365,14 @@ expected from the local-only network guard.
 
 Typechecking and scoped lint/format checks are separate from E2E proof.
 Permission-denied actors, frozen quote rejection, IME/Shift+Enter and legacy
-receipts remain outside these two scenarios. Exact fractional stock, backend
-discount allocation and receipt assertions are authored but not yet observed
-passing. Resolve the customer-selection blocker before another mutating run;
-do not bypass it by selecting an unrelated customer or weakening assertions.
+receipts remain outside these two scenarios. Subsequent parent-observed runs
+passed the dialog/draft case in **44.5 seconds** and the combined fractional +
+SERVICE checkout in **42.7 seconds**, creating sale **677** after the authorized
+SERVICE fix. That checkout observed quantity `0.5`, stock `10 → 9.5`, shares
+`6.67/3.33`, total `140` and gross/negative-discount receipt lines. The customer
+input must lose `data-disabled` before typing. These are separate observed
+runs, not a claimed repeat or combined run in this commercial batch; the
+manual-discount spec is unchanged here.
 
 The directly affected shift specs now use the visible Actions trigger for
 readiness and a shared helper to open the menu before Close Shift. Their existing
