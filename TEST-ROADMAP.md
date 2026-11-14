@@ -23,6 +23,25 @@ Priority legend:
 
 These are the highest-value gaps: every one of them moves money or stock backwards.
 
+### Selective fractional inventory — local evidence
+
+- [x] Browser entry of `0.9725` at factor 2 retains the submitted and posted
+      quantity and adds exactly `1.945` base units: `fractional-entry.real.spec.ts`
+      passed 1/1 on 2026-11-13.
+- [x] API-only `fractional-inventory.api.real.spec.ts` passed 1/1: exact
+      entry/departure stock, independently whole-only sealed/fixed-half
+      presentations, and rejection of fractional sealed quantity, five-place
+      quantity and fractional eligibility on factor `0.5`.
+- [ ] Existing `quantity-rejection.real.spec.ts` stopped at its exact-origin
+      prerequisite (`localhost` expected, runtime `127.0.0.1`); no fixture
+      created in that run. Its inline stale-policy error is not yet verified.
+- [x] Uppercase barcode search selects the owned inventory presentation:
+      `fractional-entry.real.spec.ts` passed 1/1 on 2026-11-13 using the exact
+      uppercase fixture barcode; product 1082, presentation 1390, posted entry 14.
+- [ ] Fractional purchase, supplier return, import, downstream sale and other
+      W23 domains remain separate outstanding coverage; the API-only test is
+      not browser E2E proof for those flows.
+
 ### Fixed-Price Combo Lifecycle — Local C7
 
 `tests/pos/combo-lifecycle.real.spec.ts` uses real local UI/API and unique owned fixtures.
@@ -93,6 +112,17 @@ lifecycle rerun passed in 3.3 minutes with its budget corrected to 300 seconds.
 - [ ] Sale of a product without stock — blocked or warned per business rule.
 - [ ] Draft cart persists after a page reload and can be resumed.
 - [ ] Apply a line discount and assert the recalculated total.
+- [x] Author local-only manual **sale-wide** discount scenarios
+      (`tests/pos/manual-sale-discount.real.spec.ts`): amount validation,
+      add/edit/discard/clear/zero, saved-draft reload/resume and disclosure,
+      fractional checkout with unequal-line exact-cent allocation, stock decrement
+      and customer receipt.
+      Runtime blocked at customer selection before cart/discount actions;
+      prerequisites and retained test-owned records are documented
+      in [README.md](README.md#local-pos-manual-sale-discount). This does not cover
+      line discounts or other fractional-quantity domains.
+- [ ] Execute the manual-discount scenarios on an explicitly authorized isolated
+      local tenant; permission-denied and frozen-quote regressions remain pending.
 
 ### Shifts
 

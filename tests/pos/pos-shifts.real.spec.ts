@@ -11,6 +11,7 @@ import { expect, serialDescribe, test } from '@fixtures';
 import { config } from '@config';
 import { requireCredentialsOrSkip } from '../../support/flows/auth.flow';
 import { buildApiHeaders } from '../../support/flows/sales.flow';
+import { posShiftActions, selectPosCloseShift } from '../../utils/shift';
 
 test.setTimeout(180_000);
 
@@ -54,16 +55,14 @@ async function openShiftFromPos(page: Page): Promise<void> {
   await page.getByTestId('shift-open-submit').click();
 
   expect((await openResponse).status()).toBe(200);
-  await expect(page.getByTestId('pos-close-shift')).toBeVisible({ timeout: 15_000 });
+  await expect(posShiftActions(page)).toBeVisible({ timeout: 15_000 });
 }
 
 /** Closes the active shift from the POS header and asserts the server accepted it. */
 async function closeShiftFromPos(page: Page): Promise<void> {
   await page.goto('/pos?lng=es', { waitUntil: 'domcontentloaded' });
 
-  const closeTrigger = page.getByTestId('pos-close-shift');
-  await expect(closeTrigger).toBeVisible({ timeout: 20_000 });
-  await closeTrigger.click();
+  await selectPosCloseShift(page);
 
   const closeDialog = page.getByTestId('close-shift-modal');
   await expect(closeDialog).toBeVisible({ timeout: 10_000 });

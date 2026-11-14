@@ -4,6 +4,7 @@
  */
 import { expect, parallelDescribe, test } from '@fixtures';
 import { config } from '@config';
+import { posShiftActions, selectPosCloseShift } from '../../utils/shift';
 
 const frontendOrigin = new URL(config.baseUrl).origin;
 const apiOrigin = new URL(config.apiUrl).origin;
@@ -114,6 +115,12 @@ parallelDescribe('@manual @pos shifts', () => {
     );
     expect(activeOpenResponse.status()).toBe(200);
 
-    await expect(page.getByTestId('pos-close-shift')).toBeVisible({ timeout: 15_000 });
+    await expect(posShiftActions(page)).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId('pos-close-shift')).toBeHidden();
+    await selectPosCloseShift(page);
+    await expect(page.getByTestId('close-shift-modal')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('close-shift-modal')).toBeHidden();
+    await expect(posShiftActions(page)).toBeVisible();
   });
 });

@@ -88,10 +88,57 @@ Keep smoke tests under 30 seconds and avoid data-heavy setup in smoke.
 Pending scenarios are tracked in [TEST-ROADMAP.md](TEST-ROADMAP.md). Check items off there
 in the same PR that adds the corresponding spec.
 
+## Local fractional inventory checks
+
+Two new local-only tests cover inventory independently of sales:
+
+- `fractional-entry.real.spec.ts` uses the real browser to post `0.9725` of an
+  owned factor-2 presentation, checks the submitted/persisted quantity and
+  verifies exactly `1.945` base units in the selected warehouse.
+- `fractional-inventory.api.real.spec.ts` is **API-only**, not UI E2E: default
+  whole-only presentations and the eligible factor-2 presentation coexist;
+  an eligible factor `0.5`, five-place quantity and fractional sealed box are
+  rejected. Entry, departure and fixed-half stock effects are exact.
+
+On 2026-11-13 both tests passed (one worker, no retries): UI 1/1 and API-only
+1/1. They require a matching numbered saved local session, an existing active
+warehouse and divisible unit, and catalog/inventory create/read permissions.
+Run after verifying the effective environment and saved tenant:
+
+```powershell
+cd e2e
+node scripts\run-playwright-env.mjs --env local fractional-entry.real.spec.ts fractional-inventory.api.real.spec.ts --project=chromium-authenticated --workers=1 --retries=0 --reporter=line
+```
+
+They create owned `FQE-*` or `FQI-*` records and posted documents, retained
+for inspection; they do not modify existing products, flags or shifts. The
+browser test allows only the configured localhost UI and API loopback aliases
+on port 8081, while blocking external requests, login and token refresh. An
+earlier run timed out searching an uppercase barcode; a later passing run used
+the product name and did not verify barcode lookup. The selector now matches
+barcodes case-insensitively. On 2026-11-13, the original uppercase-barcode
+browser path passed 1/1 with one worker and no retries, posting entry 14. The
+run's retained marker is `test-results/fractional-barcode-fixed/.last-run.json`.
+Owned fixture IDs: `FQE-eb1af79e` product 1082/presentation 1390/entry 14
+(uppercase-barcode verification); `FQE-089d092d` product 1072, `FQE-2ecc722e`
+product 1073, `FQE-85833a64` product 1074/presentation 1370/entry 5;
+`FQI-9e2fea19` product 1067/presentations 1358–1360/entries 3–4/departure 3;
+`FQI-14bd358d` product 1075/presentations 1372–1374/entries 6–7/departure 4;
+and the final combined run: `FQE-48dfd335` product 1076/presentation 1376/entry 8
+and `FQI-0314665a` product 1077/presentations 1378–1380/entries 9–10/departure 5;
+final auth-guard run: `FQE-c00b36bc` product 1078/presentation 1382/entry 11
+and `FQI-24e2b97b` product 1079/presentations 1384–1386/entries 12–13/departure 6.
+
+These are not full W23 acceptance: purchase, import, supplier return, sales,
+quotes, returns, combo, promotion and report integration remain separately
+unproven.
+
 ## Local inventory quantity rejection
 
 The real-server `tests/inventory/entries/quantity-rejection.real.spec.ts` is authored but
-**pending runtime execution**. With the local UI and API already running, a saved local
+**blocked by its existing exact-origin preflight**: on 2026-11-13 the runtime
+configuration used `127.0.0.1:8081` instead of its required `localhost:8081`;
+the run stopped before fixture creation. With the local UI and API already running, a saved local
 session for `TEST_TENANT_ID`, and no concurrent catalog edits, run:
 
 ```powershell
@@ -113,8 +160,97 @@ to whole-only via the real API. The second row's half quantity would convert to 
 unit before the policy change. The test expects the real 400 response and the inline error on
 the second row, then corrects the draft without posting it. No inventory entry is intentionally
 created; if the API incorrectly accepts the request, an entry and stock movement for the
-test-owned product may be created before the test fails. No browser or API execution has yet
-been verified.
+test-owned product may be created before the test fails. The rejection itself remains unverified.
+
+## Local POS manual sale discount
+
+`tests/pos/manual-sale-discount.real.spec.ts` contains two real-server scenarios,
+**authored; local execution currently blocked before the discount workflow**:
+
+- Required/negative/over-total/sub-cent amount blocking; add and edit with Enter;
+  backdrop preservation, Cancel/Escape discard; manual saved-sales disclosure;
+  reload and resume of a test-owned discounted draft; clear and zero adjustment.
+- Combined fractional checkout: a uniquely created fractional-enabled standard
+  product priced at 200 with quantity 0.5, plus a service priced at 50; one sale-wide
+  discount of 10, persisted proportional allocations of 6.67/3.33 and total 140.
+  The customer receipt must retain gross lines, negative discount sublines and
+  saved totals 150/10/140, without the internal reason. The request must not
+  contain client per-line manual allocations or price overrides. The saved quantity
+  and receipt unit snapshot stay at 0.5, and raw stock decreases exactly from 10
+  to 9.5 base units (factor 1).
+
+Run only after explicitly authorizing local financial/catalog mutations:
+
+```powershell
+cd e2e
+node scripts\run-playwright-env.mjs --env local tests/pos/manual-sale-discount.real.spec.ts --project=chromium-authenticated --workers=1
+```
+
+Prerequisites: already-running UI `http://localhost:5173`, API
+`http://localhost:8081/api`, explicit `TEST_TENANT_ID`, and a valid numbered
+`playwright/.auth/user-N.json` localhost cashier session matching that tenant.
+The worker fixture selects numbered auth files, not project `user.json`.
+The environment loader overrides shell values with env files even for `--list`;
+ensure the resolved local URLs match. Runtime app configuration may use
+`http://127.0.0.1:8081` instead. The spec checks targets, runtime API, saved tenant,
+discount permission and empty saved cart/drafts before creating records, and
+blocks nonlocal browser traffic. It does not log in or change authorization.
+
+Use an isolated NIO test tenant with receipt locale configured, an active `UNIT`
+presentation type, an existing divisible presentation type with an abbreviation,
+warehouse and NIO CASH method, and an already-open cashier
+shift. Required access includes POS sales/create/discount, product and customer
+creation, catalog/presentation/stock/promotion reads, warehouse/payment-method
+reads and tenant settings. No concurrent catalog, promotion, shift or tenant
+configuration changes; test products must not receive automatic promotions.
+The spec never opens/closes shifts or resumes/deletes another user's cart/draft.
+The dialog scenario creates two `MD-*` services and one unique customer; the
+combined checkout creates one `MD-*` standard product (10 initial units) and
+one service/customer. Only that new presentation enables fractional quantities;
+no existing product, unit policy or tenant flag is changed. Initial stock uses
+the product creation API's normal inbound adjustment; the test uses its actual
+warehouse and requires product-create initial-stock posting to be available.
+The checkout creates one completed cash sale/payment and changes the
+existing shift expectation by 140. Records remain for inspection, including on
+failure; creation is never retried. The other scenario creates no sale and its
+draft stays only in its disposable browser context. The combined scenario covers
+fractional POS quantities plus manual discount, not other fractional domains.
+
+Observed local execution on 2026-11-13 (one worker, zero retries): both scenarios
+failed before adding cart lines, waiting for the unique customer's option.
+Click-only, typed search and explicit ArrowDown attempts did not expose that
+option. The trace confirms `GET /api/customers` returned 200 and included the
+test customer; the UI returned to `Publico General`. This is a precise unresolved
+POS customer-selection blocker, not evidence that discount allocation failed.
+Saved localhost authentication, matching tenant, empty saved cart/drafts,
+runtime-local API and the existing OPEN shift were verified. No login/setup,
+service operations or user-shift lifecycle mutations were performed.
+
+Six unique fixture sets remain for inspection (never broad-clean the tenant):
+`MD-ad3b755d` (products 1055/1056, customer 148),
+`MD-55922c94` (1057/1058, 149),
+`MD-198585bc` (1059/1060, 150),
+`MD-178dbae4` (1061/1062, 151),
+`MD-0c6acb0b` (1063/1064, 152) and
+`MD-02f3f78e` (1065/1066, 153).
+Products 1057 and 1061 each received 10 test-owned initial stock units.
+No sale/payment or discounted draft was reached. Failure screenshots, videos,
+traces and HTML reports are retained under
+`test-results/manual-discount-local*` and
+`playwright-report/manual-discount-local*`; blocked external font requests are
+expected from the local-only network guard.
+
+Typechecking and scoped lint/format checks are separate from E2E proof.
+Permission-denied actors, frozen quote rejection, IME/Shift+Enter and legacy
+receipts remain outside these two scenarios. Exact fractional stock, backend
+discount allocation and receipt assertions are authored but not yet observed
+passing. Resolve the customer-selection blocker before another mutating run;
+do not bypass it by selecting an unrelated customer or weakening assertions.
+
+The directly affected shift specs now use the visible Actions trigger for
+readiness and a shared helper to open the menu before Close Shift. Their existing
+real lifecycle/reconciliation mutations remain unchanged; do not run them as
+part of discount validation against a user's shift.
 
 ## Local Combo Lifecycle (C7)
 

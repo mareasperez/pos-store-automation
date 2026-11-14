@@ -3,6 +3,19 @@ import { expect, type Page } from '@playwright/test';
 import { config } from '@config';
 import { buildApiHeaders } from './apiHeaders';
 
+/** The close action is mounted only after the POS Actions menu opens. */
+export function posShiftActions(page: Page) {
+  return page.getByRole('button', { name: /^(Acciones|Actions)$/ });
+}
+
+export async function selectPosCloseShift(page: Page): Promise<void> {
+  await expect(posShiftActions(page)).toBeVisible({ timeout: 20_000 });
+  await posShiftActions(page).click();
+  const closeItem = page.getByTestId('pos-close-shift');
+  await expect(closeItem).toBeVisible();
+  await closeItem.click();
+}
+
 /**
  * Opens the shift from the POS page if the "Abrir Caja" button is visible.
  *

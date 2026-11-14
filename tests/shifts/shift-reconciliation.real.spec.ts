@@ -15,6 +15,7 @@ import { expect, serialDescribe, test } from '@fixtures';
 import { config } from '@config';
 import { dirnameFromUrl } from '../../utils/esm';
 import { buildApiHeaders } from '../../utils/apiHeaders';
+import { posShiftActions, selectPosCloseShift } from '../../utils/shift';
 
 const dirname = dirnameFromUrl(import.meta.url);
 test.use({ storageState: path.join(dirname, '../../playwright/.auth/user-0.json') });
@@ -140,7 +141,7 @@ async function openShiftFromPos(page: Page, initialCash: number): Promise<void> 
   await page.getByTestId('shift-open-submit').click();
 
   expect((await openResponse).status()).toBe(200);
-  await expect(page.getByTestId('pos-close-shift')).toBeVisible({ timeout: 15_000 });
+  await expect(posShiftActions(page)).toBeVisible({ timeout: 15_000 });
 }
 
 /** Adds the product to cart, pays the exact total in cash, and returns the sale total. */
@@ -188,9 +189,7 @@ async function makeSimpleCashSale(page: Page, productName: string): Promise<numb
 async function closeShiftFromPos(page: Page, cashPaymentMethodId: number): Promise<void> {
   await page.goto('/pos?lng=es', { waitUntil: 'domcontentloaded' });
 
-  const closeTrigger = page.getByTestId('pos-close-shift');
-  await expect(closeTrigger).toBeVisible({ timeout: 20_000 });
-  await closeTrigger.click();
+  await selectPosCloseShift(page);
 
   const closeDialog = page.getByTestId('close-shift-modal');
   await expect(closeDialog).toBeVisible({ timeout: 10_000 });
