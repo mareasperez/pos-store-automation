@@ -4,6 +4,13 @@ Backlog of end-to-end scenarios still missing from the suite.
 Current baseline: 66 passing tests across `auth`, `catalog/products`, `customers`,
 `suppliers`, `inventory/purchases`, `pos`, `shifts`, and `smoke`.
 
+The fractional/manual-discount real specs use URLs, tenant IDs and credentials
+from the selected environment file and target-specific saved sessions. The
+default target is local; `--env dev` selects the configured dev file. The
+18/18 serial and 3/3 parallel results below are historical local evidence, not
+proof of a dev run.
+Production remains limited to the approved read-only smoke selection.
+
 ## How To Use This File
 
 - Pick an item, create the spec under `tests/<module>/<name>.spec.ts`.
@@ -181,7 +188,7 @@ lifecycle rerun passed in 3.3 minutes with its budget corrected to 300 seconds.
 - [ ] Sale of a product without stock — blocked or warned per business rule.
 - [ ] Draft cart persists after a page reload and can be resumed.
 - [ ] Apply a line discount and assert the recalculated total.
-- [x] Author local-only manual **sale-wide** discount scenarios
+- [x] Author configured-target manual **sale-wide** discount scenarios
       (`tests/pos/manual-sale-discount.real.spec.ts`): amount validation,
       add/edit/discard/clear/zero, saved-draft reload/resume and disclosure,
       fractional checkout with unequal-line exact-cent allocation, stock decrement

@@ -3,6 +3,7 @@ import type { Page } from '@playwright/test';
 import { expect } from '@fixtures';
 import { config } from '@config';
 import { buildApiHeaders } from '../../utils/apiHeaders';
+import { assertConfiguredTarget } from './target.flow';
 import { addExactItem, api, responseFor } from './combos.flow';
 
 export { api, responseFor };
@@ -86,54 +87,17 @@ export interface FinancialEntry {
   reversalOfMovementId: number | null;
 }
 
-export async function fractionalPreflight(page: Page): Promise<void> {
+export async function fractionalPreflight(
+  page: Page,
+  requiredPermissions: readonly string[] = []
+): Promise<void> {
   page.setDefaultTimeout(15_000);
-  expect(config.environment).toBe('local');
-  expect(config.baseUrl).toBe('http://localhost:5173');
-  expect(config.apiRoot).toBe('http://localhost:8081/api');
-  await page.context().route('**/*', (route) => {
-    const url = new URL(route.request().url());
-    const local = [
-      'http://localhost:5173',
-      'http://localhost:8081',
-      'http://127.0.0.1:8081',
-    ].includes(url.origin);
-    return local && !/\/auth\/(?:login|refresh)(?:\/|$)/.test(url.pathname)
-      ? route.continue()
-      : route.abort('blockedbyclient');
-  });
-  const saved = await page.context().storageState();
-  const storage = saved.origins.find((origin) => origin.origin === config.baseUrl)?.localStorage;
-  const app = JSON.parse(storage?.find((item) => item.name === 'pos_app_store')?.value ?? '{}') as {
-    state?: {
-      activeTenantId: string;
-      tenants: { id: string; name: string }[];
-      user?: { permissions?: string[] };
-    };
-  };
-  expect(config.tenantId).toBeTruthy();
-  expect(app.state?.activeTenantId).toBe(config.tenantId);
-  expect(app.state?.tenants).toContainEqual(
-    expect.objectContaining({ id: config.tenantId, name: 'test-tenant-2' })
-  );
-  expect(app.state?.user?.permissions).toContain('sales:discount');
-  const cart = JSON.parse(
-    storage?.find((item) => item.name === 'pos_cart_storage')?.value ?? '{}'
-  ) as { state?: { lines?: unknown[]; savedDrafts?: unknown[] } };
-  expect(cart.state?.lines ?? [], 'Never alter a saved user cart').toHaveLength(0);
-  expect(cart.state?.savedDrafts ?? [], 'Never alter saved user drafts').toHaveLength(0);
-  const runtime = await page.request.get(`${config.baseUrl}/config/app-config.json`, {
-    maxRedirects: 0,
-  });
-  expect(runtime.ok()).toBe(true);
-  const runtimeConfig = (await runtime.json()) as { apiUrl: string };
-  expect(['http://localhost:8081', 'http://127.0.0.1:8081']).toContain(
-    new URL(runtimeConfig.apiUrl).origin
-  );
+  const assertTargetRequests = await assertConfiguredTarget(page, { requiredPermissions });
   expect((await api<{ status: string }>(page, '/shifts/active')).status).toBe('OPEN');
   expect(
     (await api<{ currency: string }>(page, `/tenants/${config.tenantId}/settings`)).currency
   ).toBe('NIO');
+  assertTargetRequests();
 }
 
 export async function seedFractional(

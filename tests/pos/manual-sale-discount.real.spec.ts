@@ -3,6 +3,7 @@ import type { Page } from '@playwright/test';
 import { expect, test } from '@fixtures';
 import { config } from '@config';
 import { addExactItem, responseFor } from '../../support/flows/combos.flow';
+import { fractionalPreflight } from '../../support/flows/fractional.flow';
 import { buildApiHeaders } from '../../utils/apiHeaders';
 
 test.setTimeout(180_000);
@@ -40,52 +41,7 @@ async function api<T>(page: Page, path: string, data?: unknown): Promise<T> {
 }
 
 test.beforeEach(async ({ page }) => {
-  page.setDefaultTimeout(15_000);
-  expect(config.environment, 'This financial spec is local-only').toBe('local');
-  expect(config.baseUrl).toBe('http://localhost:5173');
-  expect(config.apiRoot).toBe('http://localhost:8081/api');
-  expect(config.tenantId, 'Explicit isolated local test tenant required').toBeTruthy();
-  await page.context().route('**/*', (route) => {
-    const url = new URL(route.request().url());
-    const isLocal = [
-      'http://localhost:5173',
-      'http://localhost:8081',
-      'http://127.0.0.1:8081',
-    ].includes(url.origin);
-    const isAuthenticationMutation = /\/auth\/(?:login|refresh)(?:\/|$)/.test(url.pathname);
-    return isLocal && !isAuthenticationMutation ? route.continue() : route.abort('blockedbyclient');
-  });
-  const state = await page.context().storageState();
-  const storage = state.origins.find((origin) => origin.origin === config.baseUrl)?.localStorage;
-  const savedApp = storage?.find((item) => item.name === 'pos_app_store');
-  const app = savedApp
-    ? (JSON.parse(savedApp.value) as {
-        state: { activeTenantId: string; user?: { permissions?: string[] } };
-      })
-    : undefined;
-  expect(app?.state.activeTenantId, 'Saved localhost tenant must match').toBe(config.tenantId);
-  expect(app?.state.user?.permissions, 'A saved discount-authorized cashier is required').toContain(
-    'sales:discount'
-  );
-  const savedCart = storage?.find((item) => item.name === 'pos_cart_storage');
-  const cart = savedCart
-    ? (JSON.parse(savedCart.value) as {
-        state: { lines?: unknown[]; savedDrafts?: unknown[]; manualDiscountAmountInput?: string };
-      })
-    : undefined;
-  expect(cart?.state.lines ?? [], 'Never resume a saved user cart').toHaveLength(0);
-  expect(cart?.state.savedDrafts ?? [], 'Never alter saved user drafts').toHaveLength(0);
-  expect(cart?.state.manualDiscountAmountInput ?? '').toBe('');
-  const runtime = await page.request.get(`${config.baseUrl}/config/app-config.json`, {
-    maxRedirects: 0,
-  });
-  expect(runtime.ok()).toBe(true);
-  const runtimeConfig = (await runtime.json()) as { apiUrl: string };
-  expect(['http://localhost:8081', 'http://127.0.0.1:8081']).toContain(
-    new URL(runtimeConfig.apiUrl).origin
-  );
-  const shift = await api<{ status: string }>(page, '/shifts/active');
-  expect(shift.status, 'Requires existing open shift; never opens or closes one').toBe('OPEN');
+  await fractionalPreflight(page, ['sales:discount']);
 });
 
 async function arrangeCart(page: Page, mode: 'whole' | 'fractional' = 'whole') {
@@ -213,7 +169,7 @@ async function openDiscount(page: Page) {
   return amount;
 }
 
-test('@serial @local @pos @manual-discount validates, discards edits, clears and restores a test-owned draft', async ({
+test('@serial @configured-target @pos @manual-discount validates, discards edits, clears and restores a test-owned draft', async ({
   page,
 }) => {
   const fixture = await arrangeCart(page);
@@ -287,7 +243,7 @@ test('@serial @local @pos @manual-discount validates, discards edits, clears and
   await expect(page.locator('[data-testid="pos-confirm-sale"]:visible')).toBeEnabled();
 });
 
-test('@serial @local @pos @manual-discount @fractional persists unequal-line allocation, exact stock and receipt', async ({
+test('@serial @configured-target @pos @manual-discount @fractional persists unequal-line allocation, exact stock and receipt', async ({
   page,
 }) => {
   const fixture = await arrangeCart(page, 'fractional');

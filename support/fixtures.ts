@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { test as base, expect, type TestInfo } from '@playwright/test';
 import { dirnameFromUrl } from '../utils/esm';
+import { selectWorkerAuthState } from '../utils/target-policy.mjs';
 
 const dirname = dirnameFromUrl(import.meta.url);
 const authDir = path.join(dirname, '..', 'playwright', '.auth');
@@ -134,7 +135,7 @@ export const test = base.extend<object, { workerStorageState: string | undefined
         );
       }
 
-      await use(stateFiles[workerInfo.workerIndex % stateFiles.length]);
+      await use(selectWorkerAuthState(stateFiles, workerInfo));
     },
     { scope: 'worker' },
   ],

@@ -4,10 +4,12 @@ import {
   seedFractional,
   type FractionalPresentation,
 } from '../../support/flows/fractional.flow';
-import { assertLocalSavedSession } from './fractional-real.helpers';
+import { assertConfiguredSavedSession } from './fractional-real.helpers';
 
-test('@local @serial persists fractional eligibility from the catalog editor', async ({ page }) => {
-  const assertNoAuthRequests = await assertLocalSavedSession(page, [
+test('@configured-target @serial persists fractional eligibility from the catalog editor', async ({
+  page,
+}) => {
+  const assertNoAuthRequests = await assertConfiguredSavedSession(page, [
     'products:create',
     'products:edit',
   ]);

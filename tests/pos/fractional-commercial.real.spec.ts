@@ -29,7 +29,7 @@ test.use({ viewport: { width: 1280, height: 960 } });
 
 test.beforeEach(async ({ page }) => fractionalPreflight(page));
 
-test('@serial @local @fractional C1 precision, shortage, owned draft reload and exact deduction', async ({
+test('@serial @configured-target @fractional C1 precision, shortage, owned draft reload and exact deduction', async ({
   page,
 }) => {
   const fixture = await seedFractional(page, [20], 0.6);
@@ -123,7 +123,9 @@ for (const example of [
     stock: 9.5,
   },
 ]) {
-  test(`@serial @local @fractional C2 ${example.name}, cash/change and stock`, async ({ page }) => {
+  test(`@serial @configured-target @fractional C2 ${example.name}, cash/change and stock`, async ({
+    page,
+  }) => {
     const fixture = await seedFractional(page, example.prices);
     const before = await shiftLedger(page);
     await openFractionalPos(page, fixture);
@@ -147,7 +149,7 @@ for (const example of [
   });
 }
 
-test('@serial @local @fractional C3 UI quote edit, frozen price, disabled conversion and linkage', async ({
+test('@serial @configured-target @fractional C3 UI quote edit, frozen price, disabled conversion and linkage', async ({
   page,
 }) => {
   const fixture = await seedFractional(page, [85.5]);
@@ -290,7 +292,7 @@ async function voidUi(page: Page, sale: FractionalSale): Promise<void> {
   expect(result.status(), await result.text()).toBe(200);
 }
 
-test('@serial @local @fractional C4 discounted cumulative returns use sale-time factor and block void', async ({
+test('@serial @configured-target @fractional C4 discounted cumulative returns use sale-time factor and block void', async ({
   page,
 }) => {
   test.setTimeout(360_000);
@@ -422,7 +424,7 @@ test('@serial @local @fractional C4 discounted cumulative returns use sale-time 
   expect((await api<FractionalSale>(page, `/sales/${sale.id}`)).status).toBe('COMPLETED');
 });
 
-test('@serial @local @fractional C5 separate discounted sale UI void reverses exactly once', async ({
+test('@serial @configured-target @fractional C5 separate discounted sale UI void reverses exactly once', async ({
   page,
 }) => {
   const fixture = await seedFractional(page, [23], 10, 1, 0.15);

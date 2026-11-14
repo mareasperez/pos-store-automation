@@ -1,5 +1,4 @@
 import { expect, expectHttpError, test } from '@fixtures';
-import { config } from '@config';
 import { addExactItem, api, responseFor, type Combo } from '../../support/flows/combos.flow';
 import {
   addFractional,
@@ -20,11 +19,10 @@ import {
 test.setTimeout(300_000);
 
 test.beforeEach(async ({ page }) => {
-  expect(config.tenantId).toBe('651167cc-9f50-4ff1-a8d7-e9f8a68ccce5');
   await fractionalPreflight(page);
 });
 
-test('@serial @local @fractional creates and sells a fractional recipe as a whole combo', async ({
+test('@serial @configured-target @fractional creates and sells a fractional recipe as a whole combo', async ({
   page,
 }) => {
   const fixture = await seedFractional(page, [10, 10]);
@@ -233,7 +231,7 @@ test('@serial @local @fractional creates and sells a fractional recipe as a whol
   await stockIs(page, fixture, second, 10);
 });
 
-test('@serial @local @fractional promotions reward only complete quantities and exclude gifts from manual discount', async ({
+test('@serial @configured-target @fractional promotions reward only complete quantities and exclude gifts from manual discount', async ({
   page,
 }) => {
   const fixture = await seedFractional(page, [10, 10]);

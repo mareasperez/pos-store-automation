@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { expect, test } from '@fixtures';
 import { config } from '@config';
 import { buildApiHeaders } from '../../../utils/apiHeaders';
+import { assertConfiguredTarget } from '../../../support/flows/target.flow';
 
 type Presentation = {
   id: number;
@@ -14,23 +15,10 @@ type InventoryDocument = {
   lines: { productId: number; presentationId: number; quantity: number }[];
 };
 
-test('@serial @local @inventory @api-contract fractional entry and departure preserve exact base stock and reject sealed fractions', async ({
+test('@serial @configured-target @inventory @api-contract fractional entry and departure preserve exact base stock and reject sealed fractions', async ({
   page,
 }) => {
-  expect(config.environment).toBe('local');
-  expect(config.baseUrl).toBe('http://localhost:5173');
-  expect(config.apiRoot).toBe('http://localhost:8081/api');
-  expect(config.tenantId, 'Explicit local test tenant required').toBeTruthy();
-  await page.context().route('**/*', (route) => route.abort('blockedbyclient'));
-  const state = await page.context().storageState();
-  const stored = state.origins
-    .find((origin) => origin.origin === config.baseUrl)
-    ?.localStorage.find((entry) => entry.name === 'pos_app_store');
-  expect(stored, 'Numbered saved local session required').toBeTruthy();
-  const saved = JSON.parse(stored!.value) as { state: { activeTenantId: string } };
-  expect(saved.state.activeTenantId, 'Numbered saved session must match the tenant').toBe(
-    config.tenantId
-  );
+  await assertConfiguredTarget(page, { verifyBrowserTarget: false });
   const headers = await buildApiHeaders(page);
   async function request(path: string, method = 'GET', data?: unknown) {
     return page.request.fetch(`${config.apiRoot}${path}`, {

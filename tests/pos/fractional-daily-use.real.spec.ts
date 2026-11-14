@@ -16,6 +16,8 @@ import {
   type FractionalFixture,
   type FractionalSale,
 } from '../../support/flows/fractional.flow';
+import { assertThreeDistinctConfiguredActors } from '../fractional/fractional-real.helpers';
+import { isConfiguredFrontendOrigin } from '../../utils/target-policy.mjs';
 
 interface DailyEvidence {
   workerIndex: number;
@@ -60,9 +62,9 @@ const test = base.extend<{
     };
     try {
       expect(testInfo.config.workers, 'Run this isolated spec with three workers').toBe(3);
-      expect(testInfo.retry, 'No retries or replacement cashier sessions').toBe(0);
-      expect(testInfo.workerIndex, 'Initial isolated workers only').toBe(testInfo.parallelIndex);
+      expect(testInfo.retry, 'No automatic test retries').toBe(0);
       expect([0, 1, 2]).toContain(testInfo.parallelIndex);
+      assertThreeDistinctConfiguredActors(workerStorageState);
       expect(evidence.stateFilename, 'Never fall back to a shared cashier').toBe(
         `user-${testInfo.parallelIndex}.json`
       );
@@ -70,8 +72,8 @@ const test = base.extend<{
       expect(saved.cookies.some((cookie) => cookie.name === 'access_token' && cookie.value)).toBe(
         true
       );
-      const storage = saved.origins.find(
-        (origin) => origin.origin === config.baseUrl
+      const storage = saved.origins.find((origin) =>
+        isConfiguredFrontendOrigin(origin.origin, config.baseUrl)
       )?.localStorage;
       const app = JSON.parse(
         storage?.find((item) => item.name === 'pos_app_store')?.value ?? '{}'
@@ -79,10 +81,12 @@ const test = base.extend<{
       const cart = JSON.parse(
         storage?.find((item) => item.name === 'pos_cart_storage')?.value ?? '{}'
       ) as { state?: { manualDiscountAmountInput?: string; manualDiscountReason?: string } };
-      evidence.actorId = Number(app.state?.user?.id);
-      expect(evidence.actorId, 'Distinct pre-approved stored actor per worker').toBe(
-        testInfo.parallelIndex + 5
-      );
+      const actorId = Number(app.state?.user?.id);
+      evidence.actorId = actorId;
+      expect(
+        Number.isSafeInteger(actorId) && actorId > 0,
+        'Use the actor identity stored in the target-specific session'
+      ).toBe(true);
       expect(cart.state?.manualDiscountAmountInput ?? '').toBe('');
       expect(cart.state?.manualDiscountReason ?? '').toBe('');
       await fractionalPreflight(page);
@@ -163,7 +167,7 @@ async function reopenDraft(
   );
 }
 
-test('@parallel @local @fractional @daily-use saves, resumes and edits an owned fractional draft', async ({
+test('@parallel @configured-target @fractional @daily-use saves, resumes and edits an owned fractional draft', async ({
   page,
   daily: { fixture, evidence },
 }) => {
@@ -198,7 +202,7 @@ test('@parallel @local @fractional @daily-use saves, resumes and edits an owned 
   await expect(page.getByTestId('pos-cart-total')).toContainText('15.00');
 });
 
-test('@parallel @local @fractional @daily-use creates, finds and reopens an edited fractional quote', async ({
+test('@parallel @configured-target @fractional @daily-use creates, finds and reopens an edited fractional quote', async ({
   page,
   daily: { fixture, evidence },
 }) => {
@@ -251,7 +255,7 @@ test('@parallel @local @fractional @daily-use creates, finds and reopens an edit
   expect(Number(persisted.total)).toBe(15);
 });
 
-test('@parallel @local @fractional @manual-discount @daily-use edits a discount and reopens the paid sale receipt', async ({
+test('@parallel @configured-target @fractional @manual-discount @daily-use edits a discount and reopens the paid sale receipt', async ({
   page,
   daily: { fixture, evidence },
 }) => {

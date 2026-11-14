@@ -8,7 +8,7 @@ import {
   payFractional,
   seedFractional,
 } from '../../support/flows/fractional.flow';
-import { assertLocalSavedSession } from './fractional-real.helpers';
+import { assertConfiguredSavedSession } from './fractional-real.helpers';
 
 function parseCsv(csv: string): string[][] {
   const rows: string[][] = [];
@@ -43,10 +43,10 @@ function parseCsv(csv: string): string[][] {
   return rows;
 }
 
-test('@local @serial shows fractional quantity and manual discount in report UI and CSV', async ({
+test('@configured-target @serial shows fractional quantity and manual discount in report UI and CSV', async ({
   page,
 }) => {
-  const assertNoAuthRequests = await assertLocalSavedSession(page, [
+  const assertNoAuthRequests = await assertConfiguredSavedSession(page, [
     'products:create',
     'sales:discount',
     'reports:view',

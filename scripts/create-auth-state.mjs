@@ -5,16 +5,16 @@ import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { chromium } from '@playwright/test';
 import { closeOwnedAuthBrowser, submitLoginWhenReady } from './auth-login.mjs';
-import { loadEnvironment, resolveEnvironment } from '../utils/environment.mjs';
+import { resolveE2EConfig, resolveEnvironment } from '../utils/environment.mjs';
+import { assertProductionTenant } from './production-policy.mjs';
+import { parseRunnerArgs } from './runner-args.mjs';
 
 const rawArgs = process.argv.slice(2);
-const environmentFlagIndex = rawArgs.indexOf('--env');
-const inlineEnvironment = rawArgs.find((argument) => argument.startsWith('--env='));
-const envArg =
-  environmentFlagIndex >= 0
-    ? rawArgs[environmentFlagIndex + 1]
-    : inlineEnvironment?.slice('--env='.length) || rawArgs[0];
-const environment = resolveEnvironment(envArg || process.env.E2E_ENV || 'local');
+const { environment: selectedEnvironment } = parseRunnerArgs(
+  rawArgs,
+  process.env.E2E_ENV || 'local'
+);
+const environment = resolveEnvironment(selectedEnvironment);
 
 const currentFilePath = fileURLToPath(import.meta.url);
 const e2eRoot = path.resolve(path.dirname(currentFilePath), '..');
@@ -26,18 +26,11 @@ const postmanCookieFile = path.join(repoRoot, 'postman', '.auth-cookies.json');
 
 const authStateFileForIndex = (index) => path.join(authDir, `user-${index}.json`);
 
-const resolvedEnvironment = loadEnvironment(environment);
+const target = resolveE2EConfig(environment);
+const resolvedEnvironment = target.env;
 
 function envValue(name) {
   return resolvedEnvironment[name];
-}
-
-function requireOne(names) {
-  for (const name of names) {
-    const value = envValue(name)?.trim();
-    if (value) return value;
-  }
-  throw new Error(`Missing required environment variable. Expected one of: ${names.join(', ')}`);
 }
 
 function optional(names) {
@@ -87,7 +80,7 @@ async function launchNormalChrome() {
   throw new Error('[auth-setup] Chrome did not expose the local debugging endpoint.');
 }
 
-const baseUrl = requireOne(['BASE_URL', 'FRONTEND_BASE_URL', 'E2E_BASE_URL', 'DEV_FRONTEND_URL']).replace(/\/+$/, '');
+const baseUrl = target.baseUrl;
 
 /**
  * One cashier per Playwright worker. Shifts are scoped per user, so distinct users keep their own
@@ -113,17 +106,12 @@ function resolveTestUsers() {
 }
 
 const testUsers = resolveTestUsers();
-const tenantId = optional(['TEST_TENANT_ID', 'E2E_TENANT_ID']);
+const tenantId = target.tenantId;
 const authHeadless = optional(['E2E_AUTH_HEADLESS']).toLowerCase() === 'true';
 let cdpUrl = optional(['E2E_AUTH_CDP_URL']);
 let closeConnectedBrowser = false;
 if (environment === 'prod') {
-  const approvedTenant = optional(['E2E_PROD_TEST_TENANT_ID']);
-  if (optional(['E2E_ALLOW_PROD']) !== 'true' || !approvedTenant || tenantId !== approvedTenant) {
-    throw new Error(
-      '[auth-setup] Production setup requires E2E_ALLOW_PROD=true and TEST_TENANT_ID equal to E2E_PROD_TEST_TENANT_ID.'
-    );
-  }
+  assertProductionTenant({ ...resolvedEnvironment, TEST_TENANT_ID: tenantId });
 }
 if (
   !cdpUrl &&
@@ -132,7 +120,9 @@ if (
 ) {
   cdpUrl = await launchNormalChrome();
   closeConnectedBrowser = true;
-  console.log('[auth-setup] Opened an isolated normal Chrome profile for the dev login.');
+  console.log(
+    `[auth-setup] Opened an isolated normal Chrome profile for the ${environment} login.`
+  );
 }
 const manualAuth = Boolean(cdpUrl);
 

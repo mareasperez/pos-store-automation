@@ -15,41 +15,13 @@ interface Presentation {
   allowsFractionalQuantity: boolean;
 }
 
-serialDescribe('@regression @inventory', () => {
+serialDescribe('@configured-target @regression @inventory', () => {
   test('real quantity rejection marks only the submitted duplicate row', async ({ page }) => {
     // Keep configuration imports inside the test so --list does not load environment files.
     const { config } = await import('@config');
     const { buildApiHeaders } = await import('../../../utils/apiHeaders');
-    expect(config.environment).toBe('local');
-    expect(config.baseUrl).toBe('http://localhost:5173');
-    expect(config.apiRoot).toBe('http://localhost:8081/api');
-    expect(config.tenantId, 'Set an explicit local test tenant').toBeTruthy();
-
-    await page.context().route('**/*', (route) => {
-      const url = new URL(route.request().url());
-      return url.protocol === 'http:' &&
-        url.hostname === 'localhost' &&
-        ['5173', '8081'].includes(url.port)
-        ? route.continue()
-        : route.abort('blockedbyclient');
-    });
-
-    const state = await page.context().storageState();
-    const store = state.origins
-      .find((origin) => origin.origin === config.baseUrl)
-      ?.localStorage.find((entry) => entry.name === 'pos_app_store');
-    expect(store, 'Saved local tenant is required').toBeTruthy();
-    const saved = JSON.parse(store!.value) as { state: { activeTenantId: string } };
-    expect(saved.state.activeTenantId, 'Saved session must match the test tenant').toBe(
-      config.tenantId
-    );
-    const runtime = await page.request.get(`${config.baseUrl}/config/app-config.json`, {
-      maxRedirects: 0,
-    });
-    expect(runtime.ok()).toBe(true);
-    const runtimeConfig = (await runtime.json()) as { apiUrl: string };
-    const runtimeApi = new URL(runtimeConfig.apiUrl);
-    expect(runtimeApi.origin).toBe('http://localhost:8081');
+    const { assertConfiguredTarget } = await import('../../../support/flows/target.flow');
+    const assertNoAuthRequests = await assertConfiguredTarget(page);
 
     const headers = await buildApiHeaders(page);
     async function api<T>(path: string, method = 'GET', data?: unknown): Promise<T> {
@@ -183,5 +155,6 @@ serialDescribe('@regression @inventory', () => {
     await secondQuantity.fill('1');
     await expect(secondQuantity).toHaveAttribute('aria-invalid', 'false');
     await expect(message).toHaveCount(0);
+    assertNoAuthRequests();
   });
 });

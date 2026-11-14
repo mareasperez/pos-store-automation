@@ -2,42 +2,12 @@ import { randomUUID } from 'node:crypto';
 import { expect, test } from '@fixtures';
 import { config } from '@config';
 import { buildApiHeaders } from '../../../utils/apiHeaders';
+import { assertConfiguredTarget } from '../../../support/flows/target.flow';
 
-test('@serial @local @inventory fractional entry is submitted and posted without rounding or double conversion', async ({
+test('@serial @configured-target @inventory fractional entry is submitted and posted without rounding or double conversion', async ({
   page,
 }) => {
-  expect(config.environment).toBe('local');
-  expect(config.baseUrl).toBe('http://localhost:5173');
-  expect(config.apiRoot).toBe('http://localhost:8081/api');
-  expect(config.tenantId, 'Explicit local test tenant required').toBeTruthy();
-  let forbiddenAuthAttempt = false;
-  await page.context().route('**/*', (route) => {
-    const url = new URL(route.request().url());
-    if (/\/(?:api\/)?auth\/(?:login|refresh)(?:\/|$)/.test(url.pathname)) {
-      forbiddenAuthAttempt = true;
-      return route.abort('blockedbyclient');
-    }
-    const localUi = url.origin === 'http://localhost:5173';
-    const localApi =
-      ['http://localhost:8081', 'http://127.0.0.1:8081'].includes(url.origin) &&
-      (url.pathname === '/api' || url.pathname.startsWith('/api/'));
-    return localUi || localApi ? route.continue() : route.abort('blockedbyclient');
-  });
-  const state = await page.context().storageState();
-  const stored = state.origins
-    .find((origin) => origin.origin === config.baseUrl)
-    ?.localStorage.find((entry) => entry.name === 'pos_app_store');
-  expect(stored, 'Numbered saved local session required').toBeTruthy();
-  const saved = JSON.parse(stored!.value) as { state: { activeTenantId: string } };
-  expect(saved.state.activeTenantId).toBe(config.tenantId);
-  const runtime = await page.request.get(`${config.baseUrl}/config/app-config.json`, {
-    maxRedirects: 0,
-  });
-  expect(runtime.ok()).toBe(true);
-  const { apiUrl } = (await runtime.json()) as { apiUrl: string };
-  const runtimeApi = new URL(apiUrl);
-  expect(['http://localhost:8081', 'http://127.0.0.1:8081']).toContain(runtimeApi.origin);
-  expect(['/', '/api', '/api/']).toContain(runtimeApi.pathname);
+  const assertNoAuthRequests = await assertConfiguredTarget(page);
   const headers = await buildApiHeaders(page);
   async function api<T>(path: string, method = 'GET', data?: unknown): Promise<T> {
     const response = await page.request.fetch(`${config.apiRoot}${path}`, {
@@ -152,5 +122,5 @@ test('@serial @local @inventory fractional entry is submitted and posted without
         ?.onHandQty
     )
   ).toBe(1.945);
-  expect(forbiddenAuthAttempt, 'Login or refresh is not authorized').toBe(false);
+  assertNoAuthRequests();
 });

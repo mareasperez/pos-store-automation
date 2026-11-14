@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { expect, test } from '@fixtures';
 import type { Page } from '@playwright/test';
-import { config } from '@config';
 import {
   addFractional,
   api,
@@ -19,8 +18,6 @@ import {
   type PurchasePresentationCandidate,
 } from '../../support/flows/purchases.flow';
 import { createSupplier } from '../../support/flows/suppliers.flow';
-
-const TEST_TENANT_ID = '651167cc-9f50-4ff1-a8d7-e9f8a68ccce5';
 const PURCHASE_QUANTITY = '0.5';
 const PRESENTATION_FACTOR = 12;
 
@@ -78,7 +75,6 @@ test.setTimeout(300_000);
 
 async function createOwnedPurchaseFixture(page: Page) {
   await fractionalPreflight(page);
-  expect(config.tenantId).toBe(TEST_TENANT_ID);
 
   const prefix = `FQP-${randomUUID().slice(0, 8)}`;
   const types = await api<{ content: PresentationType[] }>(page, '/presentation-types');
@@ -269,7 +265,7 @@ async function assertRejectedReturnHasNoEffects(
   await stockIs(page, fixture, fixture.items[0], expectedStock);
 }
 
-test('@local @inventory @serial fractional purchase receipt adds exact stock that can be sold fractionally', async ({
+test('@configured-target @inventory @serial fractional purchase receipt adds exact stock that can be sold fractionally', async ({
   page,
 }) => {
   const fixture = await createOwnedPurchaseFixture(page);
@@ -313,7 +309,7 @@ test('@local @inventory @serial fractional purchase receipt adds exact stock tha
   console.log(`${fixture.prefix}: UI sale ${sale.id}; stock 16 -> 13`);
 });
 
-test('@local @inventory @serial supplier return posts a partial fraction linked to its owned receipt', async ({
+test('@configured-target @inventory @serial supplier return posts a partial fraction linked to its owned receipt', async ({
   page,
 }) => {
   const fixture = await createOwnedPurchaseFixture(page);

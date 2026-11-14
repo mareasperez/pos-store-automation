@@ -11,5 +11,20 @@ export interface ResolvedE2EConfig {
 }
 
 export function resolveEnvironment(value?: string): E2EEnvironment;
-export function loadEnvironment(value?: string): Record<string, string | undefined>;
+export function mergeEnvironment(
+  fileEnvironments?: Record<string, string | undefined>[],
+  shellEnvironment?: Record<string, string | undefined>
+): Record<string, string | undefined>;
+export function loadEnvironment(
+  value?: string,
+  shellEnvironment?: Record<string, string | undefined>,
+  fileLayers?: {
+    shared?: Record<string, string | undefined>[];
+    specific?: Record<string, string | undefined>[];
+  }
+): Record<string, string | undefined>;
 export function resolveE2EConfig(value?: string): ResolvedE2EConfig;
+export function resolveE2EConfigFromEnvironment(
+  value?: string,
+  environment?: Record<string, string | undefined>
+): ResolvedE2EConfig;

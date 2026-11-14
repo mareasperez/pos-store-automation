@@ -8,7 +8,7 @@ New Playwright baseline for `my_pos_store`, designed for manual validation first
 - Small and stable smoke suite.
 - Failure artifacts always available (trace, screenshot, video).
 - Tag-based filtering to run only what is needed.
-- Environment-driven targeting (`dev`, `qa`, `staging`, `prod`).
+- Environment-driven targeting. Localhost is the default; remote targets must be selected explicitly.
 
 ## Initial Scope
 
@@ -34,46 +34,109 @@ Copy-Item .env.example .env
 Accepted env file names:
 
 - .env
-- .env.dev, .env.qa, .env.staging, .env.prod
-- dev.env, qa.env, staging.env, prod.env
+- .env.local, .env.dev, .env.qa, .env.staging, .env.prod
+- local.env, dev.env, qa.env, staging.env, prod.env
 
-Required variables:
+For `local`, the runner safely defaults to `http://localhost:5173` and
+`http://localhost:8081/api`. Other environments require explicit frontend and
+API URLs.
+
+Required in each non-local target file:
 
 - `BASE_URL`
 - `API_URL`
+- `TEST_TENANT_ID` for tenant-scoped real specs
 
-Optional for auth/critical flows:
+Add `TEST_USERNAME`/`TEST_PASSWORD` (and numbered user variants for parallel
+auth setup) when generating authentication state. Existing suites use saved
+state only from the selected target.
 
-- `TEST_USERNAME` (or `E2E_USERNAME`)
-- `TEST_PASSWORD` (or `E2E_PASSWORD`)
+## Select a target
 
-## Dev Commands
+The generic runner defaults to `E2E_ENV=local` and reads `local.env` or
+`.env.local` when present. Select `dev`, `qa`, `staging`, or `prod` explicitly;
+the matching `<environment>.env` or `.env.<environment>` file supplies its
+URLs, tenant, credentials and any environment-specific gates. Shell variables
+remain optional overrides and take precedence over env-file values. Never rely
+on a saved session from a different target.
 
-Default dev scripts are visible (`--headed`) for manual execution.
-The main entrypoint is `npm run test`, which opens Playwright UI for the full dev suite.
-The generic filtered commands now also target `dev` by default.
+To prepare the selected fractional/manual-discount suite for a dev playground,
+configure its ignored `dev.env` or `.env.dev` once, then select that file:
 
 ```powershell
 cd e2e
-npm run test
-npm run test:smoke
-npm run test:critical
-npm run test:dev
-npm run test:smoke:dev
-npm run test:critical:dev
-npm run test:headed:dev
-npm run test:ui:dev
-npm run test:list:dev
-
-# Optional CI-like mode (headless)
-npm run test:dev:headless
-npm run test:smoke:dev:headless
-npm run test:critical:dev:headless
+npm run test:auth:setup -- --env dev
 ```
 
-Use `npm run test` when you want to inspect and launch everything from the Playwright UI.
-Use `npm run test:smoke` or `npm run test:critical` when you already know the slice you want to run in dev.
-Keep the `:dev` variants as explicit aliases and the `:headless` variants for CI-like execution.
+`test:auth:setup` signs in through the configured frontend and writes numbered
+Playwright storage states for the target tenant. The three-user setup is needed
+for the three-worker daily-use spec; each session must belong to a distinct
+cashier with the required permissions and an existing open shift. Refresh
+sessions only against the same target. Dev shares tenant/database state with
+other playground users, so fixtures are uniquely named and retained; do not
+reuse IDs from a prior run or broadly clean the tenant.
+
+Numbered sessions are assigned by Playwright's stable `parallelIndex`, not
+the process-specific `workerIndex`. A replacement worker keeps its slot's
+cashier even when other tests in a broader run have already failed. The
+daily-use spec still requires three distinct users and does not retry failed
+tests automatically.
+
+Then run the selected serial and parallel slices using the existing spec list
+and worker settings shown below. Only `--env dev` is needed to select the
+configured target; no URL/tenant command-line overrides are required. This
+change only makes the suite target-aware;
+the 18/18 serial and 3/3 parallel results recorded below were historical local
+runs. No dev or production E2E run was performed for this portability change.
+The browser target guard validates effective API requests; the lifecycle of
+generic and environment-specific app-config artifacts remains deferred in the
+[known-gap record](../docs/known-gaps/frontend-app-config-artifacts.md).
+Unrelated telemetry and frontend metadata are not business API requests.
+Telemetry alone cannot satisfy the probe; application requests to an unexpected
+API origin or prefix remain blocked, as do application mutations during the probe.
+
+Production remains separately gated by `E2E_ALLOW_PROD=true` and exact equality
+between `TEST_TENANT_ID` and `E2E_PROD_TEST_TENANT_ID`. The runner additionally
+permits only the three explicitly selected read-only smoke specs with
+`--grep @smoke`; fractional/manual-discount mutation specs are not production
+coverage.
+
+## Run Commands
+
+Default scripts are visible (`--headed`) for manual execution and target local
+services. The main entrypoint is `npm run test`, which opens Playwright UI for
+the default local suite. Use `--env <environment>` to select another configured
+target; the selected environment file provides its URLs and tenant settings.
+
+```powershell
+cd e2e
+npm run test -- --env local
+npm run test:serial -- --env local --project=chromium-authenticated
+npm run test:list -- --env local
+npm run test:auth:setup -- --env local
+```
+
+`npm run test` selects `@parallel`; `npm run test:serial` selects `@serial`.
+For dev, first configure `dev.env` or `.env.dev`, then pass only `--env dev`
+to the auth setup and runner. `--list` enumerates tests without starting a
+browser or sending requests.
+
+### Isolated shift-helper regressions
+
+The shift readiness helper waits for an actionable open-shift button or the
+confirm-sale button, avoiding a stale `isEnabled()` wait when an active-shift
+lookup replaces the former. An empty ticket may keep confirm-sale disabled;
+its presence still indicates an open shift.
+
+```powershell
+node scripts\run-playwright-env.mjs --env local shift-helper.spec.ts --project=chromium-authenticated --workers=1 --retries=0 --reporter=list --output=test-results\shift-helper-green
+```
+
+These three Chromium checks use in-memory pages, empty authentication state and
+an intercepted shift POST. They do not contact an application or change a real
+shift. The disappearing-button regression failed before the fix; all three
+checks passed afterward. This is helper coverage, not a rerun of the live
+credit-sale workflow.
 
 ## Add New Tests
 
@@ -95,12 +158,12 @@ The independent parallel rerun passed **3/3 in 64.9 seconds**, with three
 existing users and **40.712 seconds of three-way browser overlap**.
 Both runs had zero retries, skips, flaky results or global errors.
 
-| Final check                    | Observed result                                   | Evidence                                                         |
-| ------------------------------ | ------------------------------------------------- | ---------------------------------------------------------------- |
-| Detailed serial workflows      | 18/18, one worker, nine files                     | `test-results/fractional-final-serial/results.json`              |
-| Parallel daily use             | 3/3, workers 0/1/2, actors 5/6/7                  | `test-results/fractional-final-parallel/results.json`            |
-| Readiness UI regressions       | 54/54 across supplier-return and quote form tests | Focused frontend Vitest run                                      |
-| Connected API/Hibernate checks | 4/4, forced offline embedded integration run      | Supplier-return HTTP cases and import ambiguity characterization |
+| Final check                    | Observed result                                            | Evidence                                                         |
+| ------------------------------ | ---------------------------------------------------------- | ---------------------------------------------------------------- |
+| Detailed serial workflows      | 18/18, one worker, nine files                              | `test-results/fractional-final-serial/results.json`              |
+| Parallel daily use             | 3/3, workers 0/1/2; actor IDs 5/6/7 in that historical run | `test-results/fractional-final-parallel/results.json`            |
+| Readiness UI regressions       | 54/54 across supplier-return and quote form tests          | Focused frontend Vitest run                                      |
+| Connected API/Hibernate checks | 4/4, forced offline embedded integration run               | Supplier-return HTTP cases and import ambiguity characterization |
 
 Parallel browser cases independently save/resume/edit a fractional draft,
 create/find/edit/reopen a quote, and edit a manual discount before paying and
@@ -110,7 +173,8 @@ real concurrent workflows, not merely tests carrying a parallel tag.
 
 The serial set includes **one API-only inventory case**; the other 17 use
 browser workflows, with API guards/readback where needed. All runs use
-test-owned records and existing saved local sessions. They do not establish
+test-owned records and existing saved sessions from the same target. These
+historical runs used local sessions. They do not establish
 last-unit stock contention, cross-tenant denial or restricted-role denial:
 all three authorized sessions belong to the same tenant and have the needed
 permissions. No new sessions or roles were created.
@@ -124,8 +188,9 @@ settlement/non-cash audit gaps, broader historical-factor/parity cases and
 refund-tax allocation G4 remain outside this bounded acceptance. Passing
 this batch is not blanket release approval.
 
-Reproduce the same selected scopes from `e2e`, after checking the local
-environment and saved-session prerequisites:
+The historical local commands below reproduce the accepted evidence. For dev,
+keep the same spec arrays and worker/grep settings, replace `--env local` with
+`--env dev`, and use the matching target-specific numbered auth states:
 
 ```powershell
 $serialSpecs = @(
@@ -149,9 +214,9 @@ node scripts\run-playwright-env.mjs --env local fractional-daily-use.real.spec.t
 Preserve previous reports before rerunning into the same output directories.
 Detailed domain proof and earlier failures are retained below.
 
-## Local fractional inventory checks
+## Configured-target fractional inventory checks
 
-Two new local-only tests cover inventory independently of sales:
+Two real tests cover inventory independently of sales:
 
 - `fractional-entry.real.spec.ts` uses the real browser to post `0.9725` of an
   owned factor-2 presentation, checks the submitted/persisted quantity and
@@ -162,7 +227,8 @@ Two new local-only tests cover inventory independently of sales:
   rejected. Entry, departure and fixed-half stock effects are exact.
 
 On 2026-11-13 both tests passed (one worker, no retries): UI 1/1 and API-only
-1/1. They require a matching numbered saved local session, an existing active
+1/1. The historical runs were local. The tests now require a matching numbered
+saved session from the configured target, an existing active
 warehouse and divisible unit, and catalog/inventory create/read permissions.
 Run after verifying the effective environment and saved tenant:
 
@@ -173,8 +239,9 @@ node scripts\run-playwright-env.mjs --env local fractional-entry.real.spec.ts fr
 
 They create owned `FQE-*` or `FQI-*` records and posted documents, retained
 for inspection; they do not modify existing products, flags or shifts. The
-browser test allows only the configured localhost UI and API loopback aliases
-on port 8081, while blocking external requests, login and token refresh. An
+browser test allows only the configured frontend/API origins (and a local
+loopback alias only when the runtime actually uses it), while blocking
+off-target requests, login, refresh and session creation. An
 earlier run timed out searching an uppercase barcode; a later passing run used
 the product name and did not verify barcode lookup. The selector now matches
 barcodes case-insensitively. On 2026-11-13, the original uppercase-barcode
@@ -195,7 +262,7 @@ evidence below separately covers sales, quotes and customer returns/voids;
 purchase, import, supplier return, fractional combos, promotions and reports
 remain outside these checks.
 
-## Local fractional purchase and supplier-return checks
+## Configured-target fractional purchase and supplier-return checks
 
 `tests/inventory/fractional-purchase-supplier-return.real.spec.ts` adds two
 owned-data serial browser cases. The final focused run observed **2 passed
@@ -227,7 +294,7 @@ under `test-results/fractional-stock-docs-dialog-fixed`.
 node scripts\run-playwright-env.mjs --env local fractional-purchase-supplier-return.real.spec.ts --project=chromium-authenticated --workers=1 --retries=0 --reporter=list --output=test-results\fractional-stock-docs-dialog-fixed
 ```
 
-## Local fractional catalog, XLSX import and reporting
+## Configured-target fractional catalog, XLSX import and reporting
 
 The three focused serial cases passed in an independent parent run:
 **3/3 in 1.5 minutes**, one worker, no retries.
@@ -278,7 +345,7 @@ This is isolated backend evidence only. No local server or live E2E run was
 performed after the change, and the earlier browser result covers only the
 distinct-type path; live E2E acceptance remains pending.
 
-## Local fractional combos and promotions
+## Configured-target fractional combos and promotions
 
 `tests/pos/fractional-combo-promotion.real.spec.ts` contains two owned-data
 serial browser cases. The writer observed **2/2 passed in 4.2 minutes**;
@@ -302,7 +369,7 @@ presentation parity or every lifecycle edge case.
 node scripts\run-playwright-env.mjs --env local fractional-combo-promotion.real.spec.ts --project=chromium-authenticated --workers=1 --retries=0 --reporter=list --max-failures=1 --output=test-results\fractional-combo-promo-parent-final
 ```
 
-## Local fractional commercial lifecycle — C1–C5
+## Configured-target fractional commercial lifecycle — C1–C5
 
 `tests/pos/fractional-commercial.real.spec.ts` adds seven real-server tests:
 C1, three C2 datasets, C3, C4 and C5. Primary actions use the browser; API reads
@@ -379,10 +446,10 @@ was made in this batch.
 
 ### Safety, retained fixtures and unresolved gaps
 
-The preflight checks effective local URLs, runtime loopback alias, saved
-`test-tenant-2` identity, discount permission, empty saved cart/drafts, NIO and
+The preflight checks the configured frontend/API URLs and runtime API match,
+the saved active tenant, discount permission, empty saved cart/drafts, NIO and
 an existing OPEN shift before writes. Browser requests outside the authorized
-localhost UI/API origins, including login/refresh, are denied. Fixtures are
+target origins, including login/refresh/session creation, are denied. Fixtures are
 unique `FC-*`; only their own presentation policies change. No user cart,
 draft, product or shift lifecycle is modified; no login, service operation,
 dependency change or global flag rollout is performed. Records remain for
@@ -431,25 +498,24 @@ final C4 used products 1115–1116/customer 175. Earlier attempts retain product
   and report scenarios remain outside this commercial slice, as do remote,
   concurrency, broader permission/tenant and deployment acceptance.
 
-## Local inventory quantity rejection
+## Configured-target inventory quantity rejection
 
-The real-server `tests/inventory/entries/quantity-rejection.real.spec.ts` is authored but
-**blocked by its existing exact-origin preflight**: on 2026-11-13 the runtime
-configuration used `127.0.0.1:8081` instead of its required `localhost:8081`;
-the run stopped before fixture creation. With the local UI and API already running, a saved local
-session for `TEST_TENANT_ID`, and no concurrent catalog edits, run:
+The real-server `tests/inventory/entries/quantity-rejection.real.spec.ts` was
+historically **blocked before fixture creation** because its exact-origin
+preflight expected `localhost:8081` while runtime configuration used
+`127.0.0.1:8081`. The preflight now validates the configured API target and
+allows only a runtime-used local alias. With the selected UI/API already
+running, a saved session matching `TEST_TENANT_ID`, and no concurrent catalog
+edits, run:
 
 ```powershell
 cd e2e
-$env:E2E_ENV = 'local'
-$env:BASE_URL = 'http://localhost:5173'
-$env:API_URL = 'http://localhost:8081/api'
 node scripts\run-playwright-env.mjs --env local tests/inventory/entries/quantity-rejection.real.spec.ts --project=chromium-authenticated --workers=1
 ```
 
-The environment loader can override shell variables with local env files; ensure both URLs
-and tenant match. The test refuses other targets and mismatched saved tenants, and blocks
-nonlocal browser requests. It needs an active warehouse, a `UNIT` presentation type, and
+The environment loader gives explicit shell variables precedence over env files.
+The test refuses mismatched runtime API targets or saved tenants, and blocks
+off-target browser requests. It needs an active warehouse, a `UNIT` presentation type, and
 permissions to view/create products, view warehouses and create inventory entries, plus
 catalog/presentation and stock read access. It creates a uniquely named `QRE-*` product and
 presentation and leaves them for inspection; it does not change existing catalog records.
@@ -460,10 +526,10 @@ the second row, then corrects the draft without posting it. No inventory entry i
 created; if the API incorrectly accepts the request, an entry and stock movement for the
 test-owned product may be created before the test fails. The rejection itself remains unverified.
 
-## Local POS manual sale discount
+## Configured-target POS manual sale discount
 
 `tests/pos/manual-sale-discount.real.spec.ts` contains two real-server scenarios,
-**both locally passed in separate parent-observed runs on 2026-11-13**:
+**both passed in separate parent-observed local runs on 2026-11-13**:
 
 - Required/negative/over-total/sub-cent amount blocking; add and edit with Enter;
   backdrop preservation, Cancel/Escape discard; manual saved-sales disclosure;
@@ -477,22 +543,22 @@ test-owned product may be created before the test fails. The rejection itself re
   and receipt unit snapshot stay at 0.5, and raw stock decreases exactly from 10
   to 9.5 base units (factor 1).
 
-Run only after explicitly authorizing local financial/catalog mutations:
+Run only against an explicitly authorized target because these cases create
+catalog records and a completed sale:
 
 ```powershell
 cd e2e
 node scripts\run-playwright-env.mjs --env local tests/pos/manual-sale-discount.real.spec.ts --project=chromium-authenticated --workers=1
 ```
 
-Prerequisites: already-running UI `http://localhost:5173`, API
-`http://localhost:8081/api`, explicit `TEST_TENANT_ID`, and a valid numbered
-`playwright/.auth/user-N.json` localhost cashier session matching that tenant.
+Prerequisites: already-running configured UI/API, explicit `TEST_TENANT_ID`,
+and a valid numbered `playwright/.auth/user-N.json` session from that same
+target and tenant.
 The worker fixture selects numbered auth files, not project `user.json`.
-The environment loader overrides shell values with env files even for `--list`;
-ensure the resolved local URLs match. Runtime app configuration may use
-`http://127.0.0.1:8081` instead. The spec checks targets, runtime API, saved tenant,
+Shell values override env-file values even for `--list`. The spec checks the
+configured targets, runtime API, saved tenant,
 discount permission and empty saved cart/drafts before creating records, and
-blocks nonlocal browser traffic. It does not log in or change authorization.
+blocks off-target browser traffic. It does not log in or change authorization.
 
 Use an isolated NIO test tenant with receipt locale configured, an active `UNIT`
 presentation type, an existing divisible presentation type with an abbreviation,
@@ -536,7 +602,7 @@ Those six attempts reached no sale/payment or discounted draft. Failure screensh
 traces and HTML reports are retained under
 `test-results/manual-discount-local*` and
 `playwright-report/manual-discount-local*`; blocked external font requests are
-expected from the local-only network guard.
+expected from the configured-target network guard.
 
 Typechecking and scoped lint/format checks are separate from E2E proof.
 Permission-denied actors, frozen quote rejection, IME/Shift+Enter and legacy
@@ -561,13 +627,10 @@ localhost session, matching `TEST_TENANT_ID` in `local.env`, and an existing ope
 
 ```powershell
 cd e2e
-$env:E2E_ENV = 'local'
-$env:BASE_URL = 'http://localhost:5173'
-$env:API_URL = 'http://localhost:8081/api'
 node scripts\run-playwright-env.mjs --env local combo-lifecycle.real.spec.ts --project=chromium-authenticated --workers=1
 ```
 
-The loader applies `local.env` after default files; ensure its target values match the command.
+`--env local` selects the local configuration from `local.env` or `.env.local`.
 The spec independently refuses nonlocal targets, a mismatched tenant or nonlocal runtime API,
 and blocks external browser requests. It never opens/closes shifts, logs in, or restarts services.
 Logging into an unrelated browser does not refresh `playwright/.auth/user-*.json`.
@@ -665,8 +728,8 @@ cd e2e
 node scripts\run-playwright-env.mjs --env local tests/catalog/products/list-pagination.spec.ts tests/catalog/products/edit.spec.ts --project=chromium-authenticated --workers=3 --fully-parallel --retries=0 --max-failures=1
 ```
 
-Verify that the environment loader resolves `BASE_URL=http://localhost:5173` and
-`API_URL=http://localhost:8081/api` before running; env files override shell values.
+Verify that the environment loader resolves the intended URLs before running;
+explicit shell values override env-file values.
 Do not refresh sessions or restart services as part of this check. Stop if authentication expires
 or a captcha blocks the flow. Product edit tests create unique products, initial stock and
 presentations; these records remain for inspection, with no automatic cleanup.
@@ -681,49 +744,44 @@ remove lazy-module latency or increase global timeouts.
 
 ### Run Against Localhost
 
-The checked-in E2E defaults target the deployed `dev` environment. To run locally, override the
-target variables in PowerShell. Keep captcha disabled in the local backend and frontend because
-the real Turnstile challenge requires an interactive browser user.
+Localhost is the default target. To make the target explicit, set the local
+URLs in PowerShell. Keep captcha disabled in the local backend and frontend
+because the real Turnstile challenge requires an interactive browser user.
 
 ```powershell
 cd e2e
-$env:E2E_ENV = 'dev'
-$env:BASE_URL = 'http://localhost:5173'
-$env:API_URL = 'http://localhost:8081/api'
-npm run test:auth:setup
-npm run test:dev:headless
+npm run test:auth:setup -- --env local
+npm run test:serial -- --env local --project=chromium-authenticated
 ```
 
 Before starting the local frontend, set `VITE_TURNSTILE_ENABLED=false` in `frontend/.env.local`
 and restart Vite. For the local backend, set `APP_SECURITY_CAPTCHA_ENABLED=false` in
 `backend/mystore-api/.env`.
 
-To run against deployed dev instead, use the existing `.env` values and omit the localhost
-overrides above.
+To run against deployed dev, configure `dev.env` or `.env.dev` once, then use
+`--env dev` for auth setup and the runner; no URL or tenant shell assignments
+are required.
 
-### Production Sandbox Testing
+### Production Sandbox Smoke
 
 Production E2E is allowed only against the dedicated fake-data tenant and requires an explicit
 tenant confirmation:
 
 ```powershell
 cd e2e
-$env:E2E_ENV = 'prod'
-$env:BASE_URL = 'https://myposgo.app'
-$env:API_URL = '<your-production-api-base>/api'
-$env:TEST_USERNAME = '<production-sandbox-user>'
-$env:TEST_PASSWORD = '<production-sandbox-password>'
-$env:TEST_TENANT_ID = '<production-sandbox-tenant-id>'
-$env:E2E_PROD_TEST_TENANT_ID = '<production-sandbox-tenant-id>'
-$env:E2E_ALLOW_PROD = 'true'
-npm run test:auth:setup:prod
-npm run test:prod
+node scripts\create-auth-state.mjs --env prod
+node scripts\run-playwright-env.mjs --env prod tests\smoke\api.spec.ts tests\smoke\landing.spec.ts tests\smoke\tenant-isolation.spec.ts --grep '@smoke'
 ```
 
-Create `e2e/prod.env` from the included template and fill in the production API host, sandbox
-credentials, and tenant ID. The commands load that file automatically. They refuse to run unless
-`TEST_TENANT_ID` equals `E2E_PROD_TEST_TENANT_ID`. Use the dedicated sandbox credentials and data
-only. The `test:prod:smoke` command remains available for read-only checks.
+Use an ignored `e2e/prod.env` or `.env.prod` only when explicitly authorized;
+keep its URLs, credentials, tenant IDs, `E2E_ALLOW_PROD=true`, and matching
+`E2E_PROD_TEST_TENANT_ID` out of source control. The commands load that file
+automatically. They refuse to run unless
+`E2E_ALLOW_PROD=true` and `TEST_TENANT_ID` equals `E2E_PROD_TEST_TENANT_ID`.
+The runner accepts only the three explicitly selected read-only smoke specs
+with `--grep @smoke`; it rejects broad suites and financial mutation specs.
+Use the dedicated sandbox credentials and data only. This production gate is
+independent of the configured-target fractional suite.
 
 ### One Cashier Per Worker
 
@@ -733,7 +791,8 @@ billing at once — instead of cloning one cashier N times and having it fight o
 Tenant-wide state (stock, numbering sequences) stays shared on purpose: that contention is the
 scenario worth testing.
 
-Configure one credential pair per worker in `e2e/.env` (never commit them):
+Configure one credential pair per worker in the selected target file, such as
+`e2e/dev.env` or `e2e/.env.dev` (never commit credentials):
 
 ```ini
 TEST_USERNAME=<cashier-1>
@@ -744,10 +803,11 @@ TEST_USERNAME_3=<cashier-3>
 TEST_PASSWORD_3=<cashier-3-password>
 ```
 
-All users must belong to `TEST_TENANT_ID` and hold the same POS permissions. `npm run test:auth:setup`
-walks through every configured user in a single run — with Turnstile enabled you solve one challenge
-per user — and writes `playwright/.auth/user-0.json`, `user-1.json`, ... plus a `user.json` mirror of
-slot 0 kept for backwards compatibility.
+All users must belong to that environment file's `TEST_TENANT_ID` and hold the
+same POS permissions. Run `npm run test:auth:setup -- --env <environment>` to
+walk through each configured user in one run — with Turnstile enabled, solve
+one challenge per user. The script writes numbered storage states for the
+selected target plus a `user.json` mirror of slot 0 for backwards compatibility.
 
 Workers pick their session by `workerIndex` through the `@fixtures` module, so specs import `test`
 and `expect` from `@fixtures` instead of `@playwright/test` (type-only imports still come from
@@ -757,12 +817,25 @@ warns about it.
 ### Generate Auth State Against Deployed Dev
 
 Because deployed dev has real Turnstile enabled, generate the saved session in headed mode and
-complete the challenge manually once:
+complete the challenge manually once. Configure three distinct cashier credential pairs first
+when running the parallel daily-use cases; see [One Cashier Per Worker](#one-cashier-per-worker).
 
 ```powershell
 cd e2e
-npm run test:auth:setup
-npm run test:dev:headless
+npm run test:auth:setup -- --env dev
+$serialSpecs = @(
+  'tests\pos\manual-sale-discount.real.spec.ts'
+  'tests\pos\fractional-commercial.real.spec.ts'
+  'tests\inventory\entries\fractional-entry.real.spec.ts'
+  'tests\inventory\entries\fractional-inventory.api.real.spec.ts'
+  'tests\inventory\fractional-purchase-supplier-return.real.spec.ts'
+  'tests\pos\fractional-combo-promotion.real.spec.ts'
+  'tests\fractional\fractional-catalog-eligibility.real.spec.ts'
+  'tests\fractional\fractional-inventory-import.real.spec.ts'
+  'tests\fractional\fractional-discount-report.real.spec.ts'
+)
+node scripts\run-playwright-env.mjs --env dev @serialSpecs --project=chromium-authenticated --workers=1 --retries=0 --grep '@serial'
+node scripts\run-playwright-env.mjs --env dev tests\pos\fractional-daily-use.real.spec.ts --project=chromium-authenticated --workers=3 --retries=0 --grep '@parallel'
 ```
 
 The generated `playwright/.auth/user-*.json` files are then reused by the authenticated E2E tests.

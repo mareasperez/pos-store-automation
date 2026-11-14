@@ -7,7 +7,7 @@ import {
   stockIs,
   type FractionalPresentation,
 } from '../../support/flows/fractional.flow';
-import { assertLocalSavedSession } from './fractional-real.helpers';
+import { assertConfiguredSavedSession } from './fractional-real.helpers';
 
 interface ImportResult {
   successCount: number;
@@ -98,10 +98,10 @@ async function importInventoryWorkbook(
   return result;
 }
 
-test('@local @serial imports fractional stock in create and update modes with partial rejects', async ({
+test('@configured-target @serial imports fractional stock in create and update modes with partial rejects', async ({
   page,
 }) => {
-  const assertNoAuthRequests = await assertLocalSavedSession(page, [
+  const assertNoAuthRequests = await assertConfiguredSavedSession(page, [
     'settings:general:edit',
     'products:create',
     'products:edit',
