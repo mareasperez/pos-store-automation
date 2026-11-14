@@ -21,6 +21,7 @@ import {
   type ShiftLedger,
 } from '../../support/flows/fractional.flow';
 import { addExactItem, openQuoteUi } from '../../support/flows/combos.flow';
+import { waitForQuoteSaleReady } from '../../support/flows/quotes.flow';
 import type { CommercialDocument } from '../../support/flows/combos.flow';
 import type { Page } from '@playwright/test';
 
@@ -203,6 +204,7 @@ test('@serial @configured-target @fractional C3 UI quote edit, frozen price, dis
       salePosts += 1;
   });
   await page.getByTestId('quote-detail-sell').click();
+  await waitForQuoteSaleReady(page);
   await expect(page.getByTestId('pos-quote-fractional-block')).toContainText(item.name);
   await expect(page.locator('[data-testid="pos-confirm-sale"]:visible')).toBeDisabled();
   expect(salePosts).toBe(0);
@@ -225,6 +227,7 @@ test('@serial @configured-target @fractional C3 UI quote edit, frozen price, dis
   });
   await openQuoteUi(page, quote);
   await page.getByTestId('quote-detail-sell').click();
+  await waitForQuoteSaleReady(page);
   await expect(page.getByTestId('pos-quote-panel')).toBeVisible();
   const sale = await payFractional(page, fixture, '83.11', '83.11', quote.id);
   expect(Number(sale.lines[0].quantity)).toBe(0.972);

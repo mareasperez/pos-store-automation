@@ -4,7 +4,7 @@ const storageState = { cookies: [], origins: [] };
 
 export default defineConfig({
   testDir: './tests',
-  testMatch: '**/helpers/*-helper.spec.ts',
+  testMatch: ['**/helpers/*-helper.spec.ts', '**/helpers/target.flow.spec.ts'],
   timeout: 15_000,
   expect: { timeout: 5_000 },
   fullyParallel: false,

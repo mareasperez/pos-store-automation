@@ -3,6 +3,8 @@ import { type Locator, type Page, type Response } from '@playwright/test';
 import { config } from '@config';
 import { expect, serialDescribe, test } from '@fixtures';
 import { buildApiHeaders } from '../../utils/apiHeaders';
+import { assertConfiguredTarget } from '../../support/flows/target.flow';
+import { expenseTimeZone } from '../../support/flows/expense-preflight.flow';
 
 /* eslint playwright/expect-expect: off -- exerciseExpense and preflight contain the real assertions. */
 
@@ -169,35 +171,7 @@ async function preflight(page: Page): Promise<string> {
     state.origins.every((origin) => origin.origin === appOrigin),
     'BLOCKED: saved test session must belong only to the configured UI origin'
   ).toBe(true);
-  const store = state.origins
-    .find((origin) => origin.origin === appOrigin)
-    ?.localStorage.find((item) => item.name === 'pos_app_store');
-  const saved = store ? (JSON.parse(store.value) as { state: { activeTenantId: string } }) : null;
-  expect(
-    saved?.state.activeTenantId,
-    'BLOCKED: saved session tenant must equal the configured E2E test tenant'
-  ).toBe(tenantId);
-  await buildApiHeaders(page);
-  const runtime = await page.request.get(`${config.baseUrl}/config/app-config.json`, {
-    maxRedirects: 0,
-  });
-  expect(runtime.ok(), 'BLOCKED: configured UI runtime config is unavailable').toBe(true);
-  const runtimeConfig = (await runtime.json()) as {
-    apiUrl: string;
-    defaults?: { timeZone?: string };
-  };
-  const runtimeApi = new URL(runtimeConfig.apiUrl, config.baseUrl);
-  const runtimeApiPath = runtimeApi.pathname.replace(/\/+$/, '');
-  const configuredApiPaths = [
-    '',
-    new URL(config.apiUrl).pathname.replace(/\/+$/, ''),
-    new URL(config.apiRoot).pathname.replace(/\/+$/, ''),
-  ];
-  expect(
-    isConfiguredApiOrigin(runtimeApi.origin) && configuredApiPaths.includes(runtimeApiPath),
-    'BLOCKED: runtime API must match the configured E2E API host and path'
-  ).toBe(true);
-  const allowedOrigins = [appOrigin, apiOrigin, runtimeApi.origin];
+  const allowedOrigins = [appOrigin, apiOrigin];
   expect(
     state.cookies.every((cookie) =>
       allowedOrigins.some(
@@ -206,11 +180,23 @@ async function preflight(page: Page): Promise<string> {
     ),
     'BLOCKED: saved test session contains cookies outside the configured UI/API hosts'
   ).toBe(true);
-  await page.context().route('**/*', (route) => {
-    const origin = new URL(route.request().url()).origin;
-    return allowedOrigins.includes(origin) ? route.continue() : route.abort('blockedbyclient');
-  });
   await page.context().routeWebSocket('**/*', (socket) => socket.close());
+  const runtimeConfigs: Promise<{ defaults?: { timeZone?: string } }>[] = [];
+  page.on('response', (response) => {
+    const url = new URL(response.url());
+    if (
+      url.origin === appOrigin &&
+      url.pathname.startsWith('/config/') &&
+      url.pathname.endsWith('.json') &&
+      response.ok()
+    ) {
+      runtimeConfigs.push(response.json() as Promise<{ defaults?: { timeZone?: string } }>);
+    }
+  });
+  const assertTargetRequests = await assertConfiguredTarget(page, {
+    requiredPermissions: ['expenses:view', 'expenses:create', 'expenses:void', 'reports:view'],
+  });
+  await buildApiHeaders(page);
   const actor = await api<{ permissions: string[] }>(page, '/me');
   for (const permission of ['expenses:view', 'expenses:create', 'expenses:void', 'reports:view']) {
     expect(
@@ -231,13 +217,10 @@ async function preflight(page: Page): Promise<string> {
     page,
     `/tenants/${encodeURIComponent(tenantId)}/settings`
   );
-  const timeZone = settings.timeZone || runtimeConfig.defaults?.timeZone;
-  expect(
-    timeZone,
-    'BLOCKED: tenant/runtime business time zone must be available; never guess report dates'
-  ).toBeTruthy();
-  new Intl.DateTimeFormat('en-CA', { timeZone }).format(new Date());
-  return timeZone!;
+  const configs = await Promise.all(runtimeConfigs);
+  const timeZone = expenseTimeZone(settings.timeZone, configs);
+  assertTargetRequests();
+  return timeZone;
 }
 
 function responseFor(page: Page, method: string, endpoint: string): Promise<Response> {

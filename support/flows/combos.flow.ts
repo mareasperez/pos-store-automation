@@ -4,6 +4,7 @@ import { expect } from '@fixtures';
 import { config } from '@config';
 import { buildApiHeaders } from '../../utils/apiHeaders';
 import { getWarehouseStock } from './quotes.flow';
+import { assertConfiguredTarget } from './target.flow';
 
 export interface Presentation {
   id: number;
@@ -86,39 +87,62 @@ export async function api<T>(page: Page, path: string, method = 'GET', data?: un
   return (await response.json()) as T;
 }
 
-export async function localPreflight(page: Page): Promise<void> {
+export function assertComboActorAndShift(
+  savedUser: { id?: number; username?: string } | undefined,
+  actor: { username: string; permissions: string[] },
+  shift: { userId: number; status: string },
+  permissions: readonly string[]
+): void {
+  expect(savedUser?.id, 'Saved actor ID is required').toBeTruthy();
+  expect(savedUser?.username, 'Saved actor username is required').toBeTruthy();
+  expect(actor.username, 'Saved actor must match the authenticated actor').toBe(
+    savedUser?.username
+  );
+  expect(actor.permissions).toEqual(expect.arrayContaining([...permissions]));
+  expect(shift.status, 'C7 requires an existing open shift; never closes it').toBe('OPEN');
+  expect(shift.userId, 'C7 must use the authenticated actor’s shift').toBe(savedUser?.id);
+}
+
+export function assertComboEnvironment(environment: string): void {
+  expect(
+    ['local', 'dev'],
+    'Combo mutations are restricted to local or explicitly selected dev'
+  ).toContain(environment);
+}
+
+export async function comboPreflight(page: Page): Promise<() => void> {
   page.setDefaultTimeout(15_000);
-  expect(config.environment, 'Only the explicitly authorized local environment may run C7').toBe(
-    'local'
-  );
-  expect(config.baseUrl).toBe('http://localhost:5173');
-  expect(config.apiRoot).toBe('http://localhost:8081/api');
-  expect(config.tenantId, 'An explicit local test tenant is required').toBeTruthy();
+  assertComboEnvironment(config.environment);
+  const permissions = [
+    'products:view',
+    'products:create',
+    'products:edit',
+    'customers:view',
+    'customers:create',
+    'inventory:view',
+    'warehouses:view',
+    'sales:create',
+    'sales:view',
+    'sales:void',
+    'returns:create',
+    'quotes:create',
+    'quotes:view',
+  ];
+  const assertTargetRequests = await assertConfiguredTarget(page, {
+    requiredPermissions: permissions,
+  });
   const state = await page.context().storageState();
-  const origin = state.origins.find((item) => item.origin === config.baseUrl);
+  const origin = state.origins.find((item) => item.origin === new URL(config.baseUrl).origin);
   const store = origin?.localStorage.find((item) => item.name === 'pos_app_store');
-  const saved = store ? (JSON.parse(store.value) as { state: { activeTenantId: string } }) : null;
-  expect(saved?.state.activeTenantId, 'Saved local session must match the authorized tenant').toBe(
-    config.tenantId
-  );
-  const runtime = await page.request.get(`${config.baseUrl}/config/app-config.json`);
-  expect(runtime.ok()).toBe(true);
-  const runtimeConfig = (await runtime.json()) as { apiUrl: string };
-  expect(['localhost', '127.0.0.1']).toContain(new URL(runtimeConfig.apiUrl).hostname);
-  expect(new URL(runtimeConfig.apiUrl).port).toBe('8081');
-  // Safety boundary only: real local UI/API requests are never intercepted or mocked.
-  await page
-    .context()
-    .route('**/*', (route) =>
-      ['localhost', '127.0.0.1'].includes(new URL(route.request().url()).hostname)
-        ? route.continue()
-        : route.abort('blockedbyclient')
-    );
-  const shift = await api<{ id: number; status: string }>(page, '/shifts/active');
-  expect(shift.status, 'C7 requires an existing authorized local shift; never closes it').toBe(
-    'OPEN'
-  );
+  const saved = store
+    ? (JSON.parse(store.value) as { state: { user?: { id?: number; username?: string } } })
+    : null;
+  const actor = await api<{ username: string; permissions: string[] }>(page, '/me');
+  const shift = await api<{ id: number; userId: number; status: string }>(page, '/shifts/active');
+  assertComboActorAndShift(saved?.state.user, actor, shift, permissions);
   console.log(`C7 using existing shift ${shift.id}; it will remain open`);
+  assertTargetRequests();
+  return assertTargetRequests;
 }
 
 export async function seedFixture(page: Page, stock = 60): Promise<Fixture> {
@@ -128,7 +152,7 @@ export async function seedFixture(page: Page, stock = 60): Promise<Fixture> {
     '/inventory/warehouses'
   );
   const warehouse = warehouses.find((item) => item.active);
-  expect(warehouse, 'An active local warehouse is required').toBeTruthy();
+  expect(warehouse, 'An active warehouse is required').toBeTruthy();
   const types = await api<{ content: { id: number; code: string }[] }>(page, '/presentation-types');
   const unitId = types.content.find((type) => type.code === 'UNIT')?.id;
   const packTypeId = types.content.find((type) => type.code === 'PACK')?.id;
@@ -230,7 +254,7 @@ export async function createComboUi(page: Page, fixture: Fixture, suffix = ''): 
   const component = page.getByTestId(`combo-component-${fixture.physical.id}`);
   await component.getByRole('combobox').click();
   await page.getByRole('option', { name: /×3/ }).click();
-  await component.getByRole('spinbutton', { name: /Cantidad/ }).fill('2');
+  await component.getByLabel(`Cantidad - ${fixture.physical.name}`, { exact: true }).fill('2');
   await page.locator('#combo-fixed-price').fill('90');
   const response = responseFor(page, 'POST', '/combos');
   await page.getByRole('button', { name: /^Guardar combo$/i }).click();

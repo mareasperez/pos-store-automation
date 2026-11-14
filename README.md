@@ -116,6 +116,18 @@ npm run test:list -- --env local
 npm run test:auth:setup -- --env local
 ```
 
+### Offline serial-repair helper checks
+
+These in-memory tests intercept application requests and use synthetic configuration. The preload
+guard prevents the helper process from reading local target environment files:
+
+```powershell
+$env:E2E_ENV='dev'; $env:BASE_URL='https://ui.example.invalid'
+$env:API_URL='https://api.example.invalid/api'; $env:TEST_TENANT_ID='offline-helper-tenant'
+$env:NODE_OPTIONS='--require=./tests/helpers/offline-env-guard.cjs'
+npx playwright test serial-repair-helper.spec.ts target.flow.spec.ts --config=playwright.helper.config.ts --project=chromium-authenticated --workers=1 --retries=0 --reporter=list --output=test-results/serial-repair-isolated
+```
+
 `npm run test` selects `@parallel`; `npm run test:serial` selects `@serial`.
 For dev, first configure `dev.env` or `.env.dev`, then pass only `--env dev`
 to the auth setup and runner. `--list` enumerates tests without starting a
@@ -642,19 +654,21 @@ readiness and a shared helper to open the menu before Close Shift. Their existin
 real lifecycle/reconciliation mutations remain unchanged; do not run them as
 part of discount validation against a user's shift.
 
-## Local Combo Lifecycle (C7)
+## Configured-target Combo Lifecycle (C7)
 
-Run only against the already-running, explicitly authorized local UI/API with a valid saved
-localhost session, matching `TEST_TENANT_ID` in `local.env`, and an existing open cashier shift:
+Run only against an explicitly authorized local or dev UI/API with a matching saved tenant and
+an existing open shift owned by that cashier. Local remains the default; dev must be selected
+explicitly and production mutations remain prohibited:
 
 ```powershell
 cd e2e
 node scripts\run-playwright-env.mjs --env local combo-lifecycle.real.spec.ts --project=chromium-authenticated --workers=1
 ```
 
-`--env local` selects the local configuration from `local.env` or `.env.local`.
-The spec independently refuses nonlocal targets, a mismatched tenant or nonlocal runtime API,
-and blocks external browser requests. It never opens/closes shifts, logs in, or restarts services.
+Use `--env dev` only with explicit authorization and matching dev configuration and saved session.
+The shared read-only probe checks the effective browser API target before any fixture writes;
+the spec verifies tenant, permissions, actor and shift ownership. It never opens/closes shifts,
+logs in, or restarts services.
 Logging into an unrelated browser does not refresh `playwright/.auth/user-*.json`.
 
 The six real, unmocked scenarios create uniquely prefixed `C7-*` products, service components,
@@ -664,7 +678,7 @@ rejection and aggregate shared-component demand. Raw warehouse base-unit stock a
 refund/shift-cash results are asserted. Test-owned records intentionally remain for inspection;
 each rerun creates new names and prints identifiers. Do not run broad cleanup against the tenant.
 
-Observed on 2026-10-30: **all six scenarios passed, none skipped, retries disabled**.
+Observed locally on 2026-10-30: **all six scenarios passed, none skipped, retries disabled**.
 The final six-scenario run passed five and hit the lifecycle's 180-second overall budget;
 one focused lifecycle rerun passed in 3.3 minutes after giving that longer scenario a bounded
 300-second budget. The other five retain their 180-second budget. No full-suite rerun was needed.

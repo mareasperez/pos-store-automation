@@ -18,6 +18,19 @@ export interface ReturnSaleDetail {
   lines: ReturnSaleLine[];
 }
 
+export async function fillReturnSaleQuantities(
+  page: Page,
+  lines: readonly ReturnSaleLine[]
+): Promise<void> {
+  const indexes = new Map<string, number>();
+  for (const line of lines) {
+    const key = `${line.productId}:${line.presentationId}`;
+    const index = indexes.get(key) ?? 0;
+    await page.getByTestId(`customer-return-qty-${key}`).nth(index).fill(String(line.quantity));
+    indexes.set(key, index + 1);
+  }
+}
+
 export interface ReturnDTO {
   id: number;
   saleId: number;

@@ -8,7 +8,7 @@ import {
   createQuoteUi,
   customerSaleCount,
   expectedCash,
-  localPreflight,
+  comboPreflight,
   openPos,
   openQuoteUi,
   responseFor,
@@ -18,14 +18,22 @@ import {
   type Combo,
   type CommercialDocument,
 } from '../../support/flows/combos.flow';
+import { waitForQuoteCatalogReady } from '../../support/flows/quotes.flow';
 
 test.setTimeout(180_000);
 
+let assertTargetRequests: (() => void) | undefined;
+
 test.beforeEach(async ({ page }) => {
-  await localPreflight(page);
+  assertTargetRequests = undefined;
+  assertTargetRequests = await comboPreflight(page);
 });
 
-test('@serial @combos @local creates, sells, verifies remaining returns, voids and resells', async ({
+test.afterEach(() => {
+  assertTargetRequests?.();
+});
+
+test('@serial @combos @configured-target creates, sells, verifies remaining returns, voids and resells', async ({
   page,
 }) => {
   test.setTimeout(300_000);
@@ -82,7 +90,7 @@ test('@serial @combos @local creates, sells, verifies remaining returns, voids a
   expect(await expectedCash(page, fixture)).toBeCloseTo(cashBefore + 180, 2);
 });
 
-test('@serial @combos @local rejects changed allocations then explicitly edits, reprices and converts the quote', async ({
+test('@serial @combos @configured-target rejects changed allocations then explicitly edits, reprices and converts the quote', async ({
   page,
 }) => {
   const fixture = await seedFixture(page);
@@ -134,7 +142,7 @@ test('@serial @combos @local rejects changed allocations then explicitly edits, 
   expect(Number(persistedQuote.total)).toBe(240);
 });
 
-test('@serial @combos @local rejects changed recipe then UI edit recreates current recipe and price', async ({
+test('@serial @combos @configured-target rejects changed recipe then UI edit recreates current recipe and price', async ({
   page,
 }) => {
   const fixture = await seedFixture(page);
@@ -165,9 +173,14 @@ test('@serial @combos @local rejects changed recipe then UI edit recreates curre
 
   await openQuoteUi(page, stale);
   await page.getByTestId('quote-detail-edit').click();
-  const editedResponse = responseFor(page, 'PUT', `/quotes/${stale.id}`);
-  await page.getByTestId('quote-form-save').click();
-  const result = await editedResponse;
+  await waitForQuoteCatalogReady(page);
+  await expect(page.getByTestId('quote-form-totals')).toContainText('300');
+  const save = page.getByTestId('quote-form-save');
+  await expect(save).toBeEnabled();
+  const [result] = await Promise.all([
+    responseFor(page, 'PUT', `/quotes/${stale.id}`),
+    save.click(),
+  ]);
   expect(result.status(), await result.text()).toBe(200);
   const edited = (await result.json()) as CommercialDocument;
   expect(Number(edited.total)).toBe(300);
@@ -194,7 +207,7 @@ const ineligibleStates = [
 ];
 
 for (const state of ineligibleStates) {
-  test(`@serial @combos @local rejects ${state.name} saved combo quote without stock or sale mutation`, async ({
+  test(`@serial @combos @configured-target rejects ${state.name} saved combo quote without stock or sale mutation`, async ({
     page,
   }) => {
     const fixture = await seedFixture(page);
@@ -212,7 +225,7 @@ for (const state of ineligibleStates) {
   });
 }
 
-test('@serial @combos @local aggregates overlapping combo and standalone presentation demand', async ({
+test('@serial @combos @configured-target aggregates overlapping combo and standalone presentation demand', async ({
   page,
 }) => {
   const fixture = await seedFixture(page, 12);

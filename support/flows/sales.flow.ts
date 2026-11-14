@@ -224,57 +224,19 @@ export async function addProductToCart(
   const searchInput = page.getByTestId('pos-product-search');
   await searchInput.fill(productName.substring(0, 30));
 
-  await expect(page.getByRole('option').first()).toBeVisible({ timeout: 10_000 });
-  const options = page.getByRole('option');
-  const count = await options.count();
-
+  const list = page.getByRole('listbox', {
+    name: /^(Sugerencias de productos|Product suggestions)$/,
+  });
+  let options = list
+    .getByRole('option')
+    .filter({ has: page.getByText(productName, { exact: true }) })
+    .filter({ hasNotText: /sin stock|out of stock/i });
   if (presentationName) {
-    for (let index = 0; index < count; index += 1) {
-      const option = options.nth(index);
-      const text = (await option.textContent()) ?? '';
-      const lowerText = text.toLowerCase();
-      const hasStock = !lowerText.includes('sin stock') && !lowerText.includes('out of stock');
-      const matchesProduct = text.includes(productName.substring(0, 20));
-      const matchesPresentation = text.includes(presentationName);
-
-      if (hasStock && matchesProduct && matchesPresentation) {
-        await option.click();
-        await expect(page.getByText(productName, { exact: false })).toBeVisible({
-          timeout: 10_000,
-        });
-        return;
-      }
-    }
-    throw new Error(
-      `No option matched product "${productName}" with presentation "${presentationName}" and stock.`
-    );
+    options = options.filter({ has: page.getByText(presentationName, { exact: true }) });
   }
-
-  for (let index = 0; index < count; index += 1) {
-    const option = options.nth(index);
-    const text = (await option.textContent()) ?? '';
-    const lowerText = text.toLowerCase();
-    const hasStock = !lowerText.includes('sin stock') && !lowerText.includes('out of stock');
-    const matchesProduct = text.includes(productName.substring(0, 20));
-
-    if (hasStock && matchesProduct) {
-      await option.click();
-      await expect(page.getByText(productName, { exact: false })).toBeVisible({ timeout: 10_000 });
-      return;
-    }
-  }
-
-  for (let index = 0; index < count; index += 1) {
-    const option = options.nth(index);
-    const text = ((await option.textContent()) ?? '').toLowerCase();
-
-    if (!text.includes('sin stock') && !text.includes('out of stock')) {
-      await option.click();
-      await expect(page.getByText(productName, { exact: false })).toBeVisible({ timeout: 10_000 });
-      return;
-    }
-  }
-
+  await expect(options.first(), `No in-stock suggestion for "${productName}"`).toBeVisible({
+    timeout: 10_000,
+  });
   await options.first().click();
   await expect(page.getByText(productName, { exact: false })).toBeVisible({ timeout: 10_000 });
 }

@@ -21,6 +21,7 @@ import {
   getActiveShiftWithExpectations,
   getExpectedAmount,
   getExpectedBaseUnitReturns,
+  fillReturnSaleQuantities,
   getFirstActiveCashPaymentMethodId,
   getFirstWarehouseId,
   getReturnSaleDetail,
@@ -93,7 +94,7 @@ serialDescribe('@regression @pos @returns @shift-serial @receivables-serial', ()
     await expect(refundMethodSelect.locator('option')).toHaveCount(1);
     await expect(page.getByTestId('customer-return-refund-payment-method-select')).toHaveCount(0);
 
-    await page.getByTestId('customer-return-select-all').click();
+    await fillReturnSaleQuantities(page, sale.lines);
 
     const returnResponsePromise = page.waitForResponse(
       (response) =>
@@ -190,7 +191,7 @@ serialDescribe('@regression @pos @returns @shift-serial @receivables-serial', ()
       currentDebt.toFixed(2)
     );
 
-    await page.getByTestId('customer-return-select-all').click();
+    await fillReturnSaleQuantities(page, sale.lines);
     let returnRequests = 0;
     page.on('request', (request) => {
       if (request.method() === 'POST' && request.url().includes('/api/returns')) {

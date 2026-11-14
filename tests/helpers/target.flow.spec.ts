@@ -1,6 +1,7 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type APIResponse, type Page } from '@playwright/test';
 import { config } from '@config';
 import { assertConfiguredTarget } from '../../support/flows/target.flow';
+import { comboPreflight } from '../../support/flows/combos.flow';
 
 const tenantId = config.tenantId;
 const frontendOrigin = new URL(config.baseUrl).origin;
@@ -203,6 +204,77 @@ test('preflight rejects a browser API request to another origin before fixture w
   expect(preflightError).toBeInstanceOf(Error);
   expect((preflightError as Error).message).toMatch(/effective browser API target mismatch/i);
   expect(fixtureStarted).toBe(false);
+});
+
+test('preflight rejects a saved session from another tenant before fixture work', async ({
+  page,
+}) => {
+  await installOfflineApp(page, apiUrl(`${apiPrefix}/shifts/active`));
+  await page.goto(config.baseUrl);
+  await page.evaluate(() => {
+    const saved = JSON.parse(localStorage.getItem('pos_app_store') ?? '{}') as {
+      state: { activeTenantId: string };
+    };
+    saved.state.activeTenantId = 'another-tenant';
+    localStorage.setItem('pos_app_store', JSON.stringify(saved));
+  });
+  await expect(assertConfiguredTarget(page)).rejects.toThrow(/saved active tenant/i);
+});
+
+test('combo preflight accepts the configured target and validates the real actor and shift contract', async ({
+  page,
+}) => {
+  const permissions = [
+    'products:view',
+    'products:create',
+    'products:edit',
+    'customers:view',
+    'customers:create',
+    'inventory:view',
+    'warehouses:view',
+    'sales:create',
+    'sales:view',
+    'sales:void',
+    'returns:create',
+    'quotes:create',
+    'quotes:view',
+  ];
+  await installOfflineApp(page, apiUrl(`${apiPrefix}/shifts/active`));
+  await page.goto(config.baseUrl);
+  await page.evaluate((requiredPermissions) => {
+    const saved = JSON.parse(localStorage.getItem('pos_app_store') ?? '{}') as {
+      state: { user: { id: number; username: string; permissions: string[] } };
+    };
+    saved.state.user = { id: 8, username: 'cashier', permissions: requiredPermissions };
+    localStorage.setItem('pos_app_store', JSON.stringify(saved));
+  }, permissions);
+  await page
+    .context()
+    .addCookies([{ name: 'access_token', value: 'offline-token', url: config.baseUrl }]);
+  const paths: string[] = [];
+  Object.defineProperty(page.request, 'fetch', {
+    value: async (url: string, options: { method: string }) => {
+      expect(options.method).toBe('GET');
+      const path = new URL(url).pathname;
+      paths.push(path);
+      const json =
+        path === `${apiPrefix}/me`
+          ? { username: 'cashier', permissions }
+          : path === `${apiPrefix}/shifts/active`
+            ? { id: 12, userId: 8, status: 'OPEN' }
+            : null;
+      expect(json, `Unexpected mock API request: ${path}`).not.toBeNull();
+      return {
+        ok: () => true,
+        status: () => 200,
+        text: async () => '',
+        json: async () => json,
+      } as APIResponse;
+    },
+  });
+  const assertRequests = await comboPreflight(page);
+  assertRequests();
+  expect(paths).toEqual([`${apiPrefix}/me`, `${apiPrefix}/shifts/active`]);
 });
 
 test('preflight rejects an incorrect API prefix on the configured origin', async ({ page }) => {

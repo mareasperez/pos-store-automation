@@ -44,6 +44,13 @@ export interface QuoteSummary {
 
 const QUOTE_CATALOG_READY_TIMEOUT_MS = 30_000;
 
+/** Wait for the quote sale panel or its terminal unavailable state, including catalog checks. */
+export async function waitForQuoteSaleReady(page: Page): Promise<void> {
+  await expect(
+    page.getByTestId('pos-quote-panel').or(page.getByTestId('pos-quote-unavailable'))
+  ).toBeVisible({ timeout: 45_000 });
+}
+
 /** Waits for the quote form's catalog state and fails clearly when the UI exposes an error. */
 export async function waitForQuoteCatalogReady(page: Page): Promise<void> {
   await expect(page.getByTestId('quote-form-customer')).toBeVisible();
