@@ -16,6 +16,7 @@ import {
   type FractionalFixture,
   type FractionalSale,
 } from '../../support/flows/fractional.flow';
+import { waitForQuoteCatalogReady } from '../../support/flows/quotes.flow';
 import { assertThreeDistinctConfiguredActors } from '../fractional/fractional-real.helpers';
 import { isConfiguredFrontendOrigin } from '../../utils/target-policy.mjs';
 
@@ -209,6 +210,7 @@ test('@parallel @configured-target @fractional @daily-use creates, finds and reo
   const item = fixture.items[0];
   await page.goto('/quotes?lng=es', { waitUntil: 'domcontentloaded' });
   await page.getByTestId('quotes-new').click();
+  await waitForQuoteCatalogReady(page);
   const customer = page.getByTestId('quote-form-customer');
   await expect(customer).not.toHaveAttribute('data-disabled');
   await customer.fill(fixture.customer.name);
@@ -230,6 +232,7 @@ test('@parallel @configured-target @fractional @daily-use creates, finds and reo
   await openQuoteUi(page, quote);
   await expect(page.getByTestId('quote-detail-totals')).toContainText('10.00');
   await page.getByTestId('quote-detail-edit').click();
+  await waitForQuoteCatalogReady(page);
   await expect(quantity).toBeEnabled();
   await quantity.fill('0.75');
   await expect(page.getByTestId('quote-form-totals')).toContainText('15.00');

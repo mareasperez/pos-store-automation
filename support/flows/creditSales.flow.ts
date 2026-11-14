@@ -125,16 +125,33 @@ async function addProductToCart(page: Page, productName: string): Promise<void> 
 
 /** Attaches the given customer to the current sale via the POS customer selector. */
 export async function selectPosCustomer(page: Page, customerName: string): Promise<void> {
-  // Selecting a customer triggers an async fetch of their receivable balance (used to gate
-  // "Venta a crédito" in the checkout decision modal). Wait for it so the credit-sale click
-  // below doesn't race a still-pending balance and get silently blocked.
-  const balanceResponsePromise = page.waitForResponse(
-    (r) => r.request().method() === 'GET' && r.url().includes('/api/receivables/summary'),
-    { timeout: 15_000 }
-  );
-  await page.getByTestId('pos-customer-select').click();
-  await page.getByRole('option', { name: new RegExp(customerName, 'i') }).click();
-  await balanceResponsePromise;
+  const customerInput = page.getByTestId('pos-customer-select');
+  await expect(customerInput).toBeEnabled({ timeout: 15_000 });
+
+  const selectedCustomerName = (
+    (await customerInput.getAttribute('data-selected-customer-name')) ?? ''
+  ).trim();
+  const selectedCustomerId = (
+    (await customerInput.getAttribute('data-selected-customer-id')) ?? ''
+  ).trim();
+  if (
+    selectedCustomerName.toLocaleLowerCase() !== customerName.trim().toLocaleLowerCase() ||
+    !selectedCustomerId
+  ) {
+    await customerInput.fill(customerName);
+    const customerOption = page.getByRole('option', { name: customerName, exact: false });
+    await expect(customerOption).toBeVisible({ timeout: 15_000 });
+    await customerOption.click();
+  }
+
+  await expect(customerInput).toHaveAttribute('data-selected-customer-name', customerName);
+  await expect(customerInput).toHaveAttribute('data-selected-customer-id', /\S+/);
+  await expect(customerInput).toHaveValue(customerName);
+  const creditBalanceStatus = page.getByTestId('pos-credit-balance-status');
+  await expect(creditBalanceStatus).toHaveAttribute('data-state', /^(ready|error)$/, {
+    timeout: 15_000,
+  });
+  await expect(creditBalanceStatus).toHaveAttribute('data-state', 'ready');
 }
 
 /** Confirms a credit sale with no initial payment and returns the created sale. */

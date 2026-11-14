@@ -138,6 +138,28 @@ shift. The disappearing-button regression failed before the fix; all three
 checks passed afterward. This is helper coverage, not a rerun of the live
 credit-sale workflow.
 
+### Isolated customer and quote-catalog readiness regressions
+
+The credit-sale helper waits for an enabled customer combobox, selects the
+matching option, and waits for the visible credit-balance state to become ready.
+It does not assume that selecting an already-selected customer causes another
+network request.
+
+Fractional quote creation and editing wait for catalog loading to finish, with
+a 30-second bound and an explicit failure if the form reports a catalog error.
+Quantity editing and numeric payload assertions remain unchanged.
+
+```powershell
+$env:BASE_URL = 'https://ui.example.invalid'
+$env:API_URL = 'https://api.example.invalid/api'
+$env:TEST_TENANT_ID = 'offline-helper-tenant'
+npx playwright test credit-sales-helper.spec.ts quote-catalog-helper.spec.ts --config=playwright.helper.config.ts --project=chromium-authenticated --workers=1 --retries=0 --reporter=list --output=test-results/readiness-isolated
+```
+
+This helper-only configuration uses empty in-memory storage and mocked
+customer, balance, and catalog requests. It bypasses the environment-file and saved-auth
+loader, so the checks cannot reach a configured application target.
+
 ## Add New Tests
 
 Use tags in test titles, for example:

@@ -42,6 +42,32 @@ export interface QuoteSummary {
   lines: QuoteLineSummary[];
 }
 
+const QUOTE_CATALOG_READY_TIMEOUT_MS = 30_000;
+
+/** Waits for the quote form's catalog state and fails clearly when the UI exposes an error. */
+export async function waitForQuoteCatalogReady(page: Page): Promise<void> {
+  await expect(page.getByTestId('quote-form-customer')).toBeVisible();
+  const loading = page.getByTestId('quote-form-catalog-loading');
+  const error = page.getByTestId('quote-form-catalog-error');
+
+  await expect
+    .poll(
+      async () => {
+        if (await error.isVisible()) return 'error';
+        return (await loading.isVisible()) ? 'loading' : 'ready';
+      },
+      {
+        timeout: QUOTE_CATALOG_READY_TIMEOUT_MS,
+        message: 'Quote catalog did not finish loading within 30 seconds.',
+      }
+    )
+    .not.toBe('loading');
+
+  if (await error.isVisible()) {
+    throw new Error('Quote catalog failed to load; retry before continuing.');
+  }
+}
+
 /**
  * A sellable STANDARD product with stock in one specific warehouse. Quotes are tied to a
  * warehouse and the sale deducts from it, so the warehouse must hold the stock, not the tenant.
