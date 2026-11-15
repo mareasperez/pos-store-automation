@@ -18,8 +18,9 @@ export function matchesConfiguredTenant(
 export function hasDistinctActorIds(actorIds: number[], expectedCount: number): boolean;
 export function selectWorkerAuthState(
   stateFiles: string[],
-  workerInfo: { workerIndex: number; parallelIndex: number }
+  workerInfo: { workerIndex: number; parallelIndex: number; config?: { workers: number } }
 ): string;
+export function assertDistinctCashierSessions(savedStates: unknown[], baseUrl: string): void;
 export function getAllowedTargetOrigins(
   config: Pick<ResolvedE2EConfig, 'environment' | 'baseUrl' | 'apiUrl'>,
   runtimeApiUrl: string

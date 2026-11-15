@@ -70,7 +70,59 @@ export function hasDistinctActorIds(actorIds, expectedCount) {
 }
 
 export function selectWorkerAuthState(stateFiles, workerInfo) {
-  return stateFiles[workerInfo.parallelIndex % stateFiles.length];
+  const workers = workerInfo.config?.workers;
+  if (workers > stateFiles.length) {
+    throw new Error(
+      `[auth] ${workers} workers require at least ${workers} cashier sessions; found ${stateFiles.length}. ` +
+        'Reduce --workers or prepare more distinct cashier sessions.'
+    );
+  }
+
+  const stateFile = stateFiles[workerInfo.parallelIndex];
+  if (!stateFile) {
+    throw new Error(
+      `[auth] No dedicated cashier session for parallel slot ${workerInfo.parallelIndex}.`
+    );
+  }
+  return stateFile;
+}
+
+export function assertDistinctCashierSessions(savedStates, baseUrl) {
+  if (!savedStates.length) {
+    throw new Error('[auth] At least one saved cashier session is required.');
+  }
+
+  const actorIds = savedStates.map((saved, index) => {
+    const origin = Array.isArray(saved?.origins)
+      ? saved.origins.find((item) => isConfiguredFrontendOrigin(item?.origin, baseUrl))
+      : undefined;
+    const storage = Array.isArray(origin?.localStorage)
+      ? origin.localStorage.find((item) => item?.name === 'pos_app_store')
+      : undefined;
+    if (typeof storage?.value !== 'string') {
+      throw new Error(
+        `[auth] Worker session ${index} needs pos_app_store for the configured frontend.`
+      );
+    }
+
+    const app = JSON.parse(storage.value);
+    const rawActorId = app?.state?.user?.id;
+    const actorId = Number(rawActorId);
+    if (
+      !['number', 'string'].includes(typeof rawActorId) ||
+      !Number.isSafeInteger(actorId) ||
+      actorId <= 0
+    ) {
+      throw new Error(`[auth] Worker session ${index} needs a valid cashier ID.`);
+    }
+    return actorId;
+  });
+
+  if (!hasDistinctActorIds(actorIds, savedStates.length)) {
+    throw new Error(
+      '[auth] Worker sessions must belong to distinct cashiers; different files cannot share a cashier.'
+    );
+  }
 }
 
 export function getAllowedTargetOrigins(config, runtimeApiUrl) {

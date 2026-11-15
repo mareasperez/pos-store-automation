@@ -6,6 +6,7 @@ import {
   mergeEnvironment,
 } from '../utils/environment.mjs';
 import {
+  assertDistinctCashierSessions,
   getAllowedTargetOrigins,
   hasDistinctActorIds,
   isConfiguredFrontendOrigin,
@@ -28,6 +29,89 @@ test('replacement workers keep the same distinct cashier sessions by parallel sl
 
   assert.deepEqual(initial, sessions);
   assert.deepEqual(replacement, initial);
+});
+
+test('a run fails before assigning cashiers when workers outnumber saved sessions', () => {
+  assert.throws(
+    () =>
+      selectWorkerAuthState(['user-0.json', 'user-1.json'], {
+        parallelIndex: 0,
+        workerIndex: 0,
+        config: { workers: 3 },
+      }),
+    /3 workers require at least 3 cashier sessions; found 2/
+  );
+});
+
+test('a worker cannot reuse another slot when its dedicated session is missing', () => {
+  assert.throws(
+    () =>
+      selectWorkerAuthState(['user-0.json', 'user-1.json', 'user-2.json'], {
+        parallelIndex: 3,
+        workerIndex: 8,
+      }),
+    /No dedicated cashier session for parallel slot 3/
+  );
+});
+
+test('a worker cannot start without a saved cashier session', () => {
+  assert.throws(
+    () => selectWorkerAuthState([], { parallelIndex: 0, workerIndex: 0 }),
+    /No dedicated cashier session for parallel slot 0/
+  );
+});
+
+function savedCashierSession(actorId, origin = 'https://pos.example') {
+  return {
+    origins: [
+      {
+        origin,
+        localStorage: [
+          { name: 'pos_app_store', value: JSON.stringify({ state: { user: { id: actorId } } }) },
+        ],
+      },
+    ],
+  };
+}
+
+test('assigned worker sessions accept distinct configured cashiers with numeric or string IDs', () => {
+  assert.doesNotThrow(() =>
+    assertDistinctCashierSessions(
+      [savedCashierSession(5), savedCashierSession('6'), savedCashierSession(7)],
+      'https://pos.example/pos'
+    )
+  );
+});
+
+test('different saved sessions cannot assign the same cashier to multiple workers', () => {
+  assert.throws(
+    () =>
+      assertDistinctCashierSessions(
+        [savedCashierSession(5), savedCashierSession('5')],
+        'https://pos.example'
+      ),
+    /Worker sessions must belong to distinct cashiers/
+  );
+});
+
+test('worker sessions cannot bypass exclusivity with missing or invalid cashier IDs', () => {
+  for (const actorId of [undefined, '', 0, -1, 1.5, 'invalid', [5]]) {
+    assert.throws(
+      () => assertDistinctCashierSessions([savedCashierSession(actorId)], 'https://pos.example'),
+      /needs a valid cashier ID/
+    );
+  }
+});
+
+test('worker sessions must expose their cashier on the configured frontend origin', () => {
+  assert.throws(
+    () =>
+      assertDistinctCashierSessions(
+        [savedCashierSession(5, 'https://other.example')],
+        'https://pos.example'
+      ),
+    /needs pos_app_store for the configured frontend/
+  );
 });
 
 test('explicit process environment overrides every env-file layer', () => {

@@ -1,8 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { test as base, expect, type TestInfo } from '@playwright/test';
+import { config } from '@config';
 import { dirnameFromUrl } from '../utils/esm';
-import { selectWorkerAuthState } from '../utils/target-policy.mjs';
+import { assertDistinctCashierSessions, selectWorkerAuthState } from '../utils/target-policy.mjs';
 
 const dirname = dirnameFromUrl(import.meta.url);
 const authDir = path.join(dirname, '..', 'playwright', '.auth');
@@ -128,14 +129,13 @@ export const test = base.extend<object, { workerStorageState: string | undefined
         );
       }
 
-      if (workerInfo.config.workers > stateFiles.length) {
-        console.warn(
-          `[auth] ${workerInfo.config.workers} workers but only ${stateFiles.length} test users: ` +
-            'some workers share a cashier and will contend over that shift.'
-        );
-      }
+      const workerStateFile = selectWorkerAuthState(stateFiles, workerInfo);
+      const savedStates = stateFiles
+        .slice(0, workerInfo.config.workers)
+        .map((file): unknown => JSON.parse(fs.readFileSync(file, 'utf8')));
+      assertDistinctCashierSessions(savedStates, config.baseUrl);
 
-      await use(selectWorkerAuthState(stateFiles, workerInfo));
+      await use(workerStateFile);
     },
     { scope: 'worker' },
   ],

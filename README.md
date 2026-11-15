@@ -78,7 +78,15 @@ reuse IDs from a prior run or broadly clean the tenant.
 
 Numbered sessions are assigned by Playwright's stable `parallelIndex`, not
 the process-specific `workerIndex`. A replacement worker keeps its slot's
-cashier even when other tests in a broader run have already failed. The
+cashier even when other tests in a broader run have already failed. Each worker
+executes one test at a time and has its own cashier: sessions are never recycled
+across concurrent slots. Authenticated workers fail before starting their flows
+if there are fewer saved sessions than workers or if the assigned sessions have
+missing or duplicate cashier IDs for the configured frontend. Reduce `--workers`
+or prepare enough distinct sessions; different filenames alone are not sufficient.
+This guarantee is scoped to one Playwright run. Do not launch concurrent runs
+using the same cashiers. It does not open shifts, retry financial operations, or
+prevent a previous test from leaving its cashier's shift closed. The
 daily-use spec still requires three distinct users and does not retry failed
 tests automatically.
 
