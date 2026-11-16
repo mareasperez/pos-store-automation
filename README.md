@@ -124,6 +124,27 @@ npm run test:list -- --env local
 npm run test:auth:setup -- --env local
 ```
 
+### Ordinary-return FIFO lifecycle
+
+```powershell
+npm run test:serial -- --env dev ordinary-return-fifo-lifecycle.real.spec.ts --project=chromium-authenticated --workers=1 --retries=0 --reporter=list
+```
+
+Select an authorized configured target and prepare its authentication state first.
+The suite requires an existing open cashier shift and retains uniquely named fixtures;
+it creates purchases, sales, returns and refunds. Do not run it concurrently with
+other flows using the same cashier.
+
+The two serial scenarios cover multi-lot acquisition costs, partial and full returns,
+resale after a catalog price change, shift expectations, profitability and an ordinary
+return within a mixed ordinary/combo sale. The POS search waits for the browser's
+presentation catalog to include the new presentation, without fixed delays.
+Stock quantities and report COGS are checked through the API; per-batch identity and
+inventory valuation are not independently inspected (valuation is implied from COGS).
+
+Verified against configured dev on 2026-11-16: **2 passed**, one worker, zero retries.
+Earlier setup failures are not passing lifecycle runs.
+
 ### Offline serial-repair helper checks
 
 These in-memory tests intercept application requests and use synthetic configuration. The preload
