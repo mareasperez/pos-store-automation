@@ -463,8 +463,11 @@ async function returnThroughUi(
   );
   await expect(page.getByTestId('customer-return-submit')).toBeHidden();
 
-  const savedReturns = await api<ReturnRecord[]>(page, '/returns');
-  expect(savedReturns.find((entry) => entry.id === returned.id)).toMatchObject({
+  const savedReturns = await api<{ content: ReturnRecord[] }>(
+    page,
+    `/returns?search=${returned.id}&page=0&size=100`
+  );
+  expect(savedReturns.content.find((entry) => entry.id === returned.id)).toMatchObject({
     id: returned.id,
     saleId: sale.id,
     status: 'POSTED',
