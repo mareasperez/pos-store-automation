@@ -5,11 +5,15 @@ export type SupplierCreationOptions = {
   paymentTerm?: 'IMMEDIATE' | 'CREDIT';
   creditLimit?: string;
   allowCreditLimitExceed?: boolean;
+  contactName?: string;
   uniqueTag?: string;
 };
 
 export async function createSupplier(page: Page, seed: number, options?: SupplierCreationOptions) {
   const supplier = fakerDataService.buildSupplierFake(seed, options?.uniqueTag);
+  if (options?.contactName) {
+    supplier.contactName = options.contactName;
+  }
 
   await page.goto('/suppliers', { waitUntil: 'domcontentloaded' });
   await expect(page).toHaveURL(/\/suppliers(?:$|[?#])/i, { timeout: 20_000 });
