@@ -3,19 +3,18 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
+import { startThemeTestServer } from './theme-test-server';
 
 const frontend = resolve(process.cwd(), '..', 'frontend');
 let server: { close: () => Promise<void>; resolvedUrls: { local: string[] } | null };
 let origin: string;
 
 test.beforeAll(async () => {
-  const viteUrl = pathToFileURL(resolve(frontend, 'node_modules/vite/dist/node/index.js')).href;
   const tailwindUrl = pathToFileURL(
     resolve(frontend, 'node_modules/@tailwindcss/vite/dist/index.mjs')
   ).href;
-  const { createServer } = await import(viteUrl);
   const { default: tailwindcss } = await import(tailwindUrl);
-  server = await createServer({
+  server = await startThemeTestServer({
     root: frontend,
     configFile: false,
     plugins: [
@@ -36,7 +35,34 @@ test.beforeAll(async () => {
             import '/src/shared/components/ui/inputs/Textarea/textarea.css';
             import '/src/shared/components/ui/feedback/Money/money.css';
             import '/src/shared/components/ui/search/GlobalProductSearch/global-product-search.css';
+            import '/src/shared/components/ui/layout/Header/header.css';
+            import '/src/shared/components/ui/layout/Footer/footer.css';
+            import '/src/shared/components/ui/inputs/FileDropZone/file-drop-zone.css';
+            import '/src/shared/components/layouts/StandardListLayout/standard-list-layout.css';
+            import '/src/styles/forms.css';
             import '/src/index.css';
+            import users from '/src/features/organization/screens/UsersList.module.css';
+            import tenants from '/src/features/organization/screens/TenantsList.module.css';
+            import tenantSummary from '/src/features/organization/components/TenantSummaryModal/TenantSummaryModal.module.css';
+            import blocking from '/src/features/organization/components/TenantSummaryModal/TenantBlockingRecordsPanel.module.css';
+            import platformUser from '/src/features/organization/components/PlatformUserDetailsDrawer.module.css';
+            import inventoryTable from '/src/features/inventory/styles/inventory-table.module.css';
+            import sku from '/src/features/inventory/styles/sku-selector.module.css';
+            import notes from '/src/features/sales/screens/FinancialMovements/NotesPages.module.css';
+            import credit from '/src/features/sales/components/CustomerCreditPanel/CustomerCreditPanel.module.css';
+            import productEntry from '/src/features/sales/components/ProductEntry/ProductEntry.module.css';
+            import suggestions from '/src/features/sales/components/ProductEntry/ProductSuggestionsDropdown.module.css';
+            import ticket from '/src/features/sales/components/TicketPreview/ticket-preview.module.css';
+            import totals from '/src/features/sales/components/SellTotals/SellTotals.module.css';
+            import lookup from '/src/features/catalog/components/ProductLookup/product-lookup.module.css';
+            import dashboard from '/src/features/catalog/screens/Dashboard/dashboard-page.module.css';
+            import productForm from '/src/features/catalog/components/ProductForm/product-form.module.css';
+            import productEdit from '/src/features/catalog/screens/ProductEdit/product-edit-page.module.css';
+            import permission from '/src/features/admin/screens/PermissionManager/PermissionMatrix.module.css';
+            import permissionPage from '/src/features/admin/screens/PermissionManager/PermissionManagerPage.module.css';
+            import reports from '/src/features/reports/screens/reports-page.module.css';
+            import returnPage from '/src/features/returns/screens/returns-page.module.css';
+            import returnReport from '/src/features/reports/extensions/returns-voids/returns-voids.module.css';
             import tenantStyles from '/src/features/organization/components/TenantDetailsDrawer.module.css';
             import productStyles from '/src/features/catalog/components/ProductCard/product-card.module.css';
             import discountStyles from '/src/features/sales/components/ManualSaleDiscountControl/manual-sale-discount-control.module.css';
@@ -46,6 +72,8 @@ test.beforeAll(async () => {
             import inventoryStyles from '/src/features/inventory/styles/inventory-transaction.module.css';
             import orderStyles from '/src/features/sales/components/OrderContext/OrderContext.module.css';
             import { Select } from '/src/shared/components/ui/inputs/Select/Select.tsx';
+            import { StatusBadge } from '/src/shared/components/ui/table/Table.tsx';
+            import { ExpandableTable } from '/src/shared/components/ui/table/ExpandableTable.tsx';
             import React from 'react';
             import { createRoot } from 'react-dom/client';
             import { useTheme } from '/src/shared/hooks/useTheme.ts';
@@ -53,6 +81,20 @@ test.beforeAll(async () => {
             import { themeCatalog } from '/src/features/admin/screens/SettingsPage/themeCatalog.ts';
             function Harness() { useTheme(); return null; }
             useUIStore.setState({themeCustomConfig: DEFAULT_THEME_CUSTOM_CONFIG});
+            function mountTable() {
+              const container = document.createElement('div');
+              document.body.appendChild(container);
+              const statuses = ['completed', 'active', 'paid', 'pending', 'partial', 'cancelled', 'inactive', 'returned', 'draft'];
+              createRoot(container).render(React.createElement(ExpandableTable, {
+                data: [{ id: 1 }], getRowKey: (item) => item.id,
+                columns: statuses.map((status) => ({
+                  id: status, header: status,
+                  accessor: () => React.createElement(StatusBadge, { status })
+                })),
+                renderExpandedContent: () => React.createElement('p', null, 'Detalle'),
+                expandLabel: () => 'Ver detalle'
+              }));
+            }
             function mountSelect() {
               const container = document.createElement('div');
               container.className = orderStyles['order-context'];
@@ -95,7 +137,42 @@ test.beforeAll(async () => {
                 )
               );
             }
-            window.themeTest = {useUIStore, themeCatalog, tenantStyles, productStyles, discountStyles, searchStyles, tableStyles, modalStyles, inventoryStyles, mountSelect, mountImport, mountUserForm};
+            const batchStyles = {users, tenants, tenantSummary, blocking, platformUser, inventoryTable, sku, notes, credit, productEntry, suggestions, ticket, totals, lookup, dashboard, productForm, productEdit, permission, permissionPage, reports, returnPage, returnReport};
+            async function mountBatchReact() {
+              const { QueryClient, QueryClientProvider } = await import('@tanstack/react-query');
+              const { CustomerList } = await import('/src/features/customers/components/CustomerList/CustomerList.tsx');
+              const { CustomerCreditPanel } = await import('/src/features/sales/components/CustomerCreditPanel/CustomerCreditPanel.tsx');
+              const { SalesKpis } = await import('/src/features/reports/sales/components/SalesKpis.tsx');
+              const { Badge } = await import('/src/shared/components/ui/primitives/Badge/Badge.tsx');
+              const { ProductCard } = await import('/src/features/catalog/components/ProductCard/ProductCard.tsx');
+              const { PaymentReconciliationTable } = await import('/src/features/shifts/components/PaymentReconciliationTable/PaymentReconciliationTable.tsx');
+              const { useAppStore } = await import('/src/shared/stores/useAppStore.ts');
+              useAppStore.setState({activeTenantId: null});
+              const client = new QueryClient({defaultOptions:{queries:{retry:false}}});
+              const container = document.createElement('section');
+              container.dataset.batchReact = 'true';
+              container.style.background = 'var(--color-surface)';
+              document.body.appendChild(container);
+              const customer = {id: 2, name:'Cliente', status:'ACTIVE', creditActive:true, creditLimit:100, phone:'', email:''};
+              createRoot(container).render(React.createElement(QueryClientProvider, {client},
+                React.createElement(CustomerList, {customers:[customer], onEdit:()=>{}, onDelete:()=>{}}),
+                React.createElement(CustomerCreditPanel, {customer, totalOutstanding:20, isLoading:false, hasError:false}),
+                React.createElement(CustomerCreditPanel, {customer, totalOutstanding:100, isLoading:false, hasError:false}),
+                React.createElement(SalesKpis, {current:{totalAmount:120,tickets:2,averageTicket:60}, previous:{totalAmount:100,tickets:3,averageTicket:60}, previousLabel:'Anterior'}),
+                React.createElement(ProductCard, {item:{key:'service',id:1,name:'Servicio',price:10,stock:0,sellableType:'SERVICE',originalProduct:{id:1,name:'Servicio',active:true},isUnit:false,isBasePresentation:true,presentationId:1,presentationName:'Unidad',conversionFactor:1}}),
+                React.createElement('section', {'data-batch-shift':true},
+                  React.createElement(PaymentReconciliationTable, {
+                    paymentMethods:[1,2,3].map(id=>({id,code:'CASH'+id,name:'Efectivo',active:true,currency:'NIO',requiresShiftCount:true})),
+                    countedAmounts:{1:'10',2:'12',3:'8'}, validAmounts:{1:10,2:12,3:8},
+                    expectedAmounts:{1:10,2:10,3:10}, errors:{}, onChange:()=>{}, onBlur:()=>{},
+                    currencies:[{code:'NIO',symbol:'C$',decimals:2}],locale:'es-NI'
+                  })
+                ),
+                ...['success','secondary','info','primary','warning','danger'].map(variant =>
+                  React.createElement(Badge, {key:variant, variant, onClick:()=>{}}, variant))
+              ));
+            }
+            window.themeTest = {useUIStore, themeCatalog, tenantStyles, productStyles, discountStyles, searchStyles, tableStyles, modalStyles, inventoryStyles, mountSelect, mountImport, mountUserForm, mountTable, batchStyles, mountBatchReact};
             createRoot(document.getElementById('root')).render(React.createElement(Harness));
           `;
         },
@@ -126,8 +203,12 @@ test.beforeAll(async () => {
     server: { host: '127.0.0.1', port: 0 },
     logLevel: 'error',
   });
-  await (server as unknown as { listen: () => Promise<void> }).listen();
-  origin = server.resolvedUrls!.local[0].replace(/\/$/, '');
+  try {
+    origin = server.resolvedUrls!.local[0].replace(/\/$/, '');
+  } catch (error) {
+    await server.close();
+    throw error;
+  }
 });
 
 test.afterAll(async () => {
@@ -149,6 +230,527 @@ async function prepareFixture(page: Page) {
   await page.waitForFunction(() =>
     Boolean((window as unknown as { themeTest?: unknown }).themeTest)
   );
+}
+
+async function tableTextMeasurements(page: Page, selector: string) {
+  return page.locator(selector).evaluateAll((elements) => {
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = 1;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
+    const rgba = (value: string) => {
+      ctx.clearRect(0, 0, 1, 1);
+      ctx.fillStyle = value;
+      ctx.fillRect(0, 0, 1, 1);
+      const channels = [...ctx.getImageData(0, 0, 1, 1).data];
+      return [...channels.slice(0, 3), channels[3] / 255];
+    };
+    const over = (foreground: number[], background: number[]) =>
+      background
+        .slice(0, 3)
+        .map((channel, index) => foreground[index] * foreground[3] + channel * (1 - foreground[3]));
+    const luminance = (channels: number[]) =>
+      channels.reduce((sum, channel, index) => {
+        const c = channel / 255;
+        return (
+          sum +
+          [0.2126, 0.7152, 0.0722][index] *
+            (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4)
+        );
+      }, 0);
+    return elements.map((element) => {
+      const ancestors: Element[] = [];
+      for (let node: Element | null = element; node; node = node.parentElement) {
+        ancestors.unshift(node);
+      }
+      let background = [255, 255, 255];
+      let opacity = 1;
+      for (const ancestor of ancestors) {
+        const style = getComputedStyle(ancestor);
+        if (style.backgroundImage !== 'none') {
+          throw new Error(`Unmeasured background image: ${style.backgroundImage}`);
+        }
+        background = over(rgba(style.backgroundColor), background);
+        const alpha = Number(style.opacity);
+        if (alpha !== 1 && style.backgroundColor !== 'rgba(0, 0, 0, 0)') {
+          throw new Error('Opacity on a painted background requires group compositing');
+        }
+        opacity *= alpha;
+      }
+      const foreground = rgba(getComputedStyle(element).color);
+      if (getComputedStyle(element).webkitTextFillColor === 'rgba(0, 0, 0, 0)') {
+        throw new Error('Transparent text fill requires measuring its painted text image');
+      }
+      foreground[3] *= opacity;
+      const painted = over(foreground, background);
+      const [a, b] = [luminance(painted), luminance(background)].sort((x, y) => y - x);
+      return {
+        name: element.getAttribute('data-status') ?? element.className,
+        ratio: (a + 0.05) / (b + 0.05),
+        foreground: painted,
+        background,
+        opacity,
+      };
+    });
+  });
+}
+
+test('coordinated component text pairs retain contrast in their source contexts', async ({
+  page,
+}) => {
+  test.setTimeout(300_000);
+  await prepareFixture(page);
+  await page.evaluate(() => {
+    const styles = (
+      window as unknown as {
+        themeTest: { batchStyles: Record<string, Record<string, string>> };
+      }
+    ).themeTest.batchStyles;
+    const context = (owner: string, key: string) => {
+      const value = styles[owner]?.[key];
+      if (!value) throw new Error(`Missing component style: ${owner}.${key}`);
+      return value;
+    };
+    const cases = [
+      ['tenant menu', 'tenants', 'text-danger', '', ''],
+      ['tenant count', 'tenantSummary', 'count-card__count', '', ''],
+      ['tenant transactional badge', 'tenantSummary', 'badge-transactional', '', ''],
+      ['tenant blocking title', 'blocking', 'blocking-title', 'blocking', 'blocking-panel'],
+      ['tenant blocking count', 'blocking', 'blocking-item__count', 'blocking', 'blocking-panel'],
+      ['platform edit', 'platformUser', 'edit-profile-btn', '', ''],
+      ['SKU clear', 'sku', 'sku-selector__clear-btn', 'sku', 'sku-selector__selected'],
+      ['inventory status', 'inventoryTable', 'inventory-table__badge', '', ''],
+      ['inventory delete', 'inventoryTable', 'inventory-table__delete-btn', '', ''],
+      [
+        'notes guide',
+        'notes',
+        'settlement-documents-page__guide-link',
+        'notes',
+        'settlement-documents-page__guide',
+      ],
+      [
+        'notes error',
+        'notes',
+        'settlement-documents-page__error',
+        'notes',
+        'settlement-documents-page__modal',
+      ],
+      ['ticket validation', 'ticket', 'ticket-preview__qty-error', '', ''],
+      ['generic product', 'productEntry', 'product-entry__generic-btn', '', ''],
+      ['stock suggestion', 'suggestions', 'suggestion-item__stock--none', '', ''],
+      ['product price', 'lookup', 'product-lookup__price', '', ''],
+      ['dashboard rank', 'dashboard', 'dashboard-page__top-products-rank', '', ''],
+      ['dashboard metric', 'dashboard', 'dashboard-page__top-products-metric', '', ''],
+      ['product edit error', 'productEdit', 'product-edit-page__error', '', ''],
+      ['presentation override', 'productForm', 'product-form__override-btn--active', '', ''],
+      ['margin override', 'productForm', 'product-form__override-btn--margin', '', ''],
+      ['permission resource', 'permission', 'resource-toggle', 'permission', 'resource-row'],
+      ['permission active tab', 'permissionPage', 'tab', '', ''],
+      ['report breadcrumb', 'reports', 'reports-detail__breadcrumb-link', '', ''],
+      ['return step', 'returnPage', 'returns-page__step--active', '', ''],
+      ['return error', 'returnPage', 'returns-page__error', '', ''],
+      ['report return badge', 'returnReport', 'returnBadge', '', ''],
+      ['report error', 'returnReport', 'error', '', ''],
+    ];
+    const root = document.createElement('section');
+    root.dataset.batchCss = 'true';
+    root.style.background = 'var(--color-surface)';
+    root.style.padding = '16px';
+    const controls = new Set([
+      'platform edit',
+      'SKU clear',
+      'inventory delete',
+      'generic product',
+      'presentation override',
+      'margin override',
+      'permission resource',
+      'permission active tab',
+    ]);
+    for (const [name, owner, key, parentOwner, parentKey] of cases) {
+      const host = document.createElement('div');
+      if (parentOwner) host.className = context(parentOwner, parentKey);
+      const element = document.createElement(
+        controls.has(name)
+          ? 'button'
+          : name.endsWith('link') || name === 'report breadcrumb'
+            ? 'a'
+            : 'span'
+      );
+      element.textContent = name;
+      element.dataset.batchPaint = name;
+      element.className = context(owner, key);
+      if (name === 'presentation override' || name === 'margin override') {
+        element.classList.add(context('productForm', 'product-form__override-btn'));
+      }
+      if (name === 'return step')
+        element.classList.add(context('returnPage', 'returns-page__step'));
+      if (name === 'permission active tab')
+        element.classList.add(context('permissionPage', 'active'));
+      if (name === 'dashboard metric') {
+        const label = document.createElement('span');
+        label.textContent = '12%';
+        element.replaceChildren(label);
+        delete element.dataset.batchPaint;
+        label.dataset.batchPaint = name;
+      }
+      host.appendChild(element);
+      root.appendChild(host);
+    }
+    root.insertAdjacentHTML(
+      'beforeend',
+      `
+      <div class="app-table__body"><div class="app-table__row" data-batch-hover="user row">
+        <span class="${context('users', 'user-name-cell')}" data-batch-paint="user name">Cliente</span>
+      </div></div>
+      <div class="footer">
+        <a class="footer-link" data-batch-paint="footer link">Autor</a>
+        <button class="footer-toggle" aria-label="Detalles" data-batch-paint="footer toggle">⌄</button>
+      </div>
+      <div style="background:var(--color-bg)"><header class="header">
+        <a class="header__brand" data-batch-paint="header brand">POS Store</a>
+      </header></div>
+      <div class="file-drop-zone"><p class="file-drop-zone__error" data-batch-paint="file error">Archivo inválido</p></div>
+      <p class="standard-list-error" data-batch-paint="list error">Error</p>
+      <p class="form-field__error" data-batch-paint="form error">Requerido</p>
+      <h1 class="app-page-title" data-batch-paint="page title">Productos</h1>
+      <p class="text-danger" data-batch-paint="danger utility">Requerido</p>`
+    );
+    document.body.appendChild(root);
+  });
+  const families = await page.evaluate(() =>
+    (
+      window as unknown as { themeTest: { themeCatalog: { id: string }[] } }
+    ).themeTest.themeCatalog.map(({ id }) => id)
+  );
+  const measurements: {
+    theme: string;
+    width: number;
+    state: string;
+    name: string;
+    ratio: number;
+  }[] = [];
+  const sample = async (theme: string, width: number, state: string, selector: string) => {
+    await page.evaluate(async () => {
+      const deadline = performance.now() + 5000;
+      while (performance.now() < deadline) {
+        document.body.getBoundingClientRect();
+        await new Promise(requestAnimationFrame);
+        await new Promise(requestAnimationFrame);
+        const animations = document
+          .getAnimations()
+          .filter((animation) => animation.effect?.getTiming().iterations !== Infinity);
+        if (!animations.length) return;
+        await Promise.all(animations.map((animation) => animation.finished.catch(() => undefined)));
+      }
+      throw new Error('Batch paint did not settle');
+    });
+    const values = await tableTextMeasurements(page, selector);
+    expect(values.length).toBeGreaterThan(0);
+    measurements.push(...values.map((value) => ({ theme, width, state, ...value })));
+  };
+  for (const width of [1280, 600]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const family of families) {
+      for (const mode of ['light', 'dark']) {
+        await page.evaluate(
+          ({ family, mode }) =>
+            (
+              window as unknown as {
+                themeTest: { useUIStore: { setState: (state: object) => void } };
+              }
+            ).themeTest.useUIStore.setState({ themeFamily: family, themeMode: mode }),
+          { family, mode }
+        );
+        await expect(page.locator('html')).toHaveAttribute('data-theme', `${family}-${mode}`);
+        await page.mouse.move(0, 0);
+        await sample(`${family}-${mode}`, width, 'rest', '[data-batch-paint]');
+        for (const name of [
+          'user name',
+          'footer link',
+          'footer toggle',
+          'generic product',
+          'inventory delete',
+          'permission active tab',
+          'report breadcrumb',
+          'danger utility',
+        ]) {
+          const selector = `[data-batch-paint="${name}"]`;
+          await page.locator(selector).hover();
+          await sample(`${family}-${mode}`, width, 'hover', selector);
+        }
+      }
+    }
+  }
+  await test.info().attach('component-batch-computed-paint', {
+    body: JSON.stringify(measurements, null, 2),
+    contentType: 'application/json',
+  });
+  expect(measurements.filter(({ ratio }) => ratio < 4.5)).toEqual([]);
+});
+
+test('coordinated React badge credit and report states retain readable text', async ({ page }) => {
+  test.setTimeout(180_000);
+  await prepareFixture(page);
+  await page.evaluate(() =>
+    (
+      window as unknown as { themeTest: { mountBatchReact: () => Promise<void> } }
+    ).themeTest.mountBatchReact()
+  );
+  await expect(page.locator('[data-batch-react] .app-badge')).toHaveCount(6);
+  const families = await page.evaluate(() =>
+    (
+      window as unknown as { themeTest: { themeCatalog: { id: string }[] } }
+    ).themeTest.themeCatalog.map(({ id }) => id)
+  );
+  const failures: { theme: string; name: string; ratio: number }[] = [];
+  for (const family of families) {
+    for (const mode of ['light', 'dark']) {
+      await page.evaluate(
+        ({ family, mode }) =>
+          (
+            window as unknown as {
+              themeTest: { useUIStore: { setState: (state: object) => void } };
+            }
+          ).themeTest.useUIStore.setState({ themeFamily: family, themeMode: mode }),
+        { family, mode }
+      );
+      await expect(page.locator('html')).toHaveAttribute('data-theme', `${family}-${mode}`);
+      await page.evaluate(async () => {
+        await new Promise(requestAnimationFrame);
+        await Promise.all(
+          document
+            .getAnimations()
+            .filter((animation) => animation.effect?.getTiming().iterations !== Infinity)
+            .map((animation) => animation.finished.catch(() => undefined))
+        );
+      });
+      for (const selector of [
+        '[data-batch-react] .app-badge',
+        '[data-batch-react] [class*="product-card__badge--service"]',
+        '[data-batch-react] [class*="credit-panel__value--"]',
+        '[data-batch-react] .text-xs.font-semibold',
+        '[data-batch-react] .app-table__cell:nth-child(4) > span',
+        '[data-batch-shift] .w-fit',
+      ]) {
+        const values = await tableTextMeasurements(page, selector);
+        expect(values.length).toBeGreaterThan(0);
+        failures.push(
+          ...values
+            .filter(({ ratio }) => ratio < 4.5)
+            .map((value) => ({ theme: `${family}-${mode}`, ...value }))
+        );
+      }
+      for (const badge of await page.locator('[data-batch-react] .app-badge').all()) {
+        await badge.hover();
+        await expect(badge).toHaveCSS('filter', 'none');
+        const [value] = await tableTextMeasurements(
+          page,
+          `[data-batch-react] .app-badge--${await badge.textContent()}`
+        );
+        failures.push(
+          ...[value]
+            .filter(({ ratio }) => ratio < 4.5)
+            .map((measurement) => ({ theme: `${family}-${mode} hover`, ...measurement }))
+        );
+      }
+    }
+  }
+  expect(failures).toEqual([]);
+});
+
+test('search scope hover and product card text use readable theme pairs', async ({ page }) => {
+  test.setTimeout(120_000);
+  await prepareFixture(page);
+  await page.evaluate(() => {
+    const { productStyles, searchStyles } = (
+      window as unknown as {
+        themeTest: { productStyles: Record<string, string>; searchStyles: Record<string, string> };
+      }
+    ).themeTest;
+    const root = document.createElement('div');
+    root.style.background = 'var(--color-surface)';
+    root.innerHTML = `
+      <button class="global-search-dropdown__scope" data-paint="global-scope">Productos</button>
+      <button class="${searchStyles['product-search-page__scope-chip']}" data-paint="page-scope">Productos</button>
+      <div class="${productStyles['product-card']}">
+        <span class="${productStyles['product-card__unit-badge']}" data-paint="unit">Unidad</span>
+        <span class="${productStyles['product-card__stock-alert--notice']}" data-paint="notice">No hay en esta bodega</span>
+        <span class="${productStyles['product-card__badge']} ${productStyles['product-card__badge--blocked']}" data-paint="blocked">Bloqueado</span>
+      </div>`;
+    document.body.appendChild(root);
+  });
+  const families = await page.evaluate(() =>
+    (
+      window as unknown as { themeTest: { themeCatalog: { id: string }[] } }
+    ).themeTest.themeCatalog.map(({ id }) => id)
+  );
+  const measurements: { theme: string; state: string; name: string; ratio: number }[] = [];
+  const settlePaint = () =>
+    page.evaluate(async () => {
+      const deadline = performance.now() + 5000;
+      while (performance.now() < deadline) {
+        document.body.getBoundingClientRect();
+        await new Promise(requestAnimationFrame);
+        await new Promise(requestAnimationFrame);
+        const animations = document
+          .getAnimations()
+          .filter((animation) => animation.effect?.getTiming().iterations !== Infinity);
+        if (!animations.length) return;
+        await Promise.all(animations.map((animation) => animation.finished.catch(() => undefined)));
+      }
+      throw new Error('Component paint did not settle');
+    });
+  for (const family of families) {
+    for (const mode of ['light', 'dark']) {
+      await page.evaluate(
+        ({ family, mode }) =>
+          (
+            window as unknown as {
+              themeTest: { useUIStore: { setState: (state: object) => void } };
+            }
+          ).themeTest.useUIStore.setState({ themeFamily: family, themeMode: mode }),
+        { family, mode }
+      );
+      await expect(page.locator('html')).toHaveAttribute('data-theme', `${family}-${mode}`);
+      for (const name of ['global-scope', 'page-scope']) {
+        await page.locator(`[data-paint="${name}"]`).hover();
+        await settlePaint();
+        const [value] = await tableTextMeasurements(page, `[data-paint="${name}"]`);
+        measurements.push({ theme: `${family}-${mode}`, state: 'hover', name, ratio: value.ratio });
+      }
+      for (const { state, activate } of [
+        { state: 'rest', activate: () => page.mouse.move(0, 0) },
+        { state: 'hover', activate: () => page.locator('[data-paint="notice"]').hover() },
+      ]) {
+        await activate();
+        await settlePaint();
+        for (const name of ['unit', 'notice', 'blocked']) {
+          const [value] = await tableTextMeasurements(page, `[data-paint="${name}"]`);
+          measurements.push({ theme: `${family}-${mode}`, state, name, ratio: value.ratio });
+        }
+      }
+    }
+  }
+  const failures = measurements.filter(({ ratio }) => ratio < 4.5);
+  console.log(
+    `Component paint: ${measurements.length} checks, ${failures.length} failures, minima ${JSON.stringify(
+      Object.fromEntries(
+        [...new Set(measurements.map(({ name }) => name))].map((name) => [
+          name,
+          Math.min(
+            ...measurements.filter((entry) => entry.name === name).map(({ ratio }) => ratio)
+          ),
+        ])
+      )
+    )}`
+  );
+  expect(failures).toEqual([]);
+});
+
+for (const { consumer, selector } of [
+  { consumer: 'badges', selector: '.app-status-badge' },
+  { consumer: 'expansion control', selector: '.expand-label' },
+]) {
+  test(`shared table ${consumer} text contrast on rendered backgrounds`, async ({ page }) => {
+    test.setTimeout(120_000);
+    await prepareFixture(page);
+    await page.evaluate(() => {
+      (window as unknown as { themeTest: { mountTable: () => void } }).themeTest.mountTable();
+    });
+    const button = page.getByRole('button', { name: 'Expand row', exact: true });
+    await expect(button).toBeVisible();
+    const families = await page.evaluate(() =>
+      (
+        window as unknown as { themeTest: { themeCatalog: { id: string }[] } }
+      ).themeTest.themeCatalog.map(({ id }) => id)
+    );
+    const measurements: {
+      theme: string;
+      width: number;
+      state: string;
+      name: string;
+      ratio: number;
+    }[] = [];
+    for (const width of [1280, 600]) {
+      await page.setViewportSize({ width, height: 900 });
+      for (const family of families) {
+        for (const mode of ['light', 'dark']) {
+          await page.evaluate(
+            ({ family, mode }) => {
+              (
+                window as unknown as {
+                  themeTest: { useUIStore: { setState: (state: object) => void } };
+                }
+              ).themeTest.useUIStore.setState({ themeFamily: family, themeMode: mode });
+            },
+            { family, mode }
+          );
+          await expect(page.locator('html')).toHaveAttribute('data-theme', `${family}-${mode}`);
+          for (const { state, activate } of [
+            { state: 'rest', activate: () => page.mouse.move(0, 0) },
+            {
+              state: 'row-hover',
+              activate: () => page.locator('.app-status-badge--completed').hover(),
+            },
+            { state: 'control-hover', activate: () => button.hover() },
+          ]) {
+            await activate();
+            await page.evaluate(async () => {
+              // Inherited color transitions can retarget descendants after an ancestor finishes.
+              const deadline = performance.now() + 5000;
+              while (performance.now() < deadline) {
+                document.body.getBoundingClientRect();
+                await new Promise(requestAnimationFrame);
+                await new Promise(requestAnimationFrame);
+                const animations = document
+                  .getAnimations()
+                  .filter((animation) => animation.effect?.getTiming().iterations !== Infinity);
+                if (!animations.length) return;
+                await Promise.all(
+                  animations.map((animation) => animation.finished.catch(() => undefined))
+                );
+              }
+              throw new Error('Table paint did not settle');
+            });
+            const values = await tableTextMeasurements(page, selector);
+            measurements.push(
+              ...values.map((value) => ({
+                theme: `${family}-${mode}`,
+                width,
+                state,
+                ...value,
+              }))
+            );
+          }
+        }
+      }
+    }
+    await test.info().attach('table-contrast-measurements', {
+      body: JSON.stringify(measurements, null, 2),
+      contentType: 'application/json',
+    });
+    const failures = measurements.filter(({ ratio }) => ratio < 4.5);
+    const worst = measurements.reduce((a, b) => (a.ratio < b.ratio ? a : b));
+    console.log(
+      `Table ${consumer}: ${measurements.length} checks, ${failures.length} failures, worst ${JSON.stringify(worst)}`
+    );
+    const minima = Object.fromEntries(
+      [...new Set(measurements.map(({ name }) => name))].map((name) => [
+        name,
+        Math.min(...measurements.filter((value) => value.name === name).map(({ ratio }) => ratio)),
+      ])
+    );
+    console.log(`Table ${consumer} minimum ratios: ${JSON.stringify(minima)}`);
+    expect(
+      failures.map(
+        ({ theme, width, state, name, ratio }) =>
+          `${theme} ${width}px ${state} ${name}: ${ratio.toFixed(3)}`
+      )
+    ).toEqual([]);
+    await button.click();
+    await expect(page.getByText('Detalle', { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Collapse row', exact: true }).click();
+    await expect(page.getByText('Detalle', { exact: true })).toHaveCount(0);
+  });
 }
 
 test('candidate token cross-product and adapters resolve across families and modes', async ({

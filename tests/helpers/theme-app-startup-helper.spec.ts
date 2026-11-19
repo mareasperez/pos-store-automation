@@ -2,10 +2,8 @@ import { createRequire } from 'node:module';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { expect, test, type Locator } from '@playwright/test';
-import {
-  createServer,
-  type ViteDevServer,
-} from '../../../frontend/node_modules/vite/dist/node/index.js';
+import type { ViteDevServer } from '../../../frontend/node_modules/vite/dist/node/index.js';
+import { startThemeTestServer } from './theme-test-server';
 import { themeBootstrapPlugin } from '../../../frontend/themeBootstrapPlugin';
 import { themeCatalog } from '../../../frontend/src/features/admin/screens/SettingsPage/themeCatalog';
 
@@ -54,7 +52,7 @@ test.beforeAll(async () => {
   const { default: tailwindcss } = await import(
     pathToFileURL(frontendRequire.resolve('@tailwindcss/vite')).href
   );
-  server = await createServer({
+  server = await startThemeTestServer({
     root: frontendRoot,
     configFile: false,
     envFile: false,
@@ -107,9 +105,11 @@ test.beforeAll(async () => {
     ],
     server: { host: '127.0.0.1', port: 0, hmr: false },
   });
-  await server.listen();
   origin = server.resolvedUrls?.local[0]?.replace(/\/$/, '') ?? '';
-  if (!origin) throw new Error('Local theme App server did not start.');
+  if (!origin) {
+    await server.close();
+    throw new Error('Local theme App server did not start.');
+  }
 });
 
 test.afterAll(async () => {
@@ -340,6 +340,7 @@ test('auth text contrast on real public routes across catalog themes and modes',
             { themeFamily: family, themeMode: mode }
           );
           const page = await context.newPage();
+          let recoverySucceeds = false;
           await page.route('**/*', (route) => {
             const url = new URL(route.request().url());
             if (url.origin === mockApiOrigin) {
@@ -355,7 +356,7 @@ test('auth text contrast on real public routes across catalog themes and modes',
                 return route.fulfill({ status: 401, headers, json: {} });
               }
               if (method === 'POST' && url.pathname === '/api/auth/forgot-password') {
-                return route.fulfill({ status: 500, headers, json: {} });
+                return route.fulfill({ status: recoverySucceeds ? 200 : 500, headers, json: {} });
               }
             }
             return url.origin === origin ? route.continue() : route.abort();
@@ -380,6 +381,15 @@ test('auth text contrast on real public routes across catalog themes and modes',
           await page.getByRole('button', { name: 'Enviar enlace' }).click();
           await expect(alert).toHaveText('Ocurrió un error. Por favor inténtalo de nuevo.');
           ratios['Forgot-password error'] = await authTextContrast(alert);
+
+          recoverySucceeds = true;
+          await page.getByRole('button', { name: 'Enviar enlace' }).click();
+          const recoverySuccess = page.getByText(
+            'Si tu correo está registrado, recibirás un enlace en breve.',
+            { exact: true }
+          );
+          await expect(recoverySuccess).toBeVisible();
+          ratios['Forgot-password success'] = await authTextContrast(recoverySuccess);
 
           await page.goto(`${origin}/reset-password?token=contrast-test`);
           await page.locator('#password').fill('first-password');
