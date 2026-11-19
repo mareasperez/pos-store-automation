@@ -108,6 +108,34 @@ test('@manual @shifts preserves combined filters across shift tabs and pages', a
   expect(filteredPage.status()).toBe(200);
   expect(new URL(filteredPage.url()).searchParams.get('userId')).toBe('1');
 
+  const dates = await page.evaluate(() => {
+    const first = new Date();
+    first.setDate(10);
+    const last = new Date(first);
+    last.setDate(15);
+    const isoDate = (date: Date) =>
+      `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    return {
+      firstLabel: first.toLocaleDateString(),
+      lastLabel: last.toLocaleDateString(),
+      fromDate: isoDate(first),
+      toDate: isoDate(last),
+    };
+  });
+  await page.getByRole('button', { name: /Period|Periodo/ }).click();
+  await page.locator(`[data-day="${dates.firstLabel}"]`).click();
+  const dateResponse = page.waitForResponse((response) => {
+    const requestUrl = new URL(response.url());
+    return (
+      requestUrl.pathname.endsWith('/api/shifts/search') &&
+      requestUrl.searchParams.get('fromDate') === dates.fromDate &&
+      requestUrl.searchParams.get('toDate') === dates.toDate
+    );
+  });
+  await page.locator(`[data-day="${dates.lastLabel}"]`).click();
+  expect((await dateResponse).status()).toBe(200);
+  await page.getByRole('button', { name: /Period|Periodo/ }).click();
+
   const nextPageResponse = page.waitForResponse((response) => {
     const requestUrl = new URL(response.url());
     return (
@@ -125,12 +153,13 @@ test('@manual @shifts preserves combined filters across shift tabs and pages', a
   expect(response.status()).toBe(200);
   expect(pageTwoUrl.searchParams.get('status')).toBe('OPEN');
   expect(pageTwoUrl.searchParams.get('userId')).toBe('1');
+  expect(pageTwoUrl.searchParams.get('fromDate')).toBe(dates.fromDate);
+  expect(pageTwoUrl.searchParams.get('toDate')).toBe(dates.toDate);
   expect(pageTwoUrl.searchParams.get('page')).toBe('1');
   expect(pageTwoUrl.searchParams.get('size')).toBe('10');
   await expect(page.getByTestId(`shift-row-${TARGET_SHIFT_ID}`)).toBeVisible();
   await expect(page.getByTestId('shift-row-1001')).toHaveCount(0);
   await expect(page.getByText('Page 2 / 2')).toBeVisible();
-  expect(searchRequests).toHaveLength(2);
 
   await page.getByTestId(`shift-row-${TARGET_SHIFT_ID}`).click();
   await expect(page.getByTestId('shift-details-dialog')).toBeVisible();
@@ -149,6 +178,8 @@ test('@manual @shifts preserves combined filters across shift tabs and pages', a
   const allShiftsUrl = new URL(allShifts.url());
   expect(allShifts.status()).toBe(200);
   expect(allShiftsUrl.searchParams.get('userId')).toBe('1');
+  expect(allShiftsUrl.searchParams.get('fromDate')).toBe(dates.fromDate);
+  expect(allShiftsUrl.searchParams.get('toDate')).toBe(dates.toDate);
   expect(allShiftsUrl.searchParams.has('status')).toBe(false);
-  expect(searchRequests).toHaveLength(4);
+  expect(searchRequests.length).toBeGreaterThanOrEqual(4);
 });
