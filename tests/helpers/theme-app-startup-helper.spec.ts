@@ -1,15 +1,17 @@
 import { createRequire } from 'node:module';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { expect, test } from '@playwright/test';
+import { expect, test, type Locator } from '@playwright/test';
 import {
   createServer,
   type ViteDevServer,
 } from '../../../frontend/node_modules/vite/dist/node/index.js';
 import { themeBootstrapPlugin } from '../../../frontend/themeBootstrapPlugin';
+import { themeCatalog } from '../../../frontend/src/features/admin/screens/SettingsPage/themeCatalog';
 
 const frontendRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../../frontend');
 const frontendRequire = createRequire(resolve(frontendRoot, 'package.json'));
+const mockApiOrigin = 'http://127.0.0.1:0';
 let server: ViteDevServer;
 let origin: string;
 
@@ -60,7 +62,7 @@ test.beforeAll(async () => {
     define: {
       'import.meta.env.VITE_USE_RUNTIME_CONFIG': JSON.stringify('false'),
       'import.meta.env.VITE_SENTRY_ENABLED': JSON.stringify('false'),
-      'import.meta.env.VITE_API_URL': JSON.stringify('http://127.0.0.1:0'),
+      'import.meta.env.VITE_API_URL': JSON.stringify(mockApiOrigin),
     },
     resolve: {
       alias: Object.fromEntries(
@@ -257,3 +259,155 @@ for (const scenario of [
     }
   });
 }
+
+async function authTextContrast(text: Locator) {
+  return text.evaluate(async (element) => {
+    const card = element.closest('.card--auth');
+    if (!card) throw new Error('Expected text inside the rendered auth Card.');
+
+    const ancestors: Element[] = [];
+    for (let layer: Element | null = element; layer; layer = layer.parentElement) {
+      ancestors.push(layer);
+    }
+    // Measure settled paint, not the login page's fade-in.
+    await Promise.allSettled(
+      ancestors.flatMap((layer) => layer.getAnimations().map((a) => a.finished))
+    );
+
+    const styles = ancestors.map((layer) => getComputedStyle(layer));
+    if (styles.some((style) => style.opacity !== '1')) {
+      throw new Error('Expected full opacity after auth animations.');
+    }
+    // Let Chromium convert modern color syntax (e.g. shadcn OKLCH) to sRGB.
+    const probe = document.createElement('span');
+    function rgba(color: string) {
+      const match = /^rgba?\(([\d.]+), ([\d.]+), ([\d.]+)(?:, ([\d.]+))?\)$/.exec(color);
+      if (match) return { rgb: match.slice(1, 4).map(Number), alpha: Number(match[4] ?? 1) };
+
+      probe.style.color = `color(from ${color} srgb r g b / alpha)`;
+      document.body.append(probe);
+      const converted = getComputedStyle(probe).color;
+      probe.remove();
+      const srgb = /^color\(srgb ([^ ]+) ([^ ]+) ([^ /)]+)(?: \/ ([^)]+))?\)$/.exec(converted);
+      if (!srgb) throw new Error(`Unsupported computed auth color: ${color} → ${converted}`);
+      return {
+        rgb: srgb.slice(1, 4).map((channel) => 255 * Math.max(0, Math.min(1, Number(channel)))),
+        alpha: Number(srgb[4] ?? 1),
+      };
+    }
+
+    const layers = [];
+    for (const style of styles) {
+      if (style.backgroundImage !== 'none') throw new Error('Expected flat auth backgrounds.');
+      const background = rgba(style.backgroundColor);
+      layers.push(background);
+      if (background.alpha === 1) break;
+    }
+    if (layers.at(-1)?.alpha !== 1) throw new Error('No opaque auth backdrop found.');
+
+    function composite({ rgb, alpha }: ReturnType<typeof rgba>, backdrop: number[]) {
+      return rgb.map((channel, i) => channel * alpha + backdrop[i] * (1 - alpha));
+    }
+    function luminance(rgb: number[]) {
+      const [r, g, b] = rgb.map((channel) => {
+        const s = channel / 255;
+        return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+      });
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    }
+    const backdrop = layers.reduceRight((below, layer) => composite(layer, below), [0, 0, 0]);
+    const textLuminance = luminance(composite(rgba(styles[0].color), backdrop));
+    const backgroundLuminance = luminance(backdrop);
+    return (
+      (Math.max(textLuminance, backgroundLuminance) + 0.05) /
+      (Math.min(textLuminance, backgroundLuminance) + 0.05)
+    );
+  });
+}
+
+test('auth text contrast on real public routes across catalog themes and modes', async ({
+  browser,
+}, testInfo) => {
+  test.setTimeout(360_000);
+  for (const { id: family } of themeCatalog) {
+    for (const mode of ['light', 'dark'] as const) {
+      await test.step(`${family} ${mode}`, async () => {
+        const context = await browser.newContext({ locale: 'es', serviceWorkers: 'block' });
+        try {
+          await context.addInitScript(
+            (state) =>
+              localStorage.setItem('pos_ui_storage', JSON.stringify({ state, version: 0 })),
+            { themeFamily: family, themeMode: mode }
+          );
+          const page = await context.newPage();
+          await page.route('**/*', (route) => {
+            const url = new URL(route.request().url());
+            if (url.origin === mockApiOrigin) {
+              const headers = {
+                'access-control-allow-origin': origin,
+                'access-control-allow-credentials': 'true',
+                'access-control-allow-headers': 'content-type',
+                'access-control-allow-methods': 'POST',
+              };
+              const method = route.request().method();
+              if (method === 'OPTIONS') return route.fulfill({ status: 204, headers });
+              if (method === 'POST' && url.pathname === '/api/auth/login') {
+                return route.fulfill({ status: 401, headers, json: {} });
+              }
+              if (method === 'POST' && url.pathname === '/api/auth/forgot-password') {
+                return route.fulfill({ status: 500, headers, json: {} });
+              }
+            }
+            return url.origin === origin ? route.continue() : route.abort();
+          });
+
+          const ratios: Record<string, number> = {};
+          await page.goto(`${origin}/login`);
+          await expect(page.locator('html')).toHaveAttribute('data-theme', `${family}-${mode}`);
+          const forgotLink = page.getByRole('link', { name: '¿Olvidaste tu contraseña?' });
+          await expect(forgotLink).toBeVisible();
+          ratios['Forgot-password link'] = await authTextContrast(forgotLink);
+
+          await page.locator('#username').fill('contrast-test');
+          await page.locator('#password').fill('not-a-real-password');
+          await page.locator('button[type="submit"]').click();
+          const alert = page.getByRole('alert');
+          await expect(alert).toHaveText('Credenciales inválidas');
+          ratios['Login error'] = await authTextContrast(alert);
+
+          await forgotLink.click();
+          await page.locator('#email').fill('contrast@example.test');
+          await page.getByRole('button', { name: 'Enviar enlace' }).click();
+          await expect(alert).toHaveText('Ocurrió un error. Por favor inténtalo de nuevo.');
+          ratios['Forgot-password error'] = await authTextContrast(alert);
+
+          await page.goto(`${origin}/reset-password?token=contrast-test`);
+          await page.locator('#password').fill('first-password');
+          await page.locator('#confirmPassword').fill('different-password');
+          await page.getByRole('button', { name: 'Cambiar Contraseña' }).click();
+          await expect(alert).toHaveText('Las contraseñas no coinciden');
+          ratios['Reset-password error'] = await authTextContrast(alert);
+
+          await page.goto(`${origin}/reset-password`);
+          const missingToken = page.getByText('El enlace es inválido o ha expirado', {
+            exact: true,
+          });
+          await expect(missingToken).toBeVisible();
+          ratios['Reset-password missing token'] = await authTextContrast(missingToken);
+
+          await testInfo.attach(`${family} ${mode} contrast ratios`, {
+            body: JSON.stringify(ratios),
+            contentType: 'application/json',
+          });
+          for (const [state, ratio] of Object.entries(ratios)) {
+            expect
+              .soft(ratio, `${family} ${mode} — ${state} (${ratio.toFixed(2)}:1)`)
+              .toBeGreaterThanOrEqual(4.5);
+          }
+        } finally {
+          await context.close();
+        }
+      });
+    }
+  }
+});
