@@ -36,9 +36,7 @@ const buildPage = (content: ShiftSummaryFixture[], number: number) => ({
   sort: ['startTime,DESC', 'id,ASC'],
 });
 
-test('@manual @shifts paginates shift summaries through the typed search route', async ({
-  page,
-}) => {
+test('@manual @shifts preserves combined filters across shift tabs and pages', async ({ page }) => {
   const searchRequests: string[] = [];
 
   await page.route('**/api/shifts/active', async (route) => {
@@ -94,11 +92,28 @@ test('@manual @shifts paginates shift summaries through the typed search route',
   await expect(page.getByTestId('shift-row-1001')).toBeVisible();
   await expect(page.getByText('Page 1 / 2')).toBeVisible();
 
+  const filteredResponse = page.waitForResponse((response) => {
+    const requestUrl = new URL(response.url());
+    return (
+      response.request().method() === 'GET' &&
+      requestUrl.pathname.endsWith('/api/shifts/search') &&
+      requestUrl.searchParams.get('status') === 'OPEN' &&
+      requestUrl.searchParams.get('userId') === '1' &&
+      requestUrl.searchParams.get('page') === '0'
+    );
+  });
+  await page.getByRole('combobox', { name: /Opened by|Usuario que abrió/ }).click();
+  await page.getByRole('option', { name: 'Cashier' }).click();
+  const filteredPage = await filteredResponse;
+  expect(filteredPage.status()).toBe(200);
+  expect(new URL(filteredPage.url()).searchParams.get('userId')).toBe('1');
+
   const nextPageResponse = page.waitForResponse((response) => {
     const requestUrl = new URL(response.url());
     return (
       response.request().method() === 'GET' &&
       requestUrl.pathname.endsWith('/api/shifts/search') &&
+      requestUrl.searchParams.get('userId') === '1' &&
       requestUrl.searchParams.get('page') === '1'
     );
   });
@@ -109,6 +124,7 @@ test('@manual @shifts paginates shift summaries through the typed search route',
   expect(acceptedApiOrigins).toContain(pageTwoUrl.origin);
   expect(response.status()).toBe(200);
   expect(pageTwoUrl.searchParams.get('status')).toBe('OPEN');
+  expect(pageTwoUrl.searchParams.get('userId')).toBe('1');
   expect(pageTwoUrl.searchParams.get('page')).toBe('1');
   expect(pageTwoUrl.searchParams.get('size')).toBe('10');
   await expect(page.getByTestId(`shift-row-${TARGET_SHIFT_ID}`)).toBeVisible();
@@ -118,4 +134,21 @@ test('@manual @shifts paginates shift summaries through the typed search route',
 
   await page.getByTestId(`shift-row-${TARGET_SHIFT_ID}`).click();
   await expect(page.getByTestId('shift-details-dialog')).toBeVisible();
+
+  const allShiftsResponse = page.waitForResponse((allResponse) => {
+    const requestUrl = new URL(allResponse.url());
+    return (
+      allResponse.request().method() === 'GET' &&
+      requestUrl.pathname.endsWith('/api/shifts/search') &&
+      requestUrl.searchParams.get('userId') === '1' &&
+      requestUrl.searchParams.get('page') === '0'
+    );
+  });
+  await page.getByRole('button', { name: /All shifts|Todos los turnos/ }).click();
+  const allShifts = await allShiftsResponse;
+  const allShiftsUrl = new URL(allShifts.url());
+  expect(allShifts.status()).toBe(200);
+  expect(allShiftsUrl.searchParams.get('userId')).toBe('1');
+  expect(allShiftsUrl.searchParams.has('status')).toBe(false);
+  expect(searchRequests).toHaveLength(4);
 });
