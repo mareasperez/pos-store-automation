@@ -3,7 +3,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, test, type Browser, type Page } from '@playwright/test';
 import { build } from '../../../frontend/node_modules/vite/dist/node/index.js';
-import { themeBootstrapPlugin } from '../../../frontend/themeBootstrapPlugin';
+import { themeBootstrapPlugin } from '../../../frontend/scripts/vite/themeBootstrapPlugin';
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const frontendRoot = resolve(repositoryRoot, 'frontend');

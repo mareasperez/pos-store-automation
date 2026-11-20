@@ -4,7 +4,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { expect, test, type Locator } from '@playwright/test';
 import type { ViteDevServer } from '../../../frontend/node_modules/vite/dist/node/index.js';
 import { startThemeTestServer } from './theme-test-server';
-import { themeBootstrapPlugin } from '../../../frontend/themeBootstrapPlugin';
+import { themeBootstrapPlugin } from '../../../frontend/scripts/vite/themeBootstrapPlugin';
 import { themeCatalog } from '../../../frontend/src/features/admin/screens/SettingsPage/themeCatalog';
 
 const frontendRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../../frontend');

@@ -269,8 +269,8 @@ test.beforeAll(async () => {
         { find: '@constants', replacement: resolve(frontend, 'src/shared/constants') },
         { find: '@styles', replacement: resolve(frontend, 'src/styles') },
         { find: '@types', replacement: resolve(frontend, 'src/shared/types') },
-        { find: '@', replacement: resolve(frontend, 'src') }
-      ]
+        { find: '@', replacement: resolve(frontend, 'src') },
+      ],
     },
     optimizeDeps: {
       noDiscovery: true,
@@ -281,16 +281,16 @@ test.beforeAll(async () => {
         'react-dom',
         'react-dom/client',
         'react-router-dom',
-        'react-i18next'
-      ]
+        'react-i18next',
+      ],
     },
     server: {
       host: '127.0.0.1',
       port: 0,
       hmr: false,
-      fs: { allow: [repo] }
+      fs: { allow: [repo] },
     },
-    logLevel: 'error'
+    logLevel: 'error',
   });
   origin = server.resolvedUrls!.local[0].replace(/\/$/, '');
 });
@@ -306,7 +306,7 @@ async function prepareFixture(page: import('@playwright/test').Page) {
   await page.route(`${origin}/home-pos-layout-fixture`, (route) =>
     route.fulfill({
       contentType: 'text/html',
-      body: '<!doctype html><html><head></head><body><div id="root"></div><script type="module" src="/@id/__x00__home-pos-layout"></script></body></html>'
+      body: '<!doctype html><html><head></head><body><div id="root"></div><script type="module" src="/@id/__x00__home-pos-layout"></script></body></html>',
     })
   );
   await page.goto(`${origin}/home-pos-layout-fixture`);
@@ -315,27 +315,47 @@ async function prepareFixture(page: import('@playwright/test').Page) {
 
 async function waitForLayout(page: import('@playwright/test').Page) {
   await page.evaluate(
-    () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+      )
   );
 }
 
-test('Home actions fit the requested viewports and keep semantic icon contrast', async ({ page }) => {
+async function waitForQuickActionTransitions(page: import('@playwright/test').Page) {
+  await page.evaluate(async () => {
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+    );
+    const cards = document.querySelectorAll<HTMLElement>('[data-quick-action] a > div');
+    const animations = [...cards].flatMap((card) => card.getAnimations());
+    await Promise.all(animations.map((animation) => animation.finished.catch(() => undefined)));
+  });
+}
+
+test('Home actions fit the requested viewports and keep semantic icon contrast', async ({
+  page,
+}) => {
   await prepareFixture(page);
   const permissions = await page.evaluate(() => window.homePosTest!.allPermissions);
   await page.evaluate((allowed) => window.homePosTest!.mountQuickActions(allowed), permissions);
 
-  const lowContrast: Array<{
-    theme: string;
-    viewport: string;
-    tone: string;
-    foreground: string;
-    background: string;
-    ratio: number;
-  }> = [];
+  const lowContrast = new Map<
+    string,
+    {
+      theme: string;
+      viewport: string;
+      tone: string;
+      foreground: string;
+      background: string;
+      ratio: number;
+      actions: number;
+    }
+  >();
   for (const viewport of [
     { width: 375, height: 812 },
     { width: 768, height: 1024 },
-    { width: 1440, height: 900 }
+    { width: 1440, height: 900 },
   ]) {
     await page.setViewportSize(viewport);
     await waitForLayout(page);
@@ -356,7 +376,7 @@ test('Home actions fit the requested viewports and keep semantic icon contrast',
           foreground: getComputedStyle(icon).color,
           background: getComputedStyle(card).backgroundColor,
           id: action.dataset.quickAction,
-          label: action.textContent?.trim()
+          label: action.textContent?.trim(),
         };
       });
       return {
@@ -364,7 +384,7 @@ test('Home actions fit the requested viewports and keep semantic icon contrast',
         viewportWidth: window.innerWidth,
         gridWidth: document.querySelector<HTMLElement>('[data-quick-actions]')!.clientWidth,
         gridScrollWidth: document.querySelector<HTMLElement>('[data-quick-actions]')!.scrollWidth,
-        cards
+        cards,
       };
     });
 
@@ -385,11 +405,12 @@ test('Home actions fit the requested viewports and keep semantic icon contrast',
 
     for (const theme of ['default-light', 'default-dark']) {
       const [family, mode] = theme.split('-');
-      await page.evaluate(
-        ({ family, mode }) => window.homePosTest!.setTheme(family, mode),
-        { family, mode }
-      );
+      await page.evaluate(({ family, mode }) => window.homePosTest!.setTheme(family, mode), {
+        family,
+        mode,
+      });
       await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
+      await waitForQuickActionTransitions(page);
       const contrast = await page.evaluate(() => {
         const context = document.createElement('canvas').getContext('2d')!;
         const luminance = (value: string) => {
@@ -400,8 +421,10 @@ test('Home actions fit the requested viewports and keep semantic icon contrast',
             .slice(0, 3)
             .reduce((sum, channel, index) => {
               const color = channel / 255;
-              return sum + [0.2126, 0.7152, 0.0722][index] * (
-                color <= 0.04045 ? color / 12.92 : ((color + 0.055) / 1.055) ** 2.4
+              return (
+                sum +
+                [0.2126, 0.7152, 0.0722][index] *
+                  (color <= 0.04045 ? color / 12.92 : ((color + 0.055) / 1.055) ** 2.4)
               );
             }, 0);
         };
@@ -410,32 +433,38 @@ test('Home actions fit the requested viewports and keep semantic icon contrast',
           const card = action.querySelector<HTMLElement>('a > div')!;
           const [foreground, background] = [
             luminance(getComputedStyle(icon).color),
-            luminance(getComputedStyle(card).backgroundColor)
+            luminance(getComputedStyle(card).backgroundColor),
           ].sort((a, b) => b - a);
           return {
             tone: action.dataset.tone ?? '',
             foreground: getComputedStyle(icon).color,
             background: getComputedStyle(card).backgroundColor,
-            ratio: (foreground + 0.05) / (background + 0.05)
+            ratio: (foreground + 0.05) / (background + 0.05),
           };
         });
       });
-      lowContrast.push(
-        ...contrast
-          .filter(({ ratio }) => ratio < 3)
-          .map((item) => ({
-            ...item,
-            theme,
-            viewport: `${viewport.width}x${viewport.height}`
-          }))
-      );
+      for (const item of contrast.filter(({ ratio }) => ratio < 3)) {
+        const viewportLabel = `${viewport.width}x${viewport.height}`;
+        const key = `${theme}|${viewportLabel}|${item.tone}`;
+        const existing = lowContrast.get(key);
+        if (existing) {
+          existing.actions += 1;
+          if (item.ratio < existing.ratio) {
+            existing.foreground = item.foreground;
+            existing.background = item.background;
+            existing.ratio = item.ratio;
+          }
+        } else {
+          lowContrast.set(key, { ...item, theme, viewport: viewportLabel, actions: 1 });
+        }
+      }
     }
   }
-  expect(lowContrast, 'Quick-action icon contrast below 3:1').toEqual([]);
+  expect([...lowContrast.values()], 'Quick-action icon contrast below 3:1').toEqual([]);
 });
 
 test('permission-filtered Home actions do not leave stretched filler or Settings cards', async ({
-  page
+  page,
 }) => {
   await prepareFixture(page);
   const permissions = await page.evaluate(() => window.homePosTest!.allPermissions);
@@ -446,80 +475,109 @@ test('permission-filtered Home actions do not leave stretched filler or Settings
   await expect(page.locator('[data-quick-action]')).toHaveCount(11);
   await expect(page.getByText('Configuración', { exact: true })).toHaveCount(0);
   await expect(page.locator('[data-quick-actions] > *')).toHaveCount(11);
-  const widths = await page.locator('[data-quick-actions] a > div').evaluateAll((cards) =>
-    cards.map((card) => card.getBoundingClientRect().width)
-  );
+  const widths = await page
+    .locator('[data-quick-actions] a > div')
+    .evaluateAll((cards) => cards.map((card) => card.getBoundingClientRect().width));
   expect(Math.max(...widths) - Math.min(...widths)).toBeLessThanOrEqual(1);
 });
 
 test('top-product rank badges stay gold and legible across supported themes', async ({ page }) => {
+  test.setTimeout(30_000);
   await prepareFixture(page);
   await page.evaluate(() => window.homePosTest!.mountRankBadges());
   const themes = await page.evaluate(() => window.homePosTest!.themes);
-  const contrastFailures: Array<{
-    theme: string;
-    rank: string | null;
-    textContrast: number;
-    badgeContrast: number;
-  }> = [];
+  const contrastFailures = new Map<
+    string,
+    {
+      theme: string;
+      viewports: string[];
+      ranks: string[];
+      textContrast: number;
+      badgeContrast: number;
+    }
+  >();
 
-  for (const family of themes) {
-    for (const mode of ['light', 'dark']) {
-      await page.evaluate(
-        ({ family, mode }) => window.homePosTest!.setTheme(family, mode),
-        { family, mode }
-      );
-      await expect(page.locator('html')).toHaveAttribute('data-theme', `${family}-${mode}`);
-      const measurements = await page.locator('[data-rank]').evaluateAll((badges) =>
-        badges.map((badge) => {
-          const style = getComputedStyle(badge);
-          const surface = getComputedStyle(badge.parentElement!).backgroundColor;
-          const luminance = (value: string) => {
-            const canvas = document.createElement('canvas');
-            const context = canvas.getContext('2d')!;
-            context.fillStyle = value;
-            context.fillRect(0, 0, 1, 1);
-            return [...context.getImageData(0, 0, 1, 1).data]
-              .slice(0, 3)
-              .reduce((sum, channel, index) => {
-                const color = channel / 255;
-                return sum + [0.2126, 0.7152, 0.0722][index] * (
-                  color <= 0.04045 ? color / 12.92 : ((color + 0.055) / 1.055) ** 2.4
-                );
-              }, 0);
-          };
-          const ratio = (foreground: string, background: string) => {
-            const [a, b] = [luminance(foreground), luminance(background)].sort((x, y) => y - x);
-            return (a + 0.05) / (b + 0.05);
-          };
-          return {
-            rank: badge.textContent,
-            background: style.backgroundColor,
-            textContrast: ratio(style.color, style.backgroundColor),
-            badgeContrast: ratio(style.backgroundColor, surface)
-          };
-        })
-      );
+  for (const viewport of [
+    { width: 375, height: 812 },
+    { width: 768, height: 1024 },
+    { width: 1440, height: 900 },
+  ]) {
+    await page.setViewportSize(viewport);
+    for (const family of themes) {
+      for (const mode of ['light', 'dark']) {
+        await page.evaluate(({ family, mode }) => window.homePosTest!.setTheme(family, mode), {
+          family,
+          mode,
+        });
+        await expect(page.locator('html')).toHaveAttribute('data-theme', `${family}-${mode}`);
+        const measurements = await page.locator('[data-rank]').evaluateAll((badges) =>
+          badges.map((badge) => {
+            const style = getComputedStyle(badge);
+            const surface = getComputedStyle(badge.parentElement!).backgroundColor;
+            const luminance = (value: string) => {
+              const canvas = document.createElement('canvas');
+              const context = canvas.getContext('2d')!;
+              context.fillStyle = value;
+              context.fillRect(0, 0, 1, 1);
+              return [...context.getImageData(0, 0, 1, 1).data]
+                .slice(0, 3)
+                .reduce((sum, channel, index) => {
+                  const color = channel / 255;
+                  return (
+                    sum +
+                    [0.2126, 0.7152, 0.0722][index] *
+                      (color <= 0.04045 ? color / 12.92 : ((color + 0.055) / 1.055) ** 2.4)
+                  );
+                }, 0);
+            };
+            const ratio = (foreground: string, background: string) => {
+              const [a, b] = [luminance(foreground), luminance(background)].sort((x, y) => y - x);
+              return (a + 0.05) / (b + 0.05);
+            };
+            return {
+              rank: badge.textContent,
+              background: style.backgroundColor,
+              textContrast: ratio(style.color, style.backgroundColor),
+              badgeContrast: ratio(style.backgroundColor, surface),
+            };
+          })
+        );
 
-      expect(measurements.map(({ rank }) => rank)).toEqual(['1', '2', '3']);
-      expect(measurements.map(({ background }) => background)).toEqual([
-        'rgb(250, 204, 21)',
-        'rgb(250, 204, 21)',
-        'rgb(250, 204, 21)'
-      ]);
-      contrastFailures.push(
-        ...measurements
-          .filter(({ textContrast, badgeContrast }) => textContrast < 4.5 || badgeContrast < 3)
-          .map(({ rank, textContrast, badgeContrast }) => ({
-            theme: `${family}-${mode}`,
-            rank,
-            textContrast,
-            badgeContrast
-          }))
-      );
+        expect(measurements.map(({ rank }) => rank)).toEqual(['1', '2', '3']);
+        expect(measurements.map(({ background }) => background)).toEqual([
+          'rgb(250, 204, 21)',
+          'rgb(250, 204, 21)',
+          'rgb(250, 204, 21)',
+        ]);
+        const theme = `${family}-${mode}`;
+        for (const failure of measurements.filter(
+          ({ textContrast, badgeContrast }) => textContrast < 4.5 || badgeContrast < 3
+        )) {
+          const existing = contrastFailures.get(theme);
+          if (existing) {
+            existing.ranks.push(failure.rank ?? '');
+            if (!existing.viewports.includes(`${viewport.width}x${viewport.height}`)) {
+              existing.viewports.push(`${viewport.width}x${viewport.height}`);
+            }
+            existing.textContrast = Math.min(existing.textContrast, failure.textContrast);
+            existing.badgeContrast = Math.min(existing.badgeContrast, failure.badgeContrast);
+          } else {
+            contrastFailures.set(theme, {
+              theme,
+              viewports: [`${viewport.width}x${viewport.height}`],
+              ranks: [failure.rank ?? ''],
+              textContrast: failure.textContrast,
+              badgeContrast: failure.badgeContrast,
+            });
+          }
+        }
+      }
     }
   }
-  expect(contrastFailures, 'Top-product rank contrast below 4.5:1 text or 3:1 badge').toEqual([]);
+  expect(
+    [...contrastFailures.values()],
+    'Top-product rank contrast below 4.5:1 text or 3:1 badge'
+  ).toEqual([]);
 });
 
 test('the floating sidebar does not move Home content when opened or closed', async ({ page }) => {
@@ -527,7 +585,7 @@ test('the floating sidebar does not move Home content when opened or closed', as
   for (const viewport of [
     { width: 375, height: 812 },
     { width: 768, height: 1024 },
-    { width: 1440, height: 900 }
+    { width: 1440, height: 900 },
   ]) {
     await page.setViewportSize(viewport);
     await page.evaluate(() => window.homePosTest!.mountSidebar());
@@ -553,10 +611,11 @@ test('the floating sidebar does not move Home content when opened or closed', as
 
 test('POS checkout bounds are measured without the Dashboard global footer', async ({ page }) => {
   await prepareFixture(page);
+  const failures: string[] = [];
   for (const viewport of [
     { width: 375, height: 812 },
     { width: 768, height: 1024 },
-    { width: 1440, height: 900 }
+    { width: 1440, height: 900 },
   ]) {
     await page.setViewportSize(viewport);
     await page.evaluate(() => window.homePosTest!.mountSell());
@@ -583,18 +642,39 @@ test('POS checkout bounds are measured without the Dashboard global footer', asy
         gridBottom: gridRect.bottom,
         bodyBottom: bodyRect.bottom,
         lastLineBottom: lineRect.bottom,
+        bodyClientHeight: body.clientHeight,
+        bodyScrollHeight: body.scrollHeight,
+        bodyScrollTop: body.scrollTop,
         viewportHeight: window.innerHeight,
-        scrollWidth: document.documentElement.scrollWidth
+        scrollWidth: document.documentElement.scrollWidth,
       };
     });
-    expect(measurements.scrollWidth).toBeLessThanOrEqual(viewport.width);
-    expect(measurements.footerBottom).toBeLessThanOrEqual(measurements.viewportHeight + 1);
+    const viewportLabel = `${viewport.width}x${viewport.height}`;
+    if (measurements.scrollWidth > viewport.width) {
+      failures.push(`${viewportLabel} horizontal overflow: ${JSON.stringify(measurements)}`);
+    }
+    if (measurements.footerBottom > measurements.viewportHeight + 1) {
+      failures.push(
+        `${viewportLabel} checkout footer exceeds viewport: ${JSON.stringify(measurements)}`
+      );
+    }
     if (viewport.width < 1024) {
-      expect(measurements.footerDisplay).not.toBe('none');
-      expect(measurements.lastLineBottom).toBeLessThanOrEqual(measurements.footerTop);
-      expect(measurements.bodyBottom).toBeLessThanOrEqual(measurements.footerTop);
-    } else {
-      expect(measurements.footerDisplay).toBe('none');
+      if (measurements.footerDisplay === 'none') {
+        failures.push(`${viewportLabel} sticky checkout footer is hidden`);
+      }
+      if (measurements.lastLineBottom > measurements.footerTop) {
+        failures.push(
+          `${viewportLabel} last ticket row overlaps checkout footer: ${JSON.stringify(measurements)}`
+        );
+      }
+      if (measurements.bodyBottom > measurements.footerTop) {
+        failures.push(
+          `${viewportLabel} ticket body overlaps checkout footer: ${JSON.stringify(measurements)}`
+        );
+      }
+    } else if (measurements.footerDisplay !== 'none') {
+      failures.push(`${viewportLabel} mobile checkout footer remains visible`);
     }
   }
+  expect(failures, 'POS checkout layout issues').toEqual([]);
 });
