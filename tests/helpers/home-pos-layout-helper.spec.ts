@@ -18,6 +18,8 @@ type HomePosTestApi = {
   allPermissions: string[];
   settingsPermission: string;
   themes: string[];
+  sellFooterClass: string;
+  sellGridClass: string;
 };
 
 declare global {
@@ -27,21 +29,15 @@ declare global {
 }
 
 test.beforeAll(async () => {
-  const reactUrl = pathToFileURL(
-    resolve(frontend, 'node_modules/@vitejs/plugin-react/dist/index.js')
-  ).href;
   const tailwindUrl = pathToFileURL(
     resolve(frontend, 'node_modules/@tailwindcss/vite/dist/index.mjs')
   ).href;
-  const [{ default: react }, { default: tailwindcss }] = await Promise.all([
-    import(reactUrl),
-    import(tailwindUrl),
-  ]);
+  const { default: tailwindcss } = await import(tailwindUrl);
   server = await startThemeTestServer({
     root: frontend,
     configFile: false,
+    envFile: false,
     plugins: [
-      react(),
       tailwindcss(),
       {
         name: 'home-pos-layout-fixture',
@@ -254,7 +250,9 @@ test.beforeAll(async () => {
               setTheme,
               allPermissions: [...new Set(actions.map((action) => action.permission))],
               settingsPermission: PERMISSIONS.SETTINGS.GENERAL.VIEW,
-              themes: themeCatalog.map(({ id }) => id)
+              themes: themeCatalog.map(({ id }) => id),
+              sellFooterClass: sellStyles['sell-page__footer'],
+              sellGridClass: sellStyles['sell-page__grid']
             };
             createRoot(document.getElementById('root')).render(React.createElement(Harness));
           `;
@@ -276,11 +274,20 @@ test.beforeAll(async () => {
     },
     optimizeDeps: {
       noDiscovery: true,
-      include: ['react', 'react/jsx-dev-runtime', 'react/jsx-runtime', 'react-dom', 'react-dom/client', 'react-router-dom']
+      include: [
+        'react',
+        'react/jsx-dev-runtime',
+        'react/jsx-runtime',
+        'react-dom',
+        'react-dom/client',
+        'react-router-dom',
+        'react-i18next'
+      ]
     },
     server: {
       host: '127.0.0.1',
       port: 0,
+      hmr: false,
       fs: { allow: [repo] }
     },
     logLevel: 'error'
@@ -317,6 +324,14 @@ test('Home actions fit the requested viewports and keep semantic icon contrast',
   const permissions = await page.evaluate(() => window.homePosTest!.allPermissions);
   await page.evaluate((allowed) => window.homePosTest!.mountQuickActions(allowed), permissions);
 
+  const lowContrast: Array<{
+    theme: string;
+    viewport: string;
+    tone: string;
+    foreground: string;
+    background: string;
+    ratio: number;
+  }> = [];
   for (const viewport of [
     { width: 375, height: 812 },
     { width: 768, height: 1024 },
@@ -397,12 +412,26 @@ test('Home actions fit the requested viewports and keep semantic icon contrast',
             luminance(getComputedStyle(icon).color),
             luminance(getComputedStyle(card).backgroundColor)
           ].sort((a, b) => b - a);
-          return { tone: action.dataset.tone, ratio: (foreground + 0.05) / (background + 0.05) };
+          return {
+            tone: action.dataset.tone ?? '',
+            foreground: getComputedStyle(icon).color,
+            background: getComputedStyle(card).backgroundColor,
+            ratio: (foreground + 0.05) / (background + 0.05)
+          };
         });
       });
-      expect(contrast.filter(({ ratio }) => ratio < 3)).toEqual([]);
+      lowContrast.push(
+        ...contrast
+          .filter(({ ratio }) => ratio < 3)
+          .map((item) => ({
+            ...item,
+            theme,
+            viewport: `${viewport.width}x${viewport.height}`
+          }))
+      );
     }
   }
+  expect(lowContrast, 'Quick-action icon contrast below 3:1').toEqual([]);
 });
 
 test('permission-filtered Home actions do not leave stretched filler or Settings cards', async ({
@@ -410,7 +439,8 @@ test('permission-filtered Home actions do not leave stretched filler or Settings
 }) => {
   await prepareFixture(page);
   const permissions = await page.evaluate(() => window.homePosTest!.allPermissions);
-  const visible = permissions.filter((permission) => permission !== window.homePosTest!.settingsPermission);
+  const settingsPermission = await page.evaluate(() => window.homePosTest!.settingsPermission);
+  const visible = permissions.filter((permission) => permission !== settingsPermission);
   await page.evaluate((allowed) => window.homePosTest!.mountQuickActions(allowed), visible);
   await page.setViewportSize({ width: 1440, height: 900 });
   await expect(page.locator('[data-quick-action]')).toHaveCount(11);
@@ -426,6 +456,12 @@ test('top-product rank badges stay gold and legible across supported themes', as
   await prepareFixture(page);
   await page.evaluate(() => window.homePosTest!.mountRankBadges());
   const themes = await page.evaluate(() => window.homePosTest!.themes);
+  const contrastFailures: Array<{
+    theme: string;
+    rank: string | null;
+    textContrast: number;
+    badgeContrast: number;
+  }> = [];
 
   for (const family of themes) {
     for (const mode of ['light', 'dark']) {
@@ -467,14 +503,23 @@ test('top-product rank badges stay gold and legible across supported themes', as
 
       expect(measurements.map(({ rank }) => rank)).toEqual(['1', '2', '3']);
       expect(measurements.map(({ background }) => background)).toEqual([
-        'rgb(183, 121, 31)',
-        'rgb(183, 121, 31)',
-        'rgb(183, 121, 31)'
+        'rgb(250, 204, 21)',
+        'rgb(250, 204, 21)',
+        'rgb(250, 204, 21)'
       ]);
-      expect(measurements.filter(({ textContrast }) => textContrast < 4.5)).toEqual([]);
-      expect(measurements.filter(({ badgeContrast }) => badgeContrast < 3)).toEqual([]);
+      contrastFailures.push(
+        ...measurements
+          .filter(({ textContrast, badgeContrast }) => textContrast < 4.5 || badgeContrast < 3)
+          .map(({ rank, textContrast, badgeContrast }) => ({
+            theme: `${family}-${mode}`,
+            rank,
+            textContrast,
+            badgeContrast
+          }))
+      );
     }
   }
+  expect(contrastFailures, 'Top-product rank contrast below 4.5:1 text or 3:1 badge').toEqual([]);
 });
 
 test('the floating sidebar does not move Home content when opened or closed', async ({ page }) => {
@@ -490,11 +535,18 @@ test('the floating sidebar does not move Home content when opened or closed', as
     const content = page.locator('[data-layout-content]');
     const initial = await content.boundingBox();
     const trigger = page.getByRole('button', { name: 'Toggle navigation' });
+    const sidebar = page.locator('[data-slot="sidebar"]').first();
+    const isMobile = viewport.width < 768;
     await trigger.click();
-    await page.waitForTimeout(300);
+    await expect(sidebar).toHaveAttribute('data-state', isMobile ? 'open' : 'expanded');
     expect(await content.boundingBox()).toEqual(initial);
-    await trigger.click();
-    await page.waitForTimeout(300);
+    if (isMobile) {
+      await page.keyboard.press('Escape');
+      await expect(page.getByRole('dialog')).toBeHidden();
+    } else {
+      await trigger.click();
+      await expect(sidebar).toHaveAttribute('data-state', 'collapsed');
+    }
     expect(await content.boundingBox()).toEqual(initial);
   }
 });
@@ -511,8 +563,12 @@ test('POS checkout bounds are measured without the Dashboard global footer', asy
     await waitForLayout(page);
     await expect(page.locator('[data-global-footer]')).toHaveCount(0);
     const measurements = await page.evaluate(() => {
-      const footer = document.querySelector<HTMLElement>('.sell-page__footer')!;
-      const grid = document.querySelector<HTMLElement>('.sell-page__grid')!;
+      const footer = document.querySelector<HTMLElement>(
+        `.${CSS.escape(window.homePosTest!.sellFooterClass)}`
+      )!;
+      const grid = document.querySelector<HTMLElement>(
+        `.${CSS.escape(window.homePosTest!.sellGridClass)}`
+      )!;
       const body = document.querySelector<HTMLElement>('[data-pos-ticket-body]')!;
       const lastLine = document.querySelector<HTMLElement>('[data-pos-line="last"]')!;
       body.scrollTop = body.scrollHeight;
