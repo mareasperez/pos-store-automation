@@ -11,6 +11,7 @@ let origin: string;
 type HomePosTestApi = {
   mountQuickActions: (visiblePermissions: string[]) => void;
   mountSidebar: () => void;
+  mountAppSidebar: () => Promise<void>;
   mountSell: () => void;
   mountRankBadges: () => void;
   reset: () => void;
@@ -126,7 +127,7 @@ test.beforeAll(async () => {
               };
             }
 
-            function renderShell(content, { visiblePermissions = [], panelClass = 'layout-panel', globalFooter = true } = {}) {
+            function renderShell(content, { visiblePermissions = [], panelClass = 'layout-panel', globalFooter = true, sidebarContent = null } = {}) {
               reset();
               activeHost = document.createElement('div');
               activeHost.dataset.layoutFixture = 'true';
@@ -137,6 +138,7 @@ test.beforeAll(async () => {
                   React.createElement(AuthContext.Provider, { value: authValue(visiblePermissions) },
                     React.createElement(SidebarProvider, { defaultOpen: false, className: 'layout-shell' },
                       React.createElement(Sidebar, { collapsible: 'icon', variant: 'floating', className: 'layout-sidebar' },
+                        sidebarContent,
                         React.createElement(SidebarRail)
                       ),
                       React.createElement(SidebarInset, { className: 'layout-inset' },
@@ -167,6 +169,17 @@ test.beforeAll(async () => {
 
             function mountSidebar() {
               renderShell(React.createElement('div', { style: { minHeight: '40rem' } }, 'Content'));
+            }
+
+            async function mountAppSidebar() {
+              await import('/src/i18n.ts');
+              const [{ AppSidebar }, { TooltipProvider }] = await Promise.all([
+                import('/src/shared/components/ui/layout/Sidebar/AppSidebar.tsx'),
+                import('/src/lib/components/ui/tooltip.tsx')
+              ]);
+              renderShell(React.createElement('div', null, 'Content'), {
+                sidebarContent: React.createElement(TooltipProvider, null, React.createElement(AppSidebar))
+              });
             }
 
             function mountSell() {
@@ -244,6 +257,7 @@ test.beforeAll(async () => {
             window.homePosTest = {
               mountQuickActions,
               mountSidebar,
+              mountAppSidebar,
               mountSell,
               mountRankBadges,
               reset,
@@ -606,6 +620,99 @@ test('the floating sidebar does not move Home content when opened or closed', as
       await expect(sidebar).toHaveAttribute('data-state', 'collapsed');
     }
     expect(await content.boundingBox()).toEqual(initial);
+  }
+});
+
+test('Default light sidebar logout contrast is accessible on mobile and desktop', async ({
+  page,
+}) => {
+  test.setTimeout(60_000);
+  await prepareFixture(page);
+  await page.evaluate(() => window.homePosTest!.setTheme('default', 'light'));
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'default-light');
+  const measurements = [];
+  for (const viewport of [
+    { width: 375, height: 812 },
+    { width: 1440, height: 900 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.evaluate(() => window.homePosTest!.mountAppSidebar());
+    await page.getByRole('button', { name: 'Toggle navigation' }).click();
+    const logout = page.locator('[data-slot="sidebar-footer"] a[href="/logout"]');
+    await expect(logout).toBeVisible();
+    await waitForLayout(page);
+    const contrast = await logout.evaluate((link) => {
+      const context = document.createElement('canvas').getContext('2d')!;
+      const ancestors: Element[] = [];
+      for (let element: Element | null = link; element; element = element.parentElement) {
+        ancestors.unshift(element);
+      }
+      context.fillStyle = '#fff';
+      context.fillRect(0, 0, 1, 1);
+      for (const element of ancestors) {
+        context.fillStyle = getComputedStyle(element).backgroundColor;
+        context.fillRect(0, 0, 1, 1);
+      }
+      const background = context.getImageData(0, 0, 1, 1);
+      const luminance = (channels: Uint8ClampedArray) =>
+        [...channels].slice(0, 3).reduce((sum, channel, index) => {
+          const color = channel / 255;
+          return (
+            sum +
+            [0.2126, 0.7152, 0.0722][index] *
+              (color <= 0.04045 ? color / 12.92 : ((color + 0.055) / 1.055) ** 2.4)
+          );
+        }, 0);
+      const ratio = (element: Element) => {
+        context.putImageData(background, 0, 0);
+        context.fillStyle = getComputedStyle(element).color;
+        context.globalAlpha = Number(getComputedStyle(element).opacity);
+        context.fillRect(0, 0, 1, 1);
+        context.globalAlpha = 1;
+        const [a, b] = [
+          luminance(context.getImageData(0, 0, 1, 1).data),
+          luminance(background.data),
+        ].sort((x, y) => y - x);
+        return (a + 0.05) / (b + 0.05);
+      };
+      const footer = link.closest<HTMLElement>('[data-slot="sidebar-footer"]')!;
+      const profile = footer.querySelector('a[href="/profile"]')!;
+      const profileColors = () => {
+        const style = getComputedStyle(profile);
+        return [style.color, style.backgroundColor, style.borderColor];
+      };
+      const originalProfile = profileColors();
+      footer.style.setProperty(
+        '--sidebar-foreground',
+        getComputedStyle(document.documentElement).getPropertyValue('--sidebar-foreground')
+      );
+      const unscopedProfile = profileColors();
+      footer.style.removeProperty('--sidebar-foreground');
+      return {
+        textContrast: ratio(link.querySelector('span')!),
+        iconContrast: ratio(link.querySelector('svg')!),
+        iconColor: getComputedStyle(link.querySelector('svg')!).color,
+        originalProfile,
+        unscopedProfile,
+      };
+    });
+    measurements.push({ viewport: `${viewport.width}x${viewport.height}`, ...contrast });
+    if (viewport.width < 768) {
+      await page.keyboard.press('Escape');
+      await expect(page.getByRole('dialog')).toBeHidden();
+    }
+  }
+  console.log('Sidebar logout contrast:', JSON.stringify(measurements));
+  for (const measurement of measurements) {
+    expect(measurement.originalProfile, `${measurement.viewport} Profile colors`).toEqual(
+      measurement.unscopedProfile
+    );
+    expect
+      .soft(measurement.textContrast, `${measurement.viewport} logout text`)
+      .toBeGreaterThanOrEqual(4.5);
+    expect
+      .soft(measurement.iconContrast, `${measurement.viewport} logout icon`)
+      .toBeGreaterThanOrEqual(3);
   }
 });
 
