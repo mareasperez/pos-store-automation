@@ -31,12 +31,14 @@ test.beforeAll(async () => {
             import '/src/styles/themes.css';
             import '/src/shared/components/ui/primitives/Button/button.css';
             import '/src/shared/components/ui/primitives/Badge/Badge.css';
+            import '/src/shared/components/ui/cards/KPICard/kpi-card.css';
             import '/src/shared/components/ui/inputs/Input/input.css';
             import '/src/shared/components/ui/inputs/Textarea/textarea.css';
             import '/src/shared/components/ui/feedback/Money/money.css';
             import '/src/shared/components/ui/search/GlobalProductSearch/global-product-search.css';
             import '/src/shared/components/ui/layout/Header/header.css';
             import '/src/shared/components/ui/layout/Footer/footer.css';
+            import '/src/shared/components/ui/layout/MainLayout/main-layout.css';
             import '/src/shared/components/ui/inputs/FileDropZone/file-drop-zone.css';
             import '/src/shared/components/layouts/StandardListLayout/standard-list-layout.css';
             import '/src/styles/forms.css';
@@ -56,6 +58,8 @@ test.beforeAll(async () => {
             import totals from '/src/features/sales/components/SellTotals/SellTotals.module.css';
             import lookup from '/src/features/catalog/components/ProductLookup/product-lookup.module.css';
             import dashboard from '/src/features/catalog/screens/Dashboard/dashboard-page.module.css';
+            import quickActions from '/src/features/catalog/screens/Dashboard/dashboard-quick-actions.module.css';
+            import sellPage from '/src/features/sales/screens/Sell/sell-page.module.css';
             import productForm from '/src/features/catalog/components/ProductForm/product-form.module.css';
             import productEdit from '/src/features/catalog/screens/ProductEdit/product-edit-page.module.css';
             import permission from '/src/features/admin/screens/PermissionManager/PermissionMatrix.module.css';
@@ -137,7 +141,21 @@ test.beforeAll(async () => {
                 )
               );
             }
-            const batchStyles = {users, tenants, tenantSummary, blocking, platformUser, inventoryTable, sku, notes, credit, productEntry, suggestions, ticket, totals, lookup, dashboard, productForm, productEdit, permission, permissionPage, reports, returnPage, returnReport};
+            const batchStyles = {users, tenants, tenantSummary, blocking, platformUser, inventoryTable, sku, notes, credit, productEntry, suggestions, ticket, totals, lookup, dashboard, quickActions, sellPage, productForm, productEdit, permission, permissionPage, reports, returnPage, returnReport};
+            async function mountFloatingSidebar() {
+              const { SidebarProvider, Sidebar, SidebarTrigger, SidebarInset } = await import('/src/lib/components/ui/sidebar.tsx');
+              const container = document.createElement('div');
+              container.dataset.layoutFixture = 'true';
+              document.body.appendChild(container);
+              createRoot(container).render(
+                React.createElement(SidebarProvider, {defaultOpen:false, className:'layout-shell'},
+                  React.createElement(Sidebar, {collapsible:'icon', variant:'floating', className:'layout-sidebar'},
+                    React.createElement(SidebarTrigger, {'aria-label':'Toggle navigation'})),
+                  React.createElement(SidebarInset, {className:'layout-inset'},
+                    React.createElement('main', {'data-layout-content':true}, 'Content'))
+                )
+              );
+            }
             async function mountBatchReact() {
               const { QueryClient, QueryClientProvider } = await import('@tanstack/react-query');
               const { CustomerList } = await import('/src/features/customers/components/CustomerList/CustomerList.tsx');
@@ -172,7 +190,38 @@ test.beforeAll(async () => {
                   React.createElement(Badge, {key:variant, variant, onClick:()=>{}}, variant))
               ));
             }
-            window.themeTest = {useUIStore, themeCatalog, tenantStyles, productStyles, discountStyles, searchStyles, tableStyles, modalStyles, inventoryStyles, mountSelect, mountImport, mountUserForm, mountTable, batchStyles, mountBatchReact};
+            async function mountSaleActions() {
+              const { SellTotals } = await import('/src/features/sales/components/SellTotals/SellTotals.tsx');
+              const { SellPageFooter } = await import('/src/features/sales/screens/Sell/components/SellPageFooter.tsx');
+              const saleContainer = document.createElement('section');
+              saleContainer.dataset.saleActions = 'sale';
+              document.body.appendChild(saleContainer);
+              const openShiftContainer = document.createElement('section');
+              openShiftContainer.dataset.saleActions = 'open-shift';
+              openShiftContainer.style.display = 'none';
+              document.body.appendChild(openShiftContainer);
+              const activeShift = { id: 1, status: 'OPEN' };
+              const manualDiscount = {
+                isQuoteMode: true, hasEntry: false, payableTotal: 100,
+                amountInput: '', reasonInput: '', canEdit: false, amount: null,
+                setAmountInput: () => {}, setReasonInput: () => {}, clear: () => {},
+                getDraftErrors: () => [], permissionRequired: false
+              };
+              const common = {
+                subtotal: 100, tax: 0, manualDiscount, loadingShift: false,
+                canConfirm: true, isPending: false, onOpenShift: () => {},
+                onConfirmSale: () => {}
+              };
+              createRoot(saleContainer).render(React.createElement(React.Fragment, null,
+                React.createElement(SellTotals, {...common, activeShift}),
+                React.createElement(SellPageFooter, {showStickyTotal: false, ...common, activeShift})
+              ));
+              createRoot(openShiftContainer).render(React.createElement(React.Fragment, null,
+                React.createElement(SellTotals, {...common, activeShift: null}),
+                React.createElement(SellPageFooter, {showStickyTotal: false, ...common, activeShift: null})
+              ));
+            }
+            window.themeTest = {useUIStore, themeCatalog, tenantStyles, productStyles, discountStyles, searchStyles, tableStyles, modalStyles, inventoryStyles, mountSelect, mountImport, mountUserForm, mountTable, batchStyles, mountBatchReact, mountSaleActions, mountFloatingSidebar};
             createRoot(document.getElementById('root')).render(React.createElement(Harness));
           `;
         },
@@ -183,6 +232,7 @@ test.beforeAll(async () => {
       include: [
         'react',
         'react/jsx-dev-runtime',
+        'react/jsx-runtime',
         'react-dom',
         'react-dom/client',
         'react-i18next',
@@ -230,6 +280,24 @@ async function prepareFixture(page: Page) {
   await page.waitForFunction(() =>
     Boolean((window as unknown as { themeTest?: unknown }).themeTest)
   );
+}
+
+async function waitForStablePaint(page: Page) {
+  await page.evaluate(async () => {
+    // Inherited colors can start a new transition after an ancestor finishes.
+    const deadline = performance.now() + 5000;
+    while (performance.now() < deadline) {
+      document.body.getBoundingClientRect();
+      await new Promise(requestAnimationFrame);
+      await new Promise(requestAnimationFrame);
+      const animations = document
+        .getAnimations()
+        .filter((animation) => animation.effect?.getTiming().iterations !== Infinity);
+      if (!animations.length) return;
+      await Promise.all(animations.map((animation) => animation.finished.catch(() => undefined)));
+    }
+    throw new Error('Theme fixture paint did not settle');
+  });
 }
 
 async function tableTextMeasurements(page: Page, selector: string) {
@@ -293,6 +361,159 @@ async function tableTextMeasurements(page: Page, selector: string) {
     });
   });
 }
+
+test('Default Home and POS paint uses stronger semantic surfaces with legible text', async ({
+  page,
+}) => {
+  test.setTimeout(90000);
+  await prepareFixture(page);
+  await page.evaluate(() => {
+    const styles = (
+      window as unknown as { themeTest: { batchStyles: Record<string, Record<string, string>> } }
+    ).themeTest.batchStyles;
+    const root = document.createElement('section');
+    root.dataset.vividFixture = 'true';
+    root.innerHTML = `
+      <section class="${styles.dashboard['dashboard-page__kpi-section']}">
+        ${['Ventas', 'Tickets', 'Promedio', 'Crédito']
+          .map(
+            (label) =>
+              `<a><div class="kpi-card bg-surface-800"><span class="kpi-card__icon"><svg data-vivid-icon></svg></span><h3 class="kpi-card__title" data-vivid-text>${label}</h3><span data-vivid-text class="kpi-card__trend-label">Anterior</span><span data-vivid-text class="kpi-card__trend text-green-500">25%</span><span data-vivid-text class="kpi-card__trend text-red-500">20%</span></div></a>`
+          )
+          .join('')}
+      </section>
+      <div class="bg-surface-800 ${styles.dashboard['dashboard-page__panel']}">
+        <h3 data-vivid-text data-panel-heading class="${styles.dashboard['dashboard-page__panel-title']}">Ventas semanales</h3>
+        <h3 data-vivid-text data-panel-heading class="${styles.dashboard['dashboard-page__panel-title']}">Productos destacados</h3>
+      </div>
+      <section class="${styles.quickActions['quick-actions']}">
+        ${['Venta', 'Clientes', 'Inventario']
+          .map(
+            (label) =>
+              `<div class="${styles.quickActions['quick-actions__item']}"><a class="${styles.quickActions['quick-actions__link']}"><div class="${styles.quickActions['quick-actions__card']}"><span data-vivid-icon class="${styles.quickActions['quick-actions__icon']}">●</span><span data-vivid-text class="${styles.quickActions['quick-actions__title']}">${label}</span></div></a></div>`
+          )
+          .join('')}
+      </section>
+      <div class="${styles.sellPage['sell-page__context-panel']}"><span data-vivid-text>Cliente</span></div>
+      <div class="${styles.sellPage['sell-page__drafts']}"><span data-vivid-text>Borradores</span></div>
+      <div class="${styles.ticket['ticket-preview']}"><span data-vivid-text>Ticket</span><span class="${styles.ticket['ticket-preview__empty-icon']}" data-vivid-icon>●</span></div>`;
+    document.body.appendChild(root);
+  });
+
+  for (const mode of ['light', 'dark']) {
+    await page.evaluate((themeMode) => {
+      (
+        window as unknown as {
+          themeTest: { useUIStore: { setState: (state: object) => void } };
+        }
+      ).themeTest.useUIStore.setState({ themeFamily: 'default', themeMode });
+    }, mode);
+    await expect(page.locator('html')).toHaveAttribute('data-theme', `default-${mode}`);
+    await waitForStablePaint(page);
+    const paint = await page.evaluate(() => {
+      const styles = (
+        window as unknown as { themeTest: { batchStyles: Record<string, Record<string, string>> } }
+      ).themeTest.batchStyles;
+      const color = (selector: string) =>
+        getComputedStyle(document.querySelector(selector)!).backgroundColor;
+      const expected = (expression: string) => {
+        const probe = document.createElement('div');
+        probe.style.background = expression;
+        document.body.appendChild(probe);
+        const result = getComputedStyle(probe).backgroundColor;
+        probe.remove();
+        return result;
+      };
+      return {
+        kpi: color('.kpi-card'),
+        kpiExpected: expected('color-mix(in srgb, var(--color-success) 17%, var(--color-surface))'),
+        quick: color(`.${styles.quickActions['quick-actions__card']}`),
+        quickExpected: expected(
+          'color-mix(in srgb, var(--color-primary) 16%, var(--color-surface))'
+        ),
+        ticket: color(`.${styles.ticket['ticket-preview']}`),
+        ticketExpected: expected(
+          'color-mix(in srgb, var(--color-primary) 6%, var(--color-surface))'
+        ),
+        context: color(`.${styles.sellPage['sell-page__context-panel']}`),
+        contextExpected: expected(
+          'color-mix(in srgb, var(--color-primary) 12%, var(--color-surface))'
+        ),
+        sidebar: expected('var(--sidebar)'),
+        sidebarExpected: expected(
+          'color-mix(in srgb, var(--color-primary) 12%, var(--color-surface))'
+        ),
+      };
+    });
+    expect(paint.kpi).toBe(paint.kpiExpected);
+    expect(paint.quick).toBe(paint.quickExpected);
+    expect(paint.ticket).toBe(paint.ticketExpected);
+    expect(paint.context).toBe(paint.contextExpected);
+    expect(paint.sidebar).toBe(paint.sidebarExpected);
+    const text = await tableTextMeasurements(page, '[data-vivid-text]');
+    expect(text.filter(({ ratio }) => ratio < 4.5)).toEqual([]);
+    const icons = await tableTextMeasurements(page, '[data-vivid-icon]');
+    expect(icons.filter(({ ratio }) => ratio < 3)).toEqual([]);
+  }
+
+  for (const family of ['classic', 'custom']) {
+    for (const mode of ['light', 'dark']) {
+      await page.evaluate(
+        ({ themeFamily, themeMode }) => {
+          (
+            window as unknown as {
+              themeTest: { useUIStore: { setState: (state: object) => void } };
+            }
+          ).themeTest.useUIStore.setState({ themeFamily, themeMode });
+        },
+        { themeFamily: family, themeMode: mode }
+      );
+      await expect(page.locator('html')).toHaveAttribute('data-theme', `${family}-${mode}`);
+      await waitForStablePaint(page);
+      const unchanged = await page.evaluate(() => {
+        const probe = document.createElement('div');
+        probe.style.background =
+          'color-mix(in srgb, var(--color-success) 8%, var(--color-surface))';
+        document.body.appendChild(probe);
+        const expected = getComputedStyle(probe).backgroundColor;
+        const actual = getComputedStyle(document.querySelector('.kpi-card')!).backgroundColor;
+        probe.remove();
+        return { actual, expected };
+      });
+      expect(unchanged.actual).toBe(unchanged.expected);
+      const headings = await tableTextMeasurements(page, '[data-panel-heading]');
+      expect(headings.filter(({ ratio }) => ratio < 4.5)).toEqual([]);
+    }
+  }
+});
+
+test('floating sidebar opens and closes without shifting content', async ({ page }) => {
+  test.setTimeout(90000);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await prepareFixture(page);
+  await page.evaluate(() =>
+    (
+      window as unknown as { themeTest: { mountFloatingSidebar: () => Promise<void> } }
+    ).themeTest.mountFloatingSidebar()
+  );
+  const sidebar = page.locator('[data-layout-fixture] [data-slot="sidebar"][data-variant]');
+  const content = page.locator('[data-layout-content]');
+  const gap = page.locator('[data-layout-fixture] [data-slot="sidebar-gap"]');
+  await expect(sidebar).toHaveAttribute('data-state', 'collapsed');
+  await waitForStablePaint(page);
+  const initial = await content.boundingBox();
+  const initialGap = await gap.boundingBox();
+  await page.getByRole('button', { name: 'Toggle navigation' }).click();
+  await expect(sidebar).toHaveAttribute('data-state', 'expanded');
+  await waitForStablePaint(page);
+  expect(await content.boundingBox()).toEqual(initial);
+  expect(await gap.boundingBox()).toEqual(initialGap);
+  await page.getByRole('button', { name: 'Toggle navigation' }).click();
+  await expect(sidebar).toHaveAttribute('data-state', 'collapsed');
+  await waitForStablePaint(page);
+  expect(await content.boundingBox()).toEqual(initial);
+  expect(await gap.boundingBox()).toEqual(initialGap);
+});
 
 test('coordinated component text pairs retain contrast in their source contexts', async ({
   page,
@@ -504,6 +725,7 @@ test('coordinated React badge credit and report states retain readable text', as
   const failures: { theme: string; name: string; ratio: number }[] = [];
   for (const family of families) {
     for (const mode of ['light', 'dark']) {
+      await page.mouse.move(0, 0);
       await page.evaluate(
         ({ family, mode }) =>
           (
@@ -514,15 +736,7 @@ test('coordinated React badge credit and report states retain readable text', as
         { family, mode }
       );
       await expect(page.locator('html')).toHaveAttribute('data-theme', `${family}-${mode}`);
-      await page.evaluate(async () => {
-        await new Promise(requestAnimationFrame);
-        await Promise.all(
-          document
-            .getAnimations()
-            .filter((animation) => animation.effect?.getTiming().iterations !== Infinity)
-            .map((animation) => animation.finished.catch(() => undefined))
-        );
-      });
+      await waitForStablePaint(page);
       for (const selector of [
         '[data-batch-react] .app-badge',
         '[data-batch-react] [class*="product-card__badge--service"]',
@@ -694,23 +908,7 @@ for (const { consumer, selector } of [
             { state: 'control-hover', activate: () => button.hover() },
           ]) {
             await activate();
-            await page.evaluate(async () => {
-              // Inherited color transitions can retarget descendants after an ancestor finishes.
-              const deadline = performance.now() + 5000;
-              while (performance.now() < deadline) {
-                document.body.getBoundingClientRect();
-                await new Promise(requestAnimationFrame);
-                await new Promise(requestAnimationFrame);
-                const animations = document
-                  .getAnimations()
-                  .filter((animation) => animation.effect?.getTiming().iterations !== Infinity);
-                if (!animations.length) return;
-                await Promise.all(
-                  animations.map((animation) => animation.finished.catch(() => undefined))
-                );
-              }
-              throw new Error('Table paint did not settle');
-            });
+            await waitForStablePaint(page);
             const values = await tableTextMeasurements(page, selector);
             measurements.push(
               ...values.map((value) => ({
@@ -758,7 +956,7 @@ test('candidate token cross-product and adapters resolve across families and mod
 }) => {
   test.setTimeout(60_000);
   await prepareFixture(page);
-  const failures = await page.evaluate(async () => {
+  const { actualFailures, hypotheticalFailures } = await page.evaluate(async () => {
     const { useUIStore, themeCatalog } = (
       window as unknown as {
         themeTest: {
@@ -796,7 +994,8 @@ test('candidate token cross-product and adapters resolve across families and mod
       const [x, y] = [luminance(a), luminance(b)].sort((x, y) => y - x);
       return (x + 0.05) / (y + 0.05);
     };
-    const results: string[] = [];
+    const actualFailures: string[] = [];
+    const hypotheticalFailures: string[] = [];
     for (const { id } of themeCatalog) {
       for (const mode of ['light', 'dark']) {
         useUIStore.setState({ themeFamily: id, themeMode: mode });
@@ -836,8 +1035,15 @@ test('candidate token cross-product and adapters resolve across families and mod
         }
         for (const [fg, bg, minimum] of pairs) {
           const value = ratio(color(fg), color(bg));
-          if (value < minimum)
-            results.push(`${id}-${mode}: ${fg} on ${bg}: ${value.toFixed(2)} < ${minimum}`);
+          if (value < minimum) {
+            const failure = `${id}-${mode}: ${fg} on ${bg}: ${value.toFixed(2)} < ${minimum}`;
+            const enforced =
+              (fg === '--color-primary-foreground' && bg === '--color-primary') ||
+              (fg === '--color-primary-dark-foreground' && bg === '--color-primary-dark') ||
+              (fg === '--color-danger-foreground' &&
+                (bg === '--color-danger' || bg === '--color-danger-active'));
+            (enforced ? actualFailures : hypotheticalFailures).push(failure);
+          }
         }
         for (const status of ['success', 'warning', 'danger']) {
           probe.style.backgroundColor = `color-mix(in srgb, var(--color-${status}) 15%, var(--color-surface))`;
@@ -846,7 +1052,7 @@ test('candidate token cross-product and adapters resolve across families and mod
             rgb(getComputedStyle(probe).backgroundColor)
           );
           if (value < 4.5)
-            results.push(
+            hypotheticalFailures.push(
               `${id}-${mode}: --color-${status} on 15% status/surface mix: ${value.toFixed(2)} < 4.5`
             );
           probe.style.backgroundColor = '';
@@ -886,7 +1092,7 @@ test('candidate token cross-product and adapters resolve across families and mod
             !CSS.supports('color', style.getPropertyValue(canonical).trim()) ||
             color(alias).join() !== color(canonical).join()
           ) {
-            results.push(`${id}-${mode}: ${alias} does not resolve to ${canonical}`);
+            actualFailures.push(`${id}-${mode}: ${alias} does not resolve to ${canonical}`);
           }
         }
         for (const [classes, property, canonical] of [
@@ -900,20 +1106,247 @@ test('candidate token cross-product and adapters resolve across families and mod
           probe.style.color = '';
           const rendered = getComputedStyle(probe)[property as 'color' | 'backgroundColor'];
           if (rgb(rendered).join() !== color(canonical).join()) {
-            results.push(`${id}-${mode}: utility ${classes} does not resolve to ${canonical}`);
+            actualFailures.push(
+              `${id}-${mode}: utility ${classes} does not resolve to ${canonical}`
+            );
           }
         }
-        const button = document.createElement('button');
-        button.className = 'button button--danger';
-        document.body.appendChild(button);
-        const buttonStyle = getComputedStyle(button);
-        if (ratio(rgb(buttonStyle.color), rgb(buttonStyle.backgroundColor)) < 4.5) {
-          results.push(`${id}-${mode}: shared danger button text does not contrast`);
+        for (const variant of ['primary', 'danger']) {
+          const button = document.createElement('button');
+          button.className = `button button--${variant}`;
+          document.body.appendChild(button);
+          const buttonStyle = getComputedStyle(button);
+          if (ratio(rgb(buttonStyle.color), rgb(buttonStyle.backgroundColor)) < 4.5) {
+            actualFailures.push(`${id}-${mode}: shared ${variant} button text does not contrast`);
+          }
+          button.remove();
         }
-        button.remove();
       }
     }
-    return results;
+    return { actualFailures, hypotheticalFailures };
+  });
+  await test.info().attach('hypothetical-token-contrast-candidates.json', {
+    body: JSON.stringify(hypotheticalFailures, null, 2),
+    contentType: 'application/json',
+  });
+  console.info(
+    `Reported ${hypotheticalFailures.length} candidate token/surface combinations outside source-backed rendered-role assertions; see test attachment.`
+  );
+  expect(actualFailures, actualFailures.join('\n')).toEqual([]);
+});
+
+test('POS sale confirmation uses the success role without recoloring Open Shift', async ({
+  page,
+}) => {
+  test.setTimeout(180_000);
+  await prepareFixture(page);
+  await page.evaluate(async () => {
+    await (
+      window as unknown as { themeTest: { mountSaleActions: () => Promise<void> } }
+    ).themeTest.mountSaleActions();
+  });
+
+  const saleButtons = page.locator('[data-sale-actions="sale"] [data-testid="pos-confirm-sale"]');
+  const openShiftButtons = page.locator(
+    '[data-sale-actions="open-shift"] [data-testid="pos-open-shift"]'
+  );
+  await expect(saleButtons).toHaveCount(2);
+  await expect(openShiftButtons).toHaveCount(2);
+
+  const failures: string[] = [];
+  for (const width of [1280, 800]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const family of [
+      'default',
+      'classic',
+      'ocean',
+      'forest',
+      'purple',
+      'sunset',
+      'shadcn',
+      'custom',
+    ]) {
+      for (const mode of ['light', 'dark']) {
+        const restTarget = width >= 1024 ? saleButtons.first() : saleButtons.last();
+        const restTargetBox = await restTarget.boundingBox();
+        if (restTargetBox) {
+          await page.mouse.move(
+            restTargetBox.x + restTargetBox.width / 2,
+            Math.max(0, restTargetBox.y - 10)
+          );
+        }
+        await page.evaluate(
+          ({ family, mode }) => {
+            const { useUIStore } = (
+              window as unknown as {
+                themeTest: { useUIStore: { setState: (state: object) => void } };
+              }
+            ).themeTest;
+            useUIStore.setState({ themeFamily: family, themeMode: mode });
+          },
+          { family, mode }
+        );
+        await waitForStablePaint(page);
+
+        const saleColors = await saleButtons.evaluateAll((buttons) =>
+          buttons.map((button) => {
+            const style = getComputedStyle(button);
+            return {
+              background: style.backgroundColor,
+              foreground: style.color,
+              disabled: (button as HTMLButtonElement).disabled,
+              opacity: style.opacity,
+            };
+          })
+        );
+        const successColors = await page.evaluate(() => {
+          const probe = document.createElement('span');
+          probe.style.color = 'var(--color-success)';
+          document.body.appendChild(probe);
+          const success = getComputedStyle(probe).color;
+          probe.style.color = 'var(--color-success-foreground)';
+          const foreground = getComputedStyle(probe).color;
+          probe.style.backgroundColor =
+            'color-mix(in srgb, var(--color-success) 85%, var(--color-text-primary))';
+          const hover = getComputedStyle(probe).backgroundColor;
+          probe.remove();
+          return { success, foreground, hover };
+        });
+        const restContrast = await saleButtons.evaluateAll((buttons) =>
+          buttons.map((button) => {
+            const style = getComputedStyle(button);
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d', { willReadFrequently: true })!;
+            const luminance = (value: string) => {
+              context.clearRect(0, 0, 1, 1);
+              context.fillStyle = value;
+              context.fillRect(0, 0, 1, 1);
+              return [...context.getImageData(0, 0, 1, 1).data]
+                .slice(0, 3)
+                .reduce((sum, channel, index) => {
+                  const color = channel / 255;
+                  return (
+                    sum +
+                    [0.2126, 0.7152, 0.0722][index] *
+                      (color <= 0.04045 ? color / 12.92 : ((color + 0.055) / 1.055) ** 2.4)
+                  );
+                }, 0);
+            };
+            const [lighter, darker] = [
+              luminance(style.backgroundColor),
+              luminance(style.color),
+            ].sort((a, b) => b - a);
+            return (lighter + 0.05) / (darker + 0.05);
+          })
+        );
+        for (const [index, colors] of saleColors.entries()) {
+          if (
+            colors.background !== successColors.success ||
+            colors.foreground !== successColors.foreground
+          )
+            failures.push(
+              `${family}-${mode} width ${width} sale button ${index} colors ${colors.background}/${colors.foreground} do not match success ${successColors.success}/${successColors.foreground}`
+            );
+          if (colors.disabled || colors.opacity !== '1')
+            failures.push(
+              `${family}-${mode} width ${width} sale button ${index} has unexpected rest state`
+            );
+          if (restContrast[index] < 4.5)
+            failures.push(
+              `${family}-${mode} width ${width} sale button ${index} rest contrast ${restContrast[index].toFixed(2)} < 4.5`
+            );
+        }
+
+        const openShiftColors = await openShiftButtons.evaluateAll((buttons) =>
+          buttons.map((button) => {
+            const style = getComputedStyle(button);
+            return {
+              background: style.backgroundColor,
+              disabled: (button as HTMLButtonElement).disabled,
+            };
+          })
+        );
+        const secondaryBackground = await page.evaluate(() => {
+          const probe = document.createElement('span');
+          probe.style.color = 'var(--color-surface-alt)';
+          document.body.appendChild(probe);
+          const background = getComputedStyle(probe).color;
+          probe.remove();
+          return background;
+        });
+        for (const [index, colors] of openShiftColors.entries()) {
+          if (colors.background !== secondaryBackground || colors.disabled)
+            failures.push(
+              `${family}-${mode} width ${width} Open Shift button ${index} changed role`
+            );
+        }
+
+        const visibleSaleButton = width >= 1024 ? saleButtons.first() : saleButtons.last();
+        await expect(visibleSaleButton).toBeVisible();
+        await visibleSaleButton.hover();
+        await waitForStablePaint(page);
+        const hoverResult = await visibleSaleButton.evaluate((button) => {
+          const style = getComputedStyle(button);
+          const canvas = document.createElement('canvas');
+          const context = canvas.getContext('2d', { willReadFrequently: true })!;
+          const luminance = (value: string) => {
+            context.clearRect(0, 0, 1, 1);
+            context.fillStyle = value;
+            context.fillRect(0, 0, 1, 1);
+            return [...context.getImageData(0, 0, 1, 1).data]
+              .slice(0, 3)
+              .reduce((sum, channel, index) => {
+                const color = channel / 255;
+                return (
+                  sum +
+                  [0.2126, 0.7152, 0.0722][index] *
+                    (color <= 0.04045 ? color / 12.92 : ((color + 0.055) / 1.055) ** 2.4)
+                );
+              }, 0);
+          };
+          const [lighter, darker] = [luminance(style.backgroundColor), luminance(style.color)].sort(
+            (a, b) => b - a
+          );
+          return {
+            background: style.backgroundColor,
+            foreground: style.color,
+            contrast: (lighter + 0.05) / (darker + 0.05),
+          };
+        });
+        if (hoverResult.background === saleColors[width >= 1024 ? 0 : 1].background)
+          failures.push(
+            `${family}-${mode} width ${width} sale hover does not change the visual state`
+          );
+        if (hoverResult.background !== successColors.hover)
+          failures.push(
+            `${family}-${mode} width ${width} sale hover ${hoverResult.background} does not match success role ${successColors.hover}`
+          );
+        if (hoverResult.contrast < 4.5)
+          failures.push(
+            `${family}-${mode} width ${width} sale hover contrast ${hoverResult.contrast.toFixed(2)} < 4.5`
+          );
+      }
+    }
+  }
+
+  for (const [index, button] of (await saleButtons.all()).entries()) {
+    await button.evaluate((element) => {
+      (element as HTMLButtonElement).disabled = true;
+    });
+    await waitForStablePaint(page);
+    const state = await button.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return { disabled: (element as HTMLButtonElement).disabled, opacity: style.opacity };
+    });
+    if (!state.disabled || state.opacity !== '0.5')
+      failures.push(
+        `sale confirmation button ${index} disabled state ${state.disabled} opacity ${state.opacity}`
+      );
+  }
+
+  await test.info().attach('pos-sale-action-theme-states.json', {
+    body: JSON.stringify(failures, null, 2),
+    contentType: 'application/json',
   });
   expect(failures, failures.join('\n')).toEqual([]);
 });

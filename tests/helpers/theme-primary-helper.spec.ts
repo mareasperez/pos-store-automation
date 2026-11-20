@@ -25,12 +25,12 @@ test.beforeEach(async ({ page }) => {
   await page.addStyleTag({ content: themeStyles });
 });
 
-test('keeps the unthemed fallback primary vivid Default green', async ({ page }) => {
-  await expect(page.getByTestId('primary')).toHaveCSS('color', 'rgb(25, 135, 84)');
+test('keeps the unthemed fallback primary aligned with vivid Default blue', async ({ page }) => {
+  await expect(page.getByTestId('primary')).toHaveCSS('color', 'rgb(11, 94, 215)');
 });
 
 const lightPrimaries = [
-  ['default', 'rgb(25, 135, 84)'],
+  ['default', 'rgb(11, 94, 215)'],
   ['classic', 'rgb(32, 182, 95)'],
   ['ocean', 'rgb(16, 135, 203)'],
   ['forest', 'rgb(45, 128, 53)'],
@@ -47,6 +47,14 @@ for (const [family, expectedColor] of lightPrimaries) {
     await expect(page.getByTestId('primary')).toHaveCSS('color', expectedColor);
   });
 }
+
+test('resolves Default dark primary to its vivid blue candidate', async ({ page }) => {
+  await page.evaluate(() => {
+    document.documentElement.dataset.theme = 'default-dark';
+  });
+
+  await expect(page.getByTestId('primary')).toHaveCSS('color', 'rgb(110, 168, 254)');
+});
 
 for (const [family, hue, saturation] of [
   ['ocean', 202, '85%'],
