@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Sign-in theme fixtures serve the API-owned captcha configuration.
+
 - Assign a dedicated cashier session to each worker without modulo reuse. Authenticated workers
   fail before starting their flows when there are insufficient sessions or the assigned sessions
   have missing or duplicate cashier IDs; replacement workers retain their slot's cashier.
