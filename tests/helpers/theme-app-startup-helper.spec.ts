@@ -1,7 +1,7 @@
 import { createRequire } from 'node:module';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { expect, test, type Locator } from '@playwright/test';
+import { expect, test, type Locator, type Route } from '@playwright/test';
 import type { ViteDevServer } from '../../../frontend/node_modules/vite/dist/node/index.js';
 import { startThemeTestServer } from './theme-test-server';
 import { themeBootstrapPlugin } from '../../../frontend/scripts/vite/themeBootstrapPlugin';
@@ -12,6 +12,18 @@ const frontendRequire = createRequire(resolve(frontendRoot, 'package.json'));
 const mockApiOrigin = 'http://127.0.0.1:0';
 let server: ViteDevServer;
 let origin: string;
+
+function mockLoginConfig(route: Route) {
+  const headers = {
+    'access-control-allow-origin': origin,
+    'access-control-allow-credentials': 'true',
+    'access-control-allow-headers': 'content-type',
+    'access-control-allow-methods': 'GET',
+  };
+  return route.request().method() === 'OPTIONS'
+    ? route.fulfill({ status: 204, headers })
+    : route.fulfill({ headers, json: { captchaRequired: false } });
+}
 
 // Injected as a classic body-prepend script: stylesheets are ready, main.tsx has not run.
 function samplePaint() {
@@ -197,9 +209,13 @@ for (const scenario of [
     const page = await context.newPage();
     const errors: string[] = [];
     page.on('pageerror', (error) => errors.push(error.message));
-    await page.route('**/*', (route) =>
-      new URL(route.request().url()).origin === origin ? route.continue() : route.abort()
-    );
+    await page.route('**/*', (route) => {
+      const url = new URL(route.request().url());
+      if (url.origin === mockApiOrigin && url.pathname === '/api/auth/login-config') {
+        return mockLoginConfig(route);
+      }
+      return url.origin === origin ? route.continue() : route.abort();
+    });
     try {
       for (const visit of [
         { navigate: () => page.goto(`${origin}/login`), configBeforeApp: scenario.saved },
@@ -344,6 +360,7 @@ test('auth text contrast on real public routes across catalog themes and modes',
           await page.route('**/*', (route) => {
             const url = new URL(route.request().url());
             if (url.origin === mockApiOrigin) {
+              if (url.pathname === '/api/auth/login-config') return mockLoginConfig(route);
               const headers = {
                 'access-control-allow-origin': origin,
                 'access-control-allow-credentials': 'true',

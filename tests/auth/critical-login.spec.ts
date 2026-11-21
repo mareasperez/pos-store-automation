@@ -5,9 +5,9 @@ import { config } from '@config';
 const LOGIN_URL = '/login?lng=es';
 
 /**
- * VITE_TURNSTILE_ENABLED is baked into the deployed bundle, so the environment has to be probed at
- * runtime. The widget itself lives inside a closed shadow root (unreachable by any locator), so the
- * request for Cloudflare's script is the observable signal.
+ * The API sets the Turnstile requirement for each environment, so the browser checks
+ * whether sign-in loads the widget. Its closed shadow root makes the Cloudflare script
+ * request the observable signal.
  */
 async function openLoginAndDetectCaptcha(page: Page): Promise<boolean> {
   const captchaScriptRequested = page
