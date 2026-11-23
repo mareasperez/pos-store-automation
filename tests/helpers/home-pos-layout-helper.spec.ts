@@ -12,6 +12,7 @@ type HomePosTestApi = {
   mountQuickActions: (visiblePermissions: string[]) => void;
   mountSidebar: () => void;
   mountAppSidebar: () => Promise<void>;
+  mountTreeSidebar: (pathname?: string) => Promise<void>;
   mountSell: () => void;
   mountRankBadges: () => void;
   reset: () => void;
@@ -66,6 +67,8 @@ test.beforeAll(async () => {
             import '/src/styles/themes.css';
             import '/src/shared/components/ui/cards/KPICard/kpi-card.css';
             import '/src/shared/components/ui/layout/MainLayout/main-layout.css';
+            import '/src/shared/components/ui/layout/Header/header.css';
+            import '/src/shared/components/ui/layout/Footer/footer.css';
             import '/src/index.css';
 
             const actions = [
@@ -127,29 +130,34 @@ test.beforeAll(async () => {
               };
             }
 
-            function renderShell(content, { visiblePermissions = [], panelClass = 'layout-panel', globalFooter = true, sidebarContent = null } = {}) {
+            function renderShell(content, { visiblePermissions = [], panelClass = 'layout-panel', globalFooter = true, sidebarContent = null, pathname = '/' } = {}) {
               reset();
               activeHost = document.createElement('div');
               activeHost.dataset.layoutFixture = 'true';
               document.body.appendChild(activeHost);
               activeRoot = createRoot(activeHost);
               activeRoot.render(
-                React.createElement(MemoryRouter, null,
+                React.createElement(MemoryRouter, { initialEntries: [pathname] },
                   React.createElement(AuthContext.Provider, { value: authValue(visiblePermissions) },
-                    React.createElement(SidebarProvider, { defaultOpen: false, className: 'layout-shell' },
+                    React.createElement(SidebarProvider, { defaultOpen: false, className: 'layout-shell', style: { '--sidebar-width-icon': 'calc(var(--space-8) + var(--space-6))' } },
                       React.createElement(Sidebar, { collapsible: 'icon', variant: 'floating', className: 'layout-sidebar' },
                         sidebarContent,
                         React.createElement(SidebarRail)
                       ),
                       React.createElement(SidebarInset, { className: 'layout-inset' },
                         React.createElement('header', { className: 'layout-header' },
-                          React.createElement(SidebarTrigger, { 'aria-label': 'Toggle navigation' })
+                          React.createElement('div', { className: 'header' },
+                            React.createElement('div', { className: 'header__left' },
+                              React.createElement(SidebarTrigger, { 'aria-label': 'Toggle navigation', className: 'header__menu-toggle' })
+                            )
+                          )
                         ),
                         React.createElement('main', { className: 'layout-main', 'data-layout-content': true },
                           React.createElement('div', { className: panelClass }, content)
                         ),
                         globalFooter
-                          ? React.createElement('div', { className: 'layout-footer', 'data-global-footer': true }, 'Dashboard footer')
+                          ? React.createElement('div', { className: 'layout-footer', 'data-global-footer': true },
+                              React.createElement('div', { className: 'footer' }, 'Dashboard footer'))
                           : null
                       )
                     )
@@ -179,6 +187,16 @@ test.beforeAll(async () => {
               ]);
               renderShell(React.createElement('div', null, 'Content'), {
                 sidebarContent: React.createElement(TooltipProvider, null, React.createElement(AppSidebar))
+              });
+            }
+
+            async function mountTreeSidebar(pathname = '/') {
+              await import('/src/i18n.ts');
+              const { TreeSidebar } = await import('/src/shared/components/ui/layout/Sidebar/TreeSidebar.tsx');
+              renderShell(React.createElement('div', null, 'Content'), {
+                pathname,
+                visiblePermissions: [PERMISSIONS.SALES.CREATE, PERMISSIONS.RETURNS.CREATE, PERMISSIONS.PRODUCTS.VIEW, PERMISSIONS.PURCHASES.VIEW, PERMISSIONS.RECEIVABLES.VIEW, PERMISSIONS.SETTINGS.GENERAL.VIEW],
+                sidebarContent: React.createElement(TreeSidebar)
               });
             }
 
@@ -258,6 +276,7 @@ test.beforeAll(async () => {
               mountQuickActions,
               mountSidebar,
               mountAppSidebar,
+              mountTreeSidebar,
               mountSell,
               mountRankBadges,
               reset,
@@ -592,6 +611,166 @@ test('top-product rank badges stay gold and legible across supported themes', as
     [...contrastFailures.values()],
     'Top-product rank contrast below 4.5:1 text or 3:1 badge'
   ).toEqual([]);
+});
+
+test('accepted tree layout keeps rail alignment and stable text width while opening @auth', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await prepareFixture(page);
+  await page.evaluate(() => window.homePosTest!.mountTreeSidebar('/inventory/purchases'));
+  const measurements = await page.evaluate(async () => {
+    const tree = document.querySelector<HTMLElement>('.tree-sidebar')!;
+    const controls = () =>
+      Array.from(tree.querySelectorAll<HTMLElement>('.tree-node-button, a[href="/"]'));
+    const centers = () =>
+      controls()
+        .slice(0, 4)
+        .map((element) => {
+          const rect = element.getBoundingClientRect();
+          return rect.y + rect.height / 2;
+        });
+    const before = centers();
+    const frame = document.querySelector<HTMLElement>('.layout-sidebar')!;
+    const trigger = document.querySelector<HTMLElement>('.header__menu-toggle')!;
+    const centerX = (element: Element) => {
+      const rect = element.getBoundingClientRect();
+      return rect.x + rect.width / 2;
+    };
+    const railWidth = frame.getBoundingClientRect().width;
+    const toggleCenter = centerX(trigger);
+    const iconCenters = Array.from(
+      tree.querySelectorAll('.tree-node__icon, .tree-sidebar__footer-link svg')
+    ).map(centerX);
+    const targetWidths = [
+      ...controls(),
+      ...Array.from(tree.querySelectorAll<HTMLElement>('.tree-sidebar__footer-link')),
+    ].map((element) => element.getBoundingClientRect().width);
+    trigger.click();
+    const samples: { frame: number; text: number }[] = [];
+    const start = performance.now();
+    while (performance.now() - start < 350) {
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      samples.push({
+        frame: frame.getBoundingClientRect().width,
+        text: tree.getBoundingClientRect().width,
+      });
+    }
+    const after = centers();
+    const activeParent = tree.querySelector<HTMLElement>('.tree-node-button--active')!;
+    const activeChild = tree.querySelector<HTMLElement>('.tree-node-link--active')!;
+    return {
+      before,
+      after,
+      railWidth,
+      toggleCenter,
+      iconCenters,
+      targetWidths,
+      samples,
+      parentBackground: getComputedStyle(activeParent).backgroundColor,
+      childBackground: getComputedStyle(activeChild).backgroundColor,
+      parentIcon: getComputedStyle(activeParent.querySelector('.tree-node__icon')!).color,
+      neutralIcon: getComputedStyle(
+        tree.querySelector('.tree-node-button:not(.tree-node-button--active) .tree-node__icon')!
+      ).color,
+    };
+  });
+  expect(measurements.railWidth).toBeCloseTo(56, 0);
+  for (const width of measurements.targetWidths) expect(width).toBeCloseTo(44, 0);
+  for (const center of measurements.iconCenters)
+    expect(Math.abs(center - measurements.toggleCenter)).toBeLessThanOrEqual(1);
+  measurements.before.forEach((center, index) =>
+    expect(Math.abs(center - measurements.after[index])).toBeLessThanOrEqual(1)
+  );
+  for (const sample of measurements.samples) expect(sample.text).toBeCloseTo(256, 0);
+  expect(measurements.samples.some((sample) => sample.frame > 56 && sample.frame < 256)).toBe(true);
+  expect(measurements.parentBackground).toBe('rgba(0, 0, 0, 0)');
+  expect(measurements.childBackground).not.toBe('rgba(0, 0, 0, 0)');
+  expect(measurements.parentIcon).toBe(measurements.neutralIcon);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await expect(page.locator('.layout-sidebar')).toHaveCSS('transition-duration', '0s');
+});
+
+test('opening a collapsed category expands the intended section @auth', async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await prepareFixture(page);
+  await page.evaluate(() => window.homePosTest!.mountTreeSidebar());
+  const sidebar = page.locator('[data-slot="sidebar"]').first();
+  await expect(sidebar).toHaveAttribute('data-state', 'collapsed');
+  const category = page
+    .locator('.tree-node-button[title]')
+    .filter({ hasText: /Inventario|Inventory/ });
+  await expect(category).toHaveCount(1);
+  const before = await category.boundingBox();
+  expect(before).not.toBeNull();
+  await page.mouse.click(before!.x + before!.width / 2, before!.y + before!.height / 2);
+  await expect(sidebar).toHaveAttribute('data-state', 'expanded');
+  await expect(category).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.locator('a[href="/inventory/purchases"]')).toBeVisible();
+  await expect(page.locator('.tree-sidebar__footer a[href="/settings"]')).toBeVisible();
+  await expect(page.locator('.tree-sidebar__footer a[href="/profile"]')).toBeVisible();
+});
+
+test('sidebar joins the header, viewport edge, and footer without exterior gaps @auth', async ({
+  page,
+}) => {
+  for (const viewport of [
+    { width: 768, height: 1024 },
+    { width: 1440, height: 900 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await prepareFixture(page);
+    await page.evaluate(() => window.homePosTest!.mountSidebar());
+    await waitForLayout(page);
+
+    for (const expanded of [false, true]) {
+      if (expanded) await page.getByRole('button', { name: 'Toggle navigation' }).click();
+      await expect(page.locator('[data-slot="sidebar"]').first()).toHaveAttribute(
+        'data-state',
+        expanded ? 'expanded' : 'collapsed'
+      );
+      await page.waitForTimeout(350);
+      const bounds = await page.evaluate(() => {
+        const rect = (selector: string) =>
+          document.querySelector(selector)!.getBoundingClientRect();
+        const header = rect('.layout-header .header');
+        const sidebar = rect('[data-slot="sidebar-inner"]');
+        const footer = rect('.layout-footer .footer');
+        const main = rect('.layout-main');
+        return {
+          sidebarLeft: sidebar.left,
+          sidebarTop: sidebar.top,
+          sidebarBottom: sidebar.bottom,
+          headerBottom: header.bottom,
+          mainTop: main.top,
+          mainLeft: main.left,
+          footerLeft: footer.left,
+          footerBottom: footer.bottom,
+          sidebarWidth: sidebar.width,
+        };
+      });
+      expect(Math.abs(bounds.sidebarLeft)).toBeLessThanOrEqual(1);
+      expect(Math.abs(bounds.sidebarTop - bounds.headerBottom)).toBeLessThanOrEqual(1);
+      expect(Math.abs(bounds.mainTop - bounds.headerBottom)).toBeLessThanOrEqual(1);
+      expect(Math.abs(bounds.sidebarBottom - viewport.height)).toBeLessThanOrEqual(1);
+      expect(Math.abs(bounds.footerBottom - viewport.height)).toBeLessThanOrEqual(1);
+      expect(Math.abs(bounds.footerLeft - bounds.mainLeft)).toBeLessThanOrEqual(1);
+      if (!expanded) expect(Math.abs(bounds.mainLeft - bounds.sidebarWidth)).toBeLessThanOrEqual(1);
+    }
+  }
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.evaluate(() => window.homePosTest!.mountSidebar());
+  await waitForLayout(page);
+  const content = await page.locator('[data-layout-content]').boundingBox();
+  await page.getByRole('button', { name: 'Toggle navigation' }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  expect(await page.locator('[data-layout-content]').boundingBox()).toEqual(content);
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toBeHidden();
+  await page.evaluate(() => window.homePosTest!.mountSell());
+  await expect(page.locator('[data-global-footer]')).toHaveCount(0);
 });
 
 test('the floating sidebar does not move Home content when opened or closed', async ({ page }) => {
