@@ -2,6 +2,7 @@ import { expect, type Page } from '@playwright/test';
 import { config } from '@config';
 import { fakerDataService } from '../../services/fakerDataService';
 import { buildApiHeaders } from '../../utils/apiHeaders';
+import { addProductToCart } from './sales.flow';
 
 export interface CreditCustomer {
   id: number;
@@ -98,29 +99,6 @@ export async function createCreditCustomer(page: Page): Promise<CreditCustomer> 
   expect(createResponse.status(), await createResponse.text()).toBe(201);
   const created = (await createResponse.json()) as Customer;
   return { id: created.id, name: fake.name };
-}
-
-async function addProductToCart(page: Page, productName: string): Promise<void> {
-  const searchInput = page.getByTestId('pos-product-search');
-  await searchInput.fill(productName.substring(0, 30));
-  await expect(page.getByRole('option').first()).toBeVisible({ timeout: 10_000 });
-
-  const options = page.getByRole('option');
-  const count = await options.count();
-  for (let i = 0; i < count; i += 1) {
-    const option = options.nth(i);
-    const text = (await option.textContent()) ?? '';
-    const lower = text.toLowerCase();
-    if (
-      !lower.includes('sin stock') &&
-      !lower.includes('out of stock') &&
-      text.includes(productName.substring(0, 20))
-    ) {
-      await option.click();
-      return;
-    }
-  }
-  await options.first().click();
 }
 
 /** Attaches the given customer to the current sale via the POS customer selector. */
