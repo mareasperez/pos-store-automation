@@ -24,6 +24,7 @@ type ShiftFixture = ShiftSummaryFixture & {
     id: number;
     paymentMethodId: number;
     paymentMethodName: string;
+    currency: string;
     expectedAmount: number;
     countedAmount: number;
     difference: number;
@@ -41,6 +42,7 @@ const buildOpenShift = (): ShiftFixture => ({
       id: 1,
       paymentMethodId: 1,
       paymentMethodName: 'Efectivo',
+      currency: 'NIO',
       expectedAmount: 0,
       countedAmount: 0,
       difference: 0,
@@ -233,8 +235,11 @@ parallelDescribe('@manual @shifts', () => {
     await expect(closeBtn).toBeVisible({ timeout: 10_000 });
     await closeBtn.click();
 
-    const closeDialog = page.getByTestId('close-shift-modal');
+    const closeDialog = page.getByRole('dialog', { name: 'Cierre de Caja' });
     await expect(closeDialog).toBeVisible({ timeout: 10_000 });
+
+    await closeDialog.getByLabel(/Contado.*Efectivo/i).fill('0');
+    await closeDialog.getByLabel(/Nota de cierre/i).fill('Cierre de turno de prueba');
 
     const submitBtn = closeDialog.getByTestId('shift-close-submit');
     await expect(submitBtn).toBeVisible({ timeout: 15_000 });
