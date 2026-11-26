@@ -47,6 +47,7 @@ interface Shift {
     id: number;
     type: string;
     amount: number;
+    timestamp: string;
     paymentMethodId: number;
     expenseId: number | null;
     expenseStatus: string | null;
@@ -341,7 +342,6 @@ async function exerciseExpense(page: Page, counted: boolean, timeZone: string): 
       endDate: new Date(reportClock + 5 * 60 * 1000).toISOString(),
     }).toString();
     const reportsBefore = await existingReports(page, salesRange);
-    const postedAt = Date.now();
     const createdResponse = responseFor(page, 'POST', '/expenses');
     await dialog.getByRole('button', { name: 'Registrar gasto', exact: true }).click();
     const created = await createdResponse;
@@ -370,8 +370,9 @@ async function exerciseExpense(page: Page, counted: boolean, timeZone: string): 
     expect(owned.categoryId).toBe(category!.id);
     expect(owned.status).toBe('POSTED');
     expect(owned.shiftId).toBe(counted ? shiftBefore!.id : null);
-    expect(Date.parse(owned.paidAt)).toBeGreaterThanOrEqual(postedAt);
     expect(Date.parse(owned.createdAt)).toBeGreaterThanOrEqual(Date.parse(owned.paidAt));
+    expect(created.request().postDataJSON()).toMatchObject({ paidAtMode: 'SERVER_NOW' });
+    expect(created.request().postDataJSON()).not.toHaveProperty('paidAt');
     await expect(dialog).toBeHidden();
     const paidParts = new Intl.DateTimeFormat('en-CA', {
       timeZone,
@@ -470,6 +471,7 @@ async function exerciseExpense(page: Page, counted: boolean, timeZone: string): 
       expect(Date.parse(owned.paidAt)).toBeGreaterThanOrEqual(Date.parse(shift.startTime));
       const linked = shift.cashMovements.filter((item) => item.expenseId === owned!.id);
       expect(linked).toHaveLength(1);
+      expect(Date.parse(linked[0].timestamp)).toBe(Date.parse(owned.paidAt));
       postedMovementIds = shift.cashMovements.map((item) => item.id).sort((a, b) => a - b);
       expect(postedMovementIds).toEqual(
         [...shiftBefore.cashMovements.map((item) => item.id), linked[0].id].sort((a, b) => a - b)

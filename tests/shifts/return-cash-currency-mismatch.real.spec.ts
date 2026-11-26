@@ -24,6 +24,7 @@ import { expect, serialDescribe, test } from '@fixtures';
 import { config } from '@config';
 import { dirnameFromUrl } from '../../utils/esm';
 import { requireCredentialsOrSkip } from '../../support/flows/auth.flow';
+import { addProductToCart } from '../../support/flows/sales.flow';
 import { buildApiHeaders } from '../../utils/apiHeaders';
 import { posShiftActions } from '../../utils/shift';
 
@@ -112,29 +113,6 @@ async function getFirstSellableProduct(page: Page): Promise<string | null> {
     if (product.name) return product.name;
   }
   return null;
-}
-
-async function addProductToCart(page: Page, productName: string): Promise<void> {
-  const searchInput = page.getByTestId('pos-product-search');
-  await searchInput.fill(productName.substring(0, 30));
-  await expect(page.getByRole('option').first()).toBeVisible({ timeout: 10_000 });
-
-  const options = page.getByRole('option');
-  const count = await options.count();
-  for (let i = 0; i < count; i += 1) {
-    const option = options.nth(i);
-    const text = (await option.textContent()) ?? '';
-    const lower = text.toLowerCase();
-    if (
-      !lower.includes('sin stock') &&
-      !lower.includes('out of stock') &&
-      text.includes(productName.substring(0, 20))
-    ) {
-      await option.click();
-      return;
-    }
-  }
-  await options.first().click();
 }
 
 async function openShiftFromPos(page: Page, initialCash: number): Promise<void> {

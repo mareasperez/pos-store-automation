@@ -16,6 +16,22 @@ export async function selectPosCloseShift(page: Page): Promise<void> {
   await closeItem.click();
 }
 
+/** Enter synthetic test counts for every required payment method, not expected balances. */
+export async function fillTestShiftCounts(page: Page): Promise<void> {
+  const dialog = page.getByRole('dialog', { name: /^(Cierre de Caja|Close Shift)$/ });
+  await expect(dialog).toBeVisible({ timeout: 10_000 });
+  await expect(dialog.getByTestId('shift-close-submit')).toBeEnabled({ timeout: 15_000 });
+
+  const counts = dialog.locator('input[data-testid^="payment-reconciliation-counted-"][required]');
+  expect(await counts.count(), 'A shift must have at least one required count').toBeGreaterThan(0);
+  for (const count of await counts.all()) {
+    await count.fill('0');
+  }
+  await dialog
+    .getByLabel(/Nota de cierre|Closing note/i)
+    .fill('Cierre de prueba: conteos simulados');
+}
+
 /**
  * Opens the shift from the POS page if the "Abrir Caja" button is visible.
  *

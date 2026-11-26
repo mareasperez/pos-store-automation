@@ -353,10 +353,13 @@ export async function returnFractional(
     totalRefunded: number;
     financialMovementId: number | null;
   };
-  const savedReturns = await api<
-    { id: number; saleId: number; status: string; totalRefunded: number }[]
-  >(page, '/returns');
-  expect(savedReturns.find((entry) => entry.id === returned.id)).toMatchObject({
+  const savedReturn = await api<{
+    id: number;
+    saleId: number;
+    status: string;
+    totalRefunded: number;
+  }>(page, `/returns/${returned.id}`);
+  expect(savedReturn).toMatchObject({
     id: returned.id,
     saleId: sale.id,
     status: 'POSTED',

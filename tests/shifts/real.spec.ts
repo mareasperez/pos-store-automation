@@ -15,6 +15,7 @@ import { config } from '@config';
 import { requireCredentialsOrSkip } from '../../support/flows/auth.flow';
 import { buildApiHeaders } from '../../support/flows/sales.flow';
 import { dirnameFromUrl } from '../../utils/esm';
+import { fillTestShiftCounts } from '../../utils/shift';
 
 const dirname = dirnameFromUrl(import.meta.url);
 test.use({ storageState: path.join(dirname, '../../playwright/.auth/user-0.json') });
@@ -34,9 +35,12 @@ serialDescribe('@real @manual @shifts @shift-serial', () => {
     const existingResp = await page.request.get(activeShiftUrl, {
       headers: { ...(await buildApiHeaders(page)), 'Cache-Control': 'no-cache' },
     });
-    if (existingResp.status() !== 200) {
+    expect([200, 204], `Unexpected active shift response: ${existingResp.status()}`).toContain(
+      existingResp.status()
+    );
+    if (existingResp.status() === 204) {
       await page.goto('/pos?lng=es', { waitUntil: 'domcontentloaded' });
-      const openTrigger = page.getByTestId('pos-open-shift').first();
+      const openTrigger = page.locator('[data-testid="pos-open-shift"]:visible');
       await expect(openTrigger).toBeVisible({ timeout: 20_000 });
       await openTrigger.click();
       await expect(page.getByTestId('shift-initial-cash-input')).toBeVisible({ timeout: 10_000 });
@@ -56,7 +60,7 @@ serialDescribe('@real @manual @shifts @shift-serial', () => {
     expect(activeResp.headers()['content-type']).toContain('application/json');
     const shiftId: number = ((await activeResp.json()) as { id: number }).id;
 
-    await page.goto('/shifts', { waitUntil: 'domcontentloaded' });
+    await page.goto('/shifts?lng=es', { waitUntil: 'domcontentloaded' });
     await expect(page).toHaveURL(/\/shifts/, { timeout: 20_000 });
 
     // The close action lives inside the row actions dropdown, which mounts only once opened.
@@ -69,18 +73,12 @@ serialDescribe('@real @manual @shifts @shift-serial', () => {
     await expect(closeBtn).toBeVisible({ timeout: 10_000 });
     await closeBtn.click();
 
-    const closeDialog = page.getByTestId('close-shift-modal');
+    const closeDialog = page.getByRole('dialog', { name: /^(Cierre de Caja|Close Shift)$/ });
     await expect(closeDialog).toBeVisible({ timeout: 10_000 });
-
-    // Wait for payment methods to load — the useEffect initializes reconciliations only after
-    // paymentMethods arrive; submitting before that sends an empty array → 400.
-    await expect(closeDialog.getByText(/contado/i).first()).toBeVisible({ timeout: 15_000 });
+    await fillTestShiftCounts(page);
 
     const submitBtn = closeDialog.getByTestId('shift-close-submit');
     await expect(submitBtn).toBeEnabled({ timeout: 5_000 });
-
-    // Fill close note to satisfy the discrepancy-note requirement (real shift likely has expected amounts)
-    await closeDialog.getByTestId('shift-close-note').fill('Cierre de prueba automático');
 
     const closeResponse = page.waitForResponse(
       (r) =>
@@ -96,8 +94,9 @@ serialDescribe('@real @manual @shifts @shift-serial', () => {
 
     // Leave a till open for POS specs that may share this worker.
     await page.goto('/pos?lng=es', { waitUntil: 'domcontentloaded' });
-    const reopenTrigger = page.getByTestId('pos-open-shift').first();
+    const reopenTrigger = page.locator('[data-testid="pos-open-shift"]:visible');
     await expect(reopenTrigger).toBeVisible({ timeout: 20_000 });
+    await expect(reopenTrigger).toBeEnabled({ timeout: 20_000 });
     await reopenTrigger.click();
     await expect(page.getByTestId('shift-initial-cash-input')).toBeVisible({ timeout: 10_000 });
     await page.getByTestId('shift-initial-cash-input').fill('100');

@@ -11,7 +11,7 @@ import { expect, serialDescribe, test } from '@fixtures';
 import { config } from '@config';
 import { requireCredentialsOrSkip } from '../../support/flows/auth.flow';
 import { buildApiHeaders } from '../../support/flows/sales.flow';
-import { posShiftActions, selectPosCloseShift } from '../../utils/shift';
+import { fillTestShiftCounts, posShiftActions, selectPosCloseShift } from '../../utils/shift';
 
 test.setTimeout(180_000);
 
@@ -29,6 +29,7 @@ async function hasActiveShift(page: Page): Promise<boolean> {
       'Cache-Control': 'no-cache',
     },
   });
+  expect([200, 204], `Unexpected active shift response: ${res.status()}`).toContain(res.status());
   return res.status() === 200;
 }
 
@@ -41,8 +42,9 @@ async function expectShiftState(page: Page, open: boolean, because: string): Pro
 async function openShiftFromPos(page: Page): Promise<void> {
   await page.goto('/pos?lng=es', { waitUntil: 'domcontentloaded' });
 
-  const openTrigger = page.getByTestId('pos-open-shift').first();
+  const openTrigger = page.locator('[data-testid="pos-open-shift"]:visible');
   await expect(openTrigger).toBeVisible({ timeout: 20_000 });
+  await expect(openTrigger).toBeEnabled({ timeout: 20_000 });
   await openTrigger.click();
 
   await expect(page.getByTestId('shift-initial-cash-input')).toBeVisible({ timeout: 10_000 });
@@ -64,14 +66,11 @@ async function closeShiftFromPos(page: Page): Promise<void> {
 
   await selectPosCloseShift(page);
 
-  const closeDialog = page.getByTestId('close-shift-modal');
+  const closeDialog = page.getByRole('dialog', { name: /^(Cierre de Caja|Close Shift)$/ });
   await expect(closeDialog).toBeVisible({ timeout: 10_000 });
-
+  await fillTestShiftCounts(page);
   const submitBtn = closeDialog.getByTestId('shift-close-submit');
   await expect(submitBtn).toBeEnabled({ timeout: 15_000 });
-
-  // Note is required whenever the count differs from expectations, which a real shift usually does.
-  await closeDialog.getByTestId('shift-close-note').fill('Cierre de prueba automático');
 
   // POS close uses useCloseShift → POST /api/shifts/close OR /api/shifts/{id}/close
   const closeResponse = page.waitForResponse(
@@ -84,7 +83,9 @@ async function closeShiftFromPos(page: Page): Promise<void> {
   await submitBtn.click();
 
   expect((await closeResponse).status()).toBe(200);
-  await expect(page.getByTestId('pos-open-shift').first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('[data-testid="pos-open-shift"]:visible')).toBeVisible({
+    timeout: 15_000,
+  });
 }
 
 serialDescribe('@real @manual @pos @shift-serial', () => {
