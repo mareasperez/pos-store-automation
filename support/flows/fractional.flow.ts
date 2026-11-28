@@ -108,11 +108,16 @@ export async function seedFractional(
   taxRate = 0
 ): Promise<FractionalFixture> {
   const prefix = `FC-${randomUUID().slice(0, 8)}`;
-  const types = await api<{
-    content: { id: number; isDivisible: boolean; abbreviation: string }[];
-  }>(page, '/presentation-types');
-  const unit = types.content.find((type) => type.isDivisible && type.abbreviation?.trim());
-  expect(unit, 'Existing divisible unit required; no global policy changes').toBeTruthy();
+  const types =
+    prices.length > 0
+      ? await api<{
+          content: { id: number; isDivisible: boolean; abbreviation: string }[];
+        }>(page, '/presentation-types')
+      : undefined;
+  const unit = types?.content.find((type) => type.isDivisible && type.abbreviation?.trim());
+  if (prices.length > 0) {
+    expect(unit, 'Existing divisible unit required; no global policy changes').toBeTruthy();
+  }
   const methods = await api<
     { id: number; code: string; active: boolean; type: string; currency: string }[]
   >(page, '/payment-methods');
@@ -170,17 +175,23 @@ export async function seedFractional(
     expect(presentation.allowsFractionalQuantity).toBe(true);
     items.push({ id: product.id, name, presentation });
   }
-  const balances = await api<{ skuId: number; warehouseId: number; onHandQty: number }[]>(
-    page,
-    '/inventory/stock-balance/all'
-  );
-  const initial = balances.find((row) => row.skuId === items[0].id);
-  expect(Number(initial?.onHandQty)).toBe(stock);
+  let warehouseId: number | undefined;
+  if (items.length > 0) {
+    const balances = await api<{ skuId: number; warehouseId: number; onHandQty: number }[]>(
+      page,
+      '/inventory/stock-balance/all'
+    );
+    const initial = balances.find((row) => row.skuId === items[0]!.id);
+    expect(Number(initial?.onHandQty)).toBe(stock);
+    warehouseId = initial?.warehouseId;
+  }
   const warehouses = await api<{ id: number; name: string; active: boolean }[]>(
     page,
     '/inventory/warehouses'
   );
-  const warehouse = warehouses.find((entry) => entry.id === initial!.warehouseId && entry.active);
+  const warehouse = warehouses.find(
+    (entry) => entry.active && (warehouseId === undefined || entry.id === warehouseId)
+  );
   expect(warehouse).toBeTruthy();
   const customer = await api<{ id: number; name: string }>(page, '/customers', 'POST', {
     name: `${prefix}-Customer`,

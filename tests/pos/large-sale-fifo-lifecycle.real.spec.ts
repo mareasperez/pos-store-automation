@@ -1,12 +1,15 @@
+import * as XLSX from 'xlsx';
 import type { Page } from '@playwright/test';
 import { config } from '@config';
 import { expect, test } from '@fixtures';
+import { buildApiHeaders } from '../../utils/apiHeaders';
 import {
   api,
   fractionalPreflight,
   rawRequest,
   seedFractional,
   type FractionalFixture,
+  type FractionalPresentation,
   type FractionalSale,
 } from '../../support/flows/fractional.flow';
 
@@ -31,6 +34,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 const REQUIRED_PERMISSIONS = [
   'products:create',
+  'settings:general:edit',
   'inventory:view',
   'purchases:create',
   'suppliers:create',
@@ -57,8 +61,85 @@ interface RemainingQuantity {
   remainingQuantity: number;
 }
 
+interface ImportResult {
+  successCount: number;
+  failureCount: number;
+  messages: string[];
+}
+
+interface ImportedPresentation extends FractionalPresentation {
+  productName: string;
+}
+
 test.describe.configure({ mode: 'serial' });
 test.setTimeout(300_000);
+
+function productWorkbook(prefix: string, presentationName: string): Buffer {
+  const rows = [
+    [
+      'Presentation ID (optional - used for updates)',
+      'Product Name',
+      'SKU',
+      'Category',
+      'Preferred Supplier (optional)',
+      'Description',
+      'Presentation Type',
+      'Conversion Factor',
+      'Cost',
+      'Price',
+      'Barcode',
+    ],
+    ...Array.from({ length: LINE_COUNT }, (_, index) => {
+      const name = `${prefix}-${index}`;
+      return ['', name, name, 'GENERAL', '', '', presentationName, 1, FIRST_LOT_COST, PRICE, ''];
+    }),
+  ];
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(rows), 'Products');
+  return Buffer.from(XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' }));
+}
+
+function inventoryWorkbook(prefix: string, presentationName: string): Buffer {
+  const rows = [
+    [
+      'SKU',
+      'Product Name',
+      'Presentation Name',
+      'Conversion Factor',
+      'Quantity',
+      'Presentation Cost',
+    ],
+    ...Array.from({ length: LINE_COUNT }, (_, index) => {
+      const name = `${prefix}-${index}`;
+      return [name, name, presentationName, 1, FIRST_LOT_QUANTITY, FIRST_LOT_COST];
+    }),
+  ];
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(rows), 'Inventory');
+  return Buffer.from(XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' }));
+}
+
+async function importWorkbook(
+  page: Page,
+  path: string,
+  fileName: string,
+  workbook: Buffer,
+  fields: Record<string, string> = {}
+): Promise<ImportResult> {
+  const response = await page.request.post(`${config.apiRoot}${path}`, {
+    headers: await buildApiHeaders(page),
+    multipart: {
+      file: {
+        name: fileName,
+        mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        buffer: workbook,
+      },
+      ...fields,
+    },
+  });
+  expect(response.ok(), `POST ${path}: ${response.status()} ${await response.text()}`).toBe(true);
+  return (await response.json()) as ImportResult;
+}
 
 async function receiveSecondLot(page: Page, fixture: FractionalFixture): Promise<void> {
   const supplier = await api<{ id: number }>(page, '/inventory/suppliers', 'POST', {
@@ -191,12 +272,52 @@ test('@serial @configured-target @pos large multi-lot sale keeps FIFO through vo
   page,
 }) => {
   await fractionalPreflight(page, REQUIRED_PERMISSIONS);
-  const fixture = await seedFractional(
-    page,
-    Array.from({ length: LINE_COUNT }, () => PRICE),
-    FIRST_LOT_QUANTITY
+  const fixture = await seedFractional(page, []);
+  const presentationTypes = await api<{
+    content: { id: number; name: string; isDivisible: boolean; abbreviation: string }[];
+  }>(page, '/presentation-types');
+  const unit = presentationTypes.content.find(
+    (type) => type.isDivisible && type.abbreviation?.trim()
   );
-  // seedFractional creates the initial lot at FIRST_LOT_COST.
+  expect(unit, 'Existing divisible unit required; no global policy changes').toBeTruthy();
+
+  const productResult = await importWorkbook(
+    page,
+    '/import/products/create',
+    `${fixture.prefix}-products.xlsx`,
+    productWorkbook(fixture.prefix, unit!.name)
+  );
+  expect(productResult.successCount).toBe(LINE_COUNT);
+  expect(productResult.failureCount).toBe(0);
+
+  const expectedNames = Array.from(
+    { length: LINE_COUNT },
+    (_, index) => `${fixture.prefix}-${index}`
+  );
+  const presentations = await api<ImportedPresentation[]>(page, '/product-presentations/all');
+  const basePresentationByName = new Map(
+    presentations
+      .filter((presentation) => presentation.isBasePresentation)
+      .map((presentation) => [presentation.productName, presentation])
+  );
+  fixture.items = expectedNames.map((name) => {
+    const presentation = basePresentationByName.get(name);
+    expect(presentation, `Imported base presentation for ${name}`).toBeTruthy();
+    return { id: presentation!.productId, name, presentation: presentation! };
+  });
+  expect(new Set(fixture.items.map((item) => item.id)).size).toBe(LINE_COUNT);
+  expect(new Set(fixture.items.map((item) => item.presentation.id)).size).toBe(LINE_COUNT);
+
+  const inventoryResult = await importWorkbook(
+    page,
+    `/import/inventory/create`,
+    `${fixture.prefix}-initial-stock.xlsx`,
+    inventoryWorkbook(fixture.prefix, unit!.name),
+    { warehouseId: String(fixture.warehouse.id) }
+  );
+  expect(inventoryResult.successCount).toBe(LINE_COUNT);
+  expect(inventoryResult.failureCount).toBe(0);
+
   await receiveSecondLot(page, fixture);
   await expectStock(page, fixture, Array(LINE_COUNT).fill(STOCK_BEFORE_SALE));
 
