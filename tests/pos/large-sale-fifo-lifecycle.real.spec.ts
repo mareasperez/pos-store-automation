@@ -64,6 +64,7 @@ async function receiveSecondLot(page: Page, fixture: FractionalFixture): Promise
   const supplier = await api<{ id: number }>(page, '/inventory/suppliers', 'POST', {
     name: `${fixture.prefix}-Supplier`,
     active: true,
+    paymentTerm: 'CREDIT',
   });
   const receipt = await api<{ id: number }>(page, '/inventory/purchase-receipts', 'POST', {
     supplierId: supplier.id,

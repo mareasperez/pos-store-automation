@@ -101,9 +101,9 @@ async function getFirstSellableProduct(page: Page): Promise<string | null> {
 async function addProductToCart(page: Page, productName: string): Promise<void> {
   const searchInput = page.getByTestId('pos-product-search');
   await searchInput.fill(productName.substring(0, 30));
-  await expect(page.getByRole('option').first()).toBeVisible({ timeout: 10_000 });
+  const options = page.getByTestId('pos-product-suggestions').getByRole('option');
+  await expect(options.first()).toBeVisible({ timeout: 10_000 });
 
-  const options = page.getByRole('option');
   const count = await options.count();
   for (let i = 0; i < count; i += 1) {
     const option = options.nth(i);

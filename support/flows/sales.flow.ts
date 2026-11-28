@@ -224,9 +224,7 @@ export async function addProductToCart(
   const searchInput = page.getByTestId('pos-product-search');
   await searchInput.fill(productName.substring(0, 30));
 
-  const list = page.getByRole('listbox', {
-    name: /^(Sugerencias de productos|Product suggestions)$/,
-  });
+  const list = page.getByTestId('pos-product-suggestions');
   let options = list
     .getByRole('option')
     .filter({ has: page.getByText(productName, { exact: true }) })

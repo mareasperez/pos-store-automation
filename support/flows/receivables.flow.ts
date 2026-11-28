@@ -88,8 +88,9 @@ export async function registerCollectionPayment(
   await page.getByLabel(/^monto$/i).fill(String(amount));
 
   await page.getByLabel(/tipo de pago/i).click();
-  await expect(page.getByRole('option').first()).toBeVisible({ timeout: 10_000 });
-  await page.getByRole('option').first().click();
+  const paymentMethodOption = page.getByRole('listbox').getByRole('option').first();
+  await expect(paymentMethodOption).toBeVisible({ timeout: 10_000 });
+  await paymentMethodOption.click();
 
   const collectionResponsePromise = page.waitForResponse(
     (r) => r.request().method() === 'POST' && r.url().includes('/api/customer-collections'),

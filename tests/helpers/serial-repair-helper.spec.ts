@@ -35,7 +35,7 @@ test('selects only the requested product and presentation, not a native option o
   await page.setContent(`
     <select hidden><option>Selecciona bodega</option></select>
     <input data-testid="pos-product-search">
-    <div role="listbox" aria-label="Sugerencias de productos">
+    <div data-testid="pos-product-suggestions" role="listbox" aria-label="Suggestions de produits">
       <div role="option"><span>Other product</span><span>Unit</span></div>
       <div role="option" onmousedown="this.parentElement.remove(); document.body.insertAdjacentHTML('beforeend', '<p>Target product</p>')">
         <span>Target product</span><span>Box</span>
@@ -53,7 +53,7 @@ test('never substitutes a different product when the requested suggestion is abs
   await page.setContent(`
     <select hidden><option>Selecciona bodega</option></select>
     <input data-testid="pos-product-search">
-    <div role="listbox" aria-label="Sugerencias de productos">
+    <div data-testid="pos-product-suggestions" role="listbox" aria-label="Suggestions de produits">
       <div role="option" onmousedown="document.body.dataset.wrong = 'selected'">
         <span>Other product</span><span>Unit</span>
       </div>

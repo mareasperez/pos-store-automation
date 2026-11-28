@@ -49,7 +49,9 @@ serialDescribe('@regression @pos @quotes', () => {
     });
     await expect(async () => {
       await customerInput.click();
-      await expect(page.getByRole('option').first()).toBeVisible({ timeout: 1_000 });
+      await expect(page.getByRole('listbox').getByRole('option').first()).toBeVisible({
+        timeout: 1_000,
+      });
     }).toPass({ timeout: 15_000 });
     await customerInput.pressSequentially(customer!.name.substring(0, 8), { delay: 30 });
     await page.getByRole('option', { name: customer!.name, exact: true }).first().click();
