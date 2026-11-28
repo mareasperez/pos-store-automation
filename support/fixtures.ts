@@ -3,11 +3,17 @@ import path from 'node:path';
 import { test as base, expect, type TestInfo } from '@playwright/test';
 import { config } from '@config';
 import { dirnameFromUrl } from '../utils/esm';
+import { getEnvironmentPaths } from '../utils/environment-paths.mjs';
 import { assertDistinctCashierSessions, selectWorkerAuthState } from '../utils/target-policy.mjs';
 
 const dirname = dirnameFromUrl(import.meta.url);
-const authDir = path.join(dirname, '..', 'playwright', '.auth');
+const environmentPaths = getEnvironmentPaths(config.environment);
+const authDir = path.resolve(dirname, '..', environmentPaths.authDir);
 const EXPECTED_HTTP_ERROR = 'expected-http-error';
+
+export function authStateFile(index: number): string {
+  return path.resolve(dirname, '..', environmentPaths.authStateFile(index));
+}
 
 export function expectHttpError(status: number, urlPart?: string): void {
   test.info().annotations.push({

@@ -58,7 +58,35 @@ The generic runner defaults to `E2E_ENV=local` and reads `local.env` or
 the matching `<environment>.env` or `.env.<environment>` file supplies its
 URLs, tenant, credentials and any environment-specific gates. Shell variables
 remain optional overrides and take precedence over env-file values. Never rely
-on a saved session from a different target.
+on a saved session from a different target. Select the target only with
+`--env <environment>` or `E2E_ENV`; `.env` values never select it.
+
+Each environment has separate auth and output paths. Auth setup reads and clears
+only `playwright/.auth/<environment>/`; numbered sessions are named
+`user-0.json`, `user-1.json`, and so on. Existing root-level legacy auth files
+are left untouched and are never used as a fallback. Test results, traces, and
+JSON reports go under `test-results/<environment>/`; HTML reports go under
+`playwright-report/<environment>/`; saved report backups go under
+`playwright-report-backup/<environment>-lastrun/`. Postman auth cookies are
+written separately to `postman/.auth-cookies-<environment>.json`.
+The environment runner scopes explicit relative `--output` and
+`PLAYWRIGHT_JSON_OUTPUT_FILE` paths too; absolute or cross-environment output
+paths are rejected.
+
+The report helpers use the same target selector:
+
+```powershell
+npm run report -- --env qa
+npm run report:last -- --env qa
+npm run test:save-state -- --env qa
+```
+
+Local Playwright global setup and auth-state setup check the Vite development
+server's actual `/api` proxy target through an unauthenticated dev-only probe
+before starting a browser or clearing auth state. A missing, malformed, remote,
+or mismatched local proxy proof stops the run before app API traffic.
+The browser target guard repeats that proof in its worker before accepting
+same-origin `/api` traffic; it does not rely on a flag from global setup.
 
 To prepare the selected fractional/manual-discount suite for a dev playground,
 configure its ignored `dev.env` or `.env.dev` once, then select that file:
@@ -96,7 +124,8 @@ configured target; no URL/tenant command-line overrides are required. This
 change only makes the suite target-aware;
 the 18/18 serial and 3/3 parallel results recorded below were historical local
 runs. No dev or production E2E run was performed for this portability change.
-The browser target guard validates effective API requests; the lifecycle of
+The browser target guard also validates effective API requests after the local
+proxy preflight; the lifecycle of
 generic and environment-specific app-config artifacts remains deferred in the
 [known-gap record](../docs/known-gaps/frontend-app-config-artifacts.md).
 Unrelated telemetry and frontend metadata are not business API requests.
@@ -615,7 +644,7 @@ node scripts\run-playwright-env.mjs --env local tests/pos/manual-sale-discount.r
 ```
 
 Prerequisites: already-running configured UI/API, explicit `TEST_TENANT_ID`,
-and a valid numbered `playwright/.auth/user-N.json` session from that same
+and a valid numbered `playwright/.auth/<environment>/user-N.json` session from that same
 target and tenant.
 The worker fixture selects numbered auth files, not project `user.json`.
 Shell values override env-file values even for `--list`. The spec checks the
@@ -698,7 +727,8 @@ Use `--env dev` only with explicit authorization and matching dev configuration 
 The shared read-only probe checks the effective browser API target before any fixture writes;
 the spec verifies tenant, permissions, actor and shift ownership. It never opens/closes shifts,
 logs in, or restarts services.
-Logging into an unrelated browser does not refresh `playwright/.auth/user-*.json`.
+Logging into an unrelated browser does not refresh
+`playwright/.auth/<environment>/user-*.json`.
 
 The six real, unmocked scenarios create uniquely prefixed `C7-*` products, service components,
 presentations, customers and UI-created combos. They exercise POS sale, multiple whole-combo
@@ -871,13 +901,14 @@ TEST_PASSWORD_3=<cashier-3-password>
 All users must belong to that environment file's `TEST_TENANT_ID` and hold the
 same POS permissions. Run `npm run test:auth:setup -- --env <environment>` to
 walk through each configured user in one run — with Turnstile enabled, solve
-one challenge per user. The script writes numbered storage states for the
-selected target plus a `user.json` mirror of slot 0 for backwards compatibility.
+one challenge per user. The script writes numbered storage states only into
+that environment's auth directory and removes stale auth files only from that
+same directory.
 
-Workers pick their session by `workerIndex` through the `@fixtures` module, so specs import `test`
+Workers pick their session by `parallelIndex` through the `@fixtures` module, so specs import `test`
 and `expect` from `@fixtures` instead of `@playwright/test` (type-only imports still come from
-`@playwright/test`). If there are more workers than users, the extras reuse a session and the suite
-warns about it.
+`@playwright/test`). If there are more workers than environment-specific saved sessions, the suite
+fails before starting the flows.
 
 ### Generate Auth State Against Deployed Dev
 
@@ -903,9 +934,9 @@ node scripts\run-playwright-env.mjs --env dev @serialSpecs --project=chromium-au
 node scripts\run-playwright-env.mjs --env dev tests\pos\fractional-daily-use.real.spec.ts --project=chromium-authenticated --workers=3 --retries=0 --grep '@parallel'
 ```
 
-The generated `playwright/.auth/user-*.json` files are then reused by the authenticated E2E tests.
-Refresh them when the sessions expire or the credentials change. Do not disable captcha in the
-deployed dev backend just to make this setup pass.
+The generated `playwright/.auth/dev/user-*.json` files are then reused by authenticated dev E2E
+tests. Refresh them when the sessions expire or the credentials change. Do not disable captcha in
+the deployed dev backend just to make this setup pass.
 
 The auth setup is headed by default. Set `$env:E2E_AUTH_HEADLESS = 'true'` only for an environment
 where captcha is disabled or where a pre-solved test token is available.
@@ -951,8 +982,9 @@ not reused; the saved session cookies and local storage are what the E2E tests r
 Chrome instances supplied through `E2E_AUTH_CDP_URL` remain open because the script does not own
 their lifecycle.
 
-Authenticated tests use a saved browser session stored in `playwright/.auth/user.json`.
-This file is generated once by logging in through the UI and persisted on disk.
+Authenticated tests use the numbered saved browser sessions under
+`playwright/.auth/<environment>/`. These files are generated by logging in through the UI and
+persisted on disk.
 
 ### Generate / Refresh the auth session
 
@@ -971,7 +1003,7 @@ The session expires when:
 - The backend token TTL is reached (JWT / cookie expiry).
 - The dev server was restarted and the session was invalidated.
 - Credentials in `.env` changed.
-- The `user.json` file was deleted or corrupted.
+- The selected environment's numbered auth state was deleted or corrupted.
 
 ### Symptoms of an expired session
 
@@ -987,5 +1019,5 @@ session is stale. Running `npm run test:auth:setup` regenerates it.
 `scripts/create-auth-state.mjs` opens a real browser, navigates to `BASE_URL/login`,
 fills in `TEST_USERNAME` / `TEST_PASSWORD`, waits for the post-login redirect, and
 saves the full browser storage state (cookies + localStorage) to
-`playwright/.auth/user.json`. Subsequent tests load that state via `storageState` in
-`playwright.config.ts` so they start already authenticated.
+`playwright/.auth/<environment>/user-<slot>.json`. Subsequent tests load only the
+selected environment's state via `storageState` in `playwright.config.ts`.

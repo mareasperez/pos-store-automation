@@ -5,14 +5,14 @@ import { expect } from '@fixtures';
 import type { Page } from '@playwright/test';
 import { config } from '@config';
 import { assertConfiguredTarget } from '../../support/flows/target.flow';
+import { getEnvironmentPaths } from '../../utils/environment-paths.mjs';
 import { hasDistinctActorIds, isConfiguredFrontendOrigin } from '../../utils/target-policy.mjs';
 
 const authDirectory = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   '..',
   '..',
-  'playwright',
-  '.auth'
+  getEnvironmentPaths(config.environment).authDir
 );
 
 export async function assertConfiguredSavedSession(

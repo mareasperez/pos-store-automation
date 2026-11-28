@@ -1,6 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
+import { getEnvironmentPaths } from './utils/environment-paths.mjs';
 
 const storageState = { cookies: [], origins: [] };
+const environmentPaths = getEnvironmentPaths(process.env.E2E_ENV || 'local');
 
 export default defineConfig({
   testDir: './tests',
@@ -10,7 +12,7 @@ export default defineConfig({
   fullyParallel: false,
   retries: 0,
   workers: 1,
-  outputDir: 'test-results/readiness-isolated',
+  outputDir: `${environmentPaths.outputDir}/readiness-isolated`,
   reporter: 'list',
   use: {
     baseURL: process.env.BASE_URL ?? 'https://ui.example.invalid',

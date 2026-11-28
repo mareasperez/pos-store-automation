@@ -9,16 +9,13 @@
  * the default suite and only run via `npm run test:serial:*` (--workers=1), never
  * concurrently with the parallel pool that also uses cashier 1 for worker 0.
  */
-import path from 'node:path';
-import { expect, serialDescribe, test } from '@fixtures';
+import { authStateFile, expect, serialDescribe, test } from '@fixtures';
 import { config } from '@config';
 import { requireCredentialsOrSkip } from '../../support/flows/auth.flow';
 import { buildApiHeaders } from '../../support/flows/sales.flow';
-import { dirnameFromUrl } from '../../utils/esm';
 import { fillTestShiftCounts } from '../../utils/shift';
 
-const dirname = dirnameFromUrl(import.meta.url);
-test.use({ storageState: path.join(dirname, '../../playwright/.auth/user-0.json') });
+test.use({ storageState: authStateFile(0) });
 test.setTimeout(120_000);
 
 serialDescribe('@real @manual @shifts @shift-serial', () => {

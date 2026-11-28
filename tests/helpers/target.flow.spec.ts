@@ -8,6 +8,35 @@ const frontendOrigin = new URL(config.baseUrl).origin;
 const apiRoot = new URL(config.apiRoot);
 const apiPrefix = apiRoot.pathname.replace(/\/+$/, '') || '/';
 const staleRuntimeApiUrl = 'http://127.0.0.1:8081/api';
+const originalFetch = globalThis.fetch;
+
+test.beforeAll(() => {
+  globalThis.fetch = async (input, options) => {
+    expect(config.environment).toBe('local');
+    expect(String(input)).toBe(new URL('/__e2e/proxy-target', config.baseUrl).toString());
+    expect(options?.credentials).toBe('omit');
+    const targetPath = apiRoot.pathname.replace(/\/api\/?$/, '') || '/';
+    return new Response(
+      JSON.stringify({
+        proxyContext: '/api',
+        hasRewrite: false,
+        target: {
+          protocol: apiRoot.protocol,
+          hostname: apiRoot.hostname,
+          port: apiRoot.port,
+          pathname: targetPath,
+          hasCredentials: false,
+          hasQuery: false,
+          hasHash: false,
+        },
+      })
+    );
+  };
+});
+
+test.afterAll(() => {
+  globalThis.fetch = originalFetch;
+});
 
 test.use({
   storageState: {
@@ -107,7 +136,11 @@ async function installOfflineApp(
 
     const expectedPath =
       apiPrefix === '/' ? url.pathname.startsWith('/') : url.pathname.startsWith(`${apiPrefix}/`);
-    if (url.origin === apiRoot.origin && expectedPath) {
+    const localProxyRequest =
+      config.environment === 'local' &&
+      url.origin === frontendOrigin &&
+      (url.pathname === '/api' || url.pathname.startsWith('/api/'));
+    if ((url.origin === apiRoot.origin && expectedPath) || localProxyRequest) {
       effectiveApiRequests.push(`${url.origin}${url.pathname}`);
       await route.fulfill({
         status: request.method() === 'OPTIONS' ? 204 : 200,
@@ -124,6 +157,18 @@ async function installOfflineApp(
 
   return { genericConfigRequests, effectiveApiRequests };
 }
+
+test('preflight accepts a proved local same-origin API proxy', async ({ page }) => {
+  test.skip(config.environment !== 'local', 'The local proxy proof applies only to local mode');
+  const mock = await installOfflineApp(page, `${frontendOrigin}/api/shifts/active`);
+
+  const assertRequests = await assertConfiguredTarget(page);
+
+  assertRequests();
+  await expect
+    .poll(() => mock.effectiveApiRequests)
+    .toContain(`${frontendOrigin}/api/shifts/active`);
+});
 
 test('preflight validates the effective API traffic without trusting stale generic config JSON', async ({
   page,

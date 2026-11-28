@@ -6,6 +6,8 @@ import { fileURLToPath } from 'node:url';
 import { chromium } from '@playwright/test';
 import { closeOwnedAuthBrowser, submitLoginWhenReady } from './auth-login.mjs';
 import { resolveE2EConfig, resolveEnvironment } from '../utils/environment.mjs';
+import { clearEnvironmentAuthState, getEnvironmentPaths } from '../utils/environment-paths.mjs';
+import { assertLocalProxyTarget } from '../utils/proxy-target.mjs';
 import { assertProductionTenant } from './production-policy.mjs';
 import { parseRunnerArgs } from './runner-args.mjs';
 
@@ -18,15 +20,14 @@ const environment = resolveEnvironment(selectedEnvironment);
 
 const currentFilePath = fileURLToPath(import.meta.url);
 const e2eRoot = path.resolve(path.dirname(currentFilePath), '..');
-const repoRoot = path.resolve(e2eRoot, '..');
-const authDir = path.join(e2eRoot, 'playwright', '.auth');
-/** Legacy alias kept so specs that hardcode `user.json` keep resolving to the first cashier. */
-const legacyAuthStateFile = path.join(authDir, 'user.json');
-const postmanCookieFile = path.join(repoRoot, 'postman', '.auth-cookies.json');
-
-const authStateFileForIndex = (index) => path.join(authDir, `user-${index}.json`);
+const environmentPaths = getEnvironmentPaths(environment);
+const authDir = path.resolve(e2eRoot, environmentPaths.authDir);
+const postmanCookieFile = path.resolve(e2eRoot, environmentPaths.postmanCookieFile);
+const authStateFileForIndex = (index) =>
+  path.resolve(e2eRoot, environmentPaths.authStateFile(index));
 
 const target = resolveE2EConfig(environment);
+await assertLocalProxyTarget(target);
 const resolvedEnvironment = target.env;
 
 function envValue(name) {
@@ -138,11 +139,7 @@ if (!testUsers.length) {
 }
 
 fs.mkdirSync(authDir, { recursive: true });
-for (const file of fs.readdirSync(authDir)) {
-  if (/^user(?:-\d+)?\.json$/.test(file)) {
-    fs.rmSync(path.join(authDir, file), { force: true });
-  }
-}
+clearEnvironmentAuthState(environment, e2eRoot);
 
 let browser;
 let context;
@@ -244,16 +241,12 @@ try {
     await captureSession(user, index);
   }
 
-  fs.copyFileSync(authStateFileForIndex(0), legacyAuthStateFile);
-  console.log(
-    `[auth-setup] Mirrored slot 0 to ${legacyAuthStateFile} for backwards compatibility.`
-  );
-
   // Postman reuses the first cashier's cookies; the browser currently holds the last user's session.
   const firstState = JSON.parse(fs.readFileSync(authStateFileForIndex(0), 'utf8'));
   const authCookies = (firstState.cookies ?? []).filter((cookie) =>
     ['access_token', 'refresh_token'].includes(cookie.name)
   );
+  fs.mkdirSync(path.dirname(postmanCookieFile), { recursive: true });
   fs.writeFileSync(
     postmanCookieFile,
     `${JSON.stringify({ generatedAt: new Date().toISOString(), baseUrl, cookies: authCookies }, null, 2)}\n`,

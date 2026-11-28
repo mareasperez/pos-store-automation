@@ -12,8 +12,8 @@
     "test:auth:setup": "node ./scripts/create-auth-state.mjs",
     "test:save-state": "node ./scripts/save-playwright-state.mjs",
     "test:scripts": "node --test scripts/*.test.mjs",
-    "report": "playwright show-report",
-    "report:last": "playwright show-report playwright-report-backup-lastrun",
+    "report": "node ./scripts/show-playwright-report.mjs",
+    "report:last": "node ./scripts/show-playwright-report.mjs --last",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "format": "prettier --write ."

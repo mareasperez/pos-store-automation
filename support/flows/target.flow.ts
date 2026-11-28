@@ -1,6 +1,7 @@
 import type { Page, Request } from '@playwright/test';
 import { expect } from '@fixtures';
 import { config } from '@config';
+import { assertLocalProxyTarget } from '../../utils/proxy-target.mjs';
 import {
   isAllowedTargetRequest,
   isAuthenticationMutation,
@@ -61,14 +62,17 @@ function hasApplicationApiIdentity(request: Request): boolean {
   );
 }
 
-function isBrowserApiRequest(request: Request): boolean {
+function isBrowserApiRequest(
+  request: Request,
+  isAllowedApiRequest: (url: string) => boolean
+): boolean {
   if (!['fetch', 'xhr'].includes(request.resourceType()) || isReadOnlyFrontendFetch(request)) {
     return false;
   }
   const url = new URL(request.url());
   return (
     hasApplicationApiIdentity(request) ||
-    isConfiguredApiRequest(request.url(), config) ||
+    isAllowedApiRequest(request.url()) ||
     (url.origin === new URL(config.apiRoot).origin &&
       !isConfiguredFrontendOrigin(url.origin, config.baseUrl))
   );
@@ -129,6 +133,21 @@ export async function assertConfiguredTarget(
   const blockedProbeWrites = new Set<string>();
 
   if (verifyBrowserTarget) {
+    let isAllowedApiRequest = (url: string) => isConfiguredApiRequest(url, config);
+    if (config.environment === 'local') {
+      await assertLocalProxyTarget(config);
+      const frontendOrigin = new URL(config.baseUrl).origin;
+      const isDirectApiRequest = isAllowedApiRequest;
+      isAllowedApiRequest = (url: string) => {
+        const request = new URL(url);
+        return (
+          isDirectApiRequest(url) ||
+          (request.origin === frontendOrigin &&
+            (request.pathname === '/api' || request.pathname.startsWith('/api/')))
+        );
+      };
+    }
+
     let probeActive = true;
     let signalProbeEvent!: () => void;
     let signalObservedApi!: () => void;
@@ -143,7 +162,7 @@ export async function assertConfiguredTarget(
       const request = route.request();
       const destination = formatDestination(request.url());
       const method = request.method();
-      const apiRequest = isBrowserApiRequest(request);
+      const apiRequest = isBrowserApiRequest(request, isAllowedApiRequest);
 
       if (isAuthenticationMutation(request.url(), method)) {
         blockedAuthenticationRequests += 1;
@@ -152,7 +171,7 @@ export async function assertConfiguredTarget(
         return;
       }
 
-      if (apiRequest && !isConfiguredApiRequest(request.url(), config)) {
+      if (apiRequest && !isAllowedApiRequest(request.url())) {
         if (unexpectedApiDestinations.size < 3) {
           unexpectedApiDestinations.add(destination);
         }
@@ -171,7 +190,7 @@ export async function assertConfiguredTarget(
       }
 
       if (
-        !isConfiguredApiRequest(request.url(), config) &&
+        !isAllowedApiRequest(request.url()) &&
         !isAllowedTargetRequest(request.url(), method, config, config.apiRoot)
       ) {
         await route.abort('blockedbyclient');

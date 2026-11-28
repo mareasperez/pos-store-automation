@@ -18,18 +18,15 @@
  * movements), so it needs the same single-worker isolation as shift-reconciliation.real.spec.ts.
  * Run via `npm run test:serial:local` (or `test:serial:dev`).
  */
-import path from 'node:path';
 import { type Page } from '@playwright/test';
-import { expect, serialDescribe, test } from '@fixtures';
+import { authStateFile, expect, serialDescribe, test } from '@fixtures';
 import { config } from '@config';
-import { dirnameFromUrl } from '../../utils/esm';
 import { requireCredentialsOrSkip } from '../../support/flows/auth.flow';
 import { addProductToCart } from '../../support/flows/sales.flow';
 import { buildApiHeaders } from '../../utils/apiHeaders';
 import { posShiftActions } from '../../utils/shift';
 
-const dirname = dirnameFromUrl(import.meta.url);
-test.use({ storageState: path.join(dirname, '../../playwright/.auth/user-0.json') });
+test.use({ storageState: authStateFile(0) });
 test.setTimeout(120_000);
 
 const INITIAL_CASH = 100;
